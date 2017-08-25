@@ -1,5 +1,54 @@
-{{!-- The following component displays Ember's default welcome message. --}}
-{{welcome-page}}
-{{!-- Feel free to remove this! --}}
+<div id="page" class="content-area mxw-600">
 
+  <header role="banner">
+    <h1>ember-aria-switch</h1>
+    <h2>
+      <abbr title="Accessible Rich Internet Applications">ARIA</abbr> Switch Demo
+    </h2>
+    <p>
+      Examples of an ARIA Switch button through an Ember addon.  For more information about this component, please read <a href="https://www.w3.org/TR/wai-aria-1.1/#switch">The ARIA 1.1 switch role specification</a>,
+      <a href="http://inclusive-components.club/toggle-button/">Inclusive Components Toggle Buttons</a>, <a href="https://github.com/rajasegar/ember-aria-switch">the GitHub repo for this code</a> and the <a href="https://github.com/scottaohara/aria-switch-button">original</a> ARIA Switch button.
+    </p>
+  </header>
+
+  <main aria-label="Demo Content">
+
+    {{aria-switch label="My Label" checked=true}}
+
+    <hr>
+
+    <p id="ex_label">
+      Item 2
+    </p>
+    {{aria-switch ariaLabelledBy="ex_label" disabled=true}}
+    <button type="button"
+            data-action="aria-switch"
+            aria-labelledby="ex_label"
+            aria-checked="false"
+            disabled>
+      <span>
+        On
+      </span>
+      <span>
+        Off
+      </span>
+    </button>
+
+    <hr>
+
+    <p id="ex_label2">
+      Item 3 (purposefully disabled)
+    </p>
+    {{aria-switch label="My Label" disabled=true}}
+
+    <hr>
+
+    <p id="ex_label3">
+      Item 4 (purposefully missing aria-label)
+    </p>
+    {{aria-switch}}
+
+   </main>
+
+</div>
 {{outlet}}

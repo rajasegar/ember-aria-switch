@@ -1,0 +1,1 @@
+export { default } from 'ember-aria-switch/components/aria-switch';
