@@ -68,3 +68,19 @@ test('it should have an OFF label as given ', function(assert) {
   this.render(hbs`{{aria-switch offLabel="No"}}`);
   assert.equal(this.$('span')['1'].textContent.trim(), "No");
 });
+
+test('it should invoke the onToggle callback once clicked', function(assert) {
+  this.set('result', '');
+  this.set('toggleCallback', function(toggleValue) {
+    let value = toggleValue ? "ON" : "OFF";
+    this.set('result', value);
+  });
+
+  this.render(hbs`{{aria-switch onToggle=(action toggleCallback)}}
+                  <div id="result">{{result}}</div>`);
+
+  this.$('button').click();
+  assert.equal(this.$('#result').text().trim(), "ON");
+  this.$('button').click();
+  assert.equal(this.$('#result').text().trim(), "OFF");
+});

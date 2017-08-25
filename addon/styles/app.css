@@ -7,9 +7,18 @@
   attribute so styles may be used even when no JavaScript is available.
 
 --------------------------------------------------------------------- */
+:root {
+    --bg-color: #eee;
+    --bg-hover: #fff;
+    --label-on-bg: #333;
+    --label-on-fg: #fff;
+    --label-off-bg: #333;
+    --label-off-fg: #fff;
+    --border-color: rgba(0,0,0,0);
+}
 
 [data-action="aria-switch"] {
-  background: #eee;
+  background: var(--bg-color);
   border: 1px solid;
   border-radius: 2px;
   display: inline-block;
@@ -20,7 +29,7 @@
 
 [data-action="aria-switch"]:after {
   border-radius: 2px;
-  border: 1px solid rgba(0,0,0,0);
+  border: 1px solid var(--border-color);
   bottom: -0px;
   content: "";
   left: -0px;
@@ -33,7 +42,7 @@
 
 [data-action="aria-switch"]:not([disabled]):hover,
 [data-action="aria-switch"]:not([disabled]):focus {
-  background: #fff;
+  background: var(--bg-hover);
 }
 
 [data-action="aria-switch"]:not([disabled]):active {
@@ -60,12 +69,12 @@
 }
 
 [data-action="aria-switch"][aria-checked="true"] span:first-child {
-  background: #333;
-  color: #fff;
+  background: var(--label-on-bg);
+  color: var(--label-on-fg);
 }
 
 .no-js [data-action="aria-switch"]:not([aria-checked]) span:last-child,
 [data-action="aria-switch"][aria-checked="false"] span:last-child {
-  background: #333;
-  color: #fff;
+  background: var(--label-off-bg);
+  color: var(--label-off-fg);
 }
