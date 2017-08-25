@@ -1,9 +1,13 @@
 {
   "name": "ember-aria-switch",
   "version": "0.1.1",
-  "description": "The default blueprint for ember-cli addons.",
+  "description": "ARIA Switch button in an Ember addon.",
   "keywords": [
-    "ember-addon"
+    "ember-addon",
+    "aria-switch",
+    "toggle",
+    "toggle-switch",
+    "toggle-button"
   ],
   "license": "MIT",
   "author": "Rajasegar Chandran",
@@ -50,6 +54,7 @@
     "node": ">= 4"
   },
   "ember-addon": {
-    "configPath": "tests/dummy/config"
+    "configPath": "tests/dummy/config",
+    "demoURL": "https://rajasegar.github.io/ember-aria-switch"
   }
 }

@@ -8,27 +8,32 @@ const {
 
 export default Component.extend({
   layout,
+  checked: false,
+  dataAction: 'aria-switch',
+  offLabel: 'Off',
+  onLabel: 'On',
+  role: 'switch',
+  type: 'button',
   tagName: 'button',
   attributeBindings: [
     'ariaChecked:aria-checked',
-    'role',
-    'dataAction:data-action',
-    'type',
     'ariaLabel:aria-label',
-    'disabled',
+    'ariaLabelledBy:aria-labelledby',
+    'dataAction:data-action',
     'dataKeepDisabled:data-keep-disabled',
-    'ariaLabelledBy:aria-labelledby'
+    'disabled',
+    'role',
+    'type',
   ],
-  type: 'button',
   ariaLabel: computed.reads('label'),
+  dataKeepDisabled: computed.reads('disabled'),
   ariaChecked: computed('checked', function() {
     return this.get('checked') ? "true" : "false";
   }),
-  checked: false,
-  dataKeepDisabled: computed.reads('disabled'),
-  role: 'switch',
-  dataAction: 'aria-switch',
   click() {
     this.toggleProperty('checked');
+    if(this.get('onToggle')) {
+      this.get('onToggle')(this.get('checked'));
+    }
   }
 });
