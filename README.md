@@ -1,5 +1,6 @@
 # ember-aria-switch
 [![Build Status](https://travis-ci.org/rajasegar/ember-aria-switch.svg?branch=master)](https://travis-ci.org/rajasegar/ember-aria-switch) 
+[![Coverage Status](https://coveralls.io/repos/github/rajasegar/ember-aria-switch/badge.svg?branch=master)](https://coveralls.io/github/rajasegar/ember-aria-switch?branch=master)
 [![npm](https://img.shields.io/npm/dm/ember-aria-switch.svg)](https://www.npmjs.com/package/ember-aria-switch)
 [![npm version](http://img.shields.io/npm/v/ember-aria-switch.svg?style=flat)](https://npmjs.org/package/ember-aria-switch "View this project on npm")
 [![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](http://opensource.org/licenses/MIT)
