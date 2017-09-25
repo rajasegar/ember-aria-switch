@@ -3,7 +3,8 @@
 [![Coverage Status](https://coveralls.io/repos/github/rajasegar/ember-aria-switch/badge.svg?branch=master)](https://coveralls.io/github/rajasegar/ember-aria-switch?branch=master)
 [![npm](https://img.shields.io/npm/dm/ember-aria-switch.svg)](https://www.npmjs.com/package/ember-aria-switch)
 [![npm version](http://img.shields.io/npm/v/ember-aria-switch.svg?style=flat)](https://npmjs.org/package/ember-aria-switch "View this project on npm")
-[![MIT license](http://img.shields.io/badge/license-MIT-brightgreen.svg)](http://opensource.org/licenses/MIT)
+[![dependencies Status](https://david-dm.org/rajasegar/ember-aria-switch/status.svg)](https://david-dm.org/rajasegar/ember-aria-switch)
+[![devDependencies Status](https://david-dm.org/rajasegar/ember-aria-switch/dev-status.svg)](https://david-dm.org/rajasegar/ember-aria-switch?type=dev)
 [![EmberObserver](http://emberobserver.com/badges/ember-aria-switch.svg?branch=master)](http://emberobserver.com/addons/ember-aria-switch)
 
 
