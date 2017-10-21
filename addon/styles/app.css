@@ -8,17 +8,20 @@
 
 --------------------------------------------------------------------- */
 :root {
-    --bg-color: #eee;
-    --bg-hover: #fff;
-    --label-on-bg: #333;
-    --label-on-fg: #fff;
-    --label-off-bg: #333;
-    --label-off-fg: #fff;
-    --border-color: rgba(0,0,0,0);
+    /* asb = aria switch button */
+    /* bg = background */
+    /* fg = foreground */
+    --asb-bg-color: #eee;
+    --asb-bg-hover: #fff;
+    --asb-label-on-bg: #333;
+    --asb-label-on-fg: #fff;
+    --asb-label-off-bg: #333;
+    --asb-label-off-fg: #fff;
+    --asb-border-color: #000;
 }
 
 [data-action="aria-switch"] {
-  background: var(--bg-color);
+  background: var(--asb-bg-color);
   border: 1px solid;
   border-radius: 2px;
   display: inline-block;
@@ -29,20 +32,20 @@
 
 [data-action="aria-switch"]:after {
   border-radius: 2px;
-  border: 1px solid var(--border-color);
-  bottom: -0px;
+  border: 1px solid var(--asb-border-color);
+  bottom: 0;
   content: "";
-  left: -0px;
+  left: 0;
   pointer-events: none;
   position: absolute;
-  right: -0px;
-  top: -0px;
+  right: 0;
+  top: 0;
   transition: all .2s ease-in-out;
 }
 
 [data-action="aria-switch"]:not([disabled]):hover,
 [data-action="aria-switch"]:not([disabled]):focus {
-  background: var(--bg-hover);
+  background: var(--asb-bg-hover);
 }
 
 [data-action="aria-switch"]:not([disabled]):active {
@@ -69,12 +72,12 @@
 }
 
 [data-action="aria-switch"][aria-checked="true"] span:first-child {
-  background: var(--label-on-bg);
-  color: var(--label-on-fg);
+  background: var(--asb-label-on-bg);
+  color: var(--asb-label-on-fg);
 }
 
 .no-js [data-action="aria-switch"]:not([aria-checked]) span:last-child,
 [data-action="aria-switch"][aria-checked="false"] span:last-child {
-  background: var(--label-off-bg);
-  color: var(--label-off-fg);
+  background: var(--asb-label-off-bg);
+  color: var(--asb-label-off-fg);
 }

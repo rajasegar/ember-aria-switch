@@ -7,7 +7,9 @@
     "aria-switch",
     "toggle",
     "toggle-switch",
-    "toggle-button"
+    "toggle-button",
+    "accessibility",
+    "a11y"
   ],
   "license": "MIT",
   "author": "Rajasegar Chandran",
