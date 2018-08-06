@@ -1,10 +1,7 @@
-import Ember from 'ember';
+import { reads } from '@ember/object/computed';
+import { computed } from '@ember/object';
+import Component from '@ember/component';
 import layout from '../templates/components/aria-switch';
-
-const {
-  computed,
-  Component
-} = Ember;
 
 export default Component.extend({
   layout,
@@ -25,8 +22,8 @@ export default Component.extend({
     'role',
     'type',
   ],
-  ariaLabel: computed.reads('label'),
-  dataKeepDisabled: computed.reads('disabled'),
+  ariaLabel: reads('label'),
+  dataKeepDisabled: reads('disabled'),
   ariaChecked: computed('checked', function() {
     return this.get('checked') ? "true" : "false";
   }),
