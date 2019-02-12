@@ -1,0 +1,31 @@
+"use strict"
+define("dummy/app",["exports","dummy/resolver","ember-load-initializers","dummy/config/environment"],function(e,t,a,n){var i
+Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0,i=Ember.Application.extend({modulePrefix:n.default.modulePrefix,podModulePrefix:n.default.podModulePrefix,Resolver:t.default}),(0,a.default)(i,n.default.modulePrefix)
+var l=i
+e.default=l}),define("dummy/components/aria-switch",["exports","ember-aria-switch/components/aria-switch"],function(e,t){Object.defineProperty(e,"__esModule",{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return t.default}})}),define("dummy/controllers/index",["exports"],function(e){Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+var t=Ember.Controller.extend({actions:{toggleCallback:function(e){alert("ARIA Switch: You turned me ".concat(e?"ON":"OFF","!"))}}})
+e.default=t}),define("dummy/initializers/container-debug-adapter",["exports","ember-resolver/resolvers/classic/container-debug-adapter"],function(e,t){Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+var a={name:"container-debug-adapter",initialize:function(){var e=arguments[1]||arguments[0]
+e.register("container-debug-adapter:main",t.default),e.inject("container-debug-adapter:main","namespace","application:main")}}
+e.default=a}),define("dummy/initializers/export-application-global",["exports","dummy/config/environment"],function(e,t){function a(){var e=arguments[1]||arguments[0]
+if(!1!==t.default.exportApplicationGlobal){var a
+if("undefined"!=typeof window)a=window
+else if("undefined"!=typeof global)a=global
+else{if("undefined"==typeof self)return
+a=self}var n,i=t.default.exportApplicationGlobal
+n="string"==typeof i?i:Ember.String.classify(t.default.modulePrefix),a[n]||(a[n]=e,e.reopen({willDestroy:function(){this._super.apply(this,arguments),delete a[n]}}))}}Object.defineProperty(e,"__esModule",{value:!0}),e.initialize=a,e.default=void 0
+var n={name:"export-application-global",initialize:a}
+e.default=n}),define("dummy/resolver",["exports","ember-resolver"],function(e,t){Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+var a=t.default
+e.default=a}),define("dummy/router",["exports","dummy/config/environment"],function(e,t){Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+var a=Ember.Router.extend({location:t.default.locationType,rootURL:t.default.rootURL})
+a.map(function(){})
+var n=a
+e.default=n}),define("dummy/routes/index",["exports"],function(e){Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+var t=Ember.Route.extend({})
+e.default=t}),define("dummy/services/ajax",["exports","ember-ajax/services/ajax"],function(e,t){Object.defineProperty(e,"__esModule",{value:!0}),Object.defineProperty(e,"default",{enumerable:!0,get:function(){return t.default}})}),define("dummy/templates/application",["exports"],function(e){Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+var t=Ember.HTMLBars.template({id:"Gs3b2omE",block:'{"symbols":[],"statements":[[7,"div"],[11,"id","page"],[11,"class","content-area mxw-600"],[9],[0,"\\n\\n  "],[7,"header"],[11,"role","banner"],[9],[0,"\\n    "],[7,"h1"],[9],[0,"ember-aria-switch"],[10],[0,"\\n    "],[7,"h2"],[9],[0,"\\n      "],[7,"abbr"],[11,"title","Accessible Rich Internet Applications"],[9],[0,"ARIA"],[10],[0," Switch Demo\\n    "],[10],[0,"\\n    "],[7,"p"],[9],[0,"\\n      Examples of an ARIA Switch button through an Ember addon.  For more information about this component, please read "],[7,"a"],[11,"href","https://www.w3.org/TR/wai-aria-1.1/#switch"],[9],[0,"The ARIA 1.1 switch role specification"],[10],[0,",\\n      "],[7,"a"],[11,"href","http://inclusive-components.club/toggle-button/"],[9],[0,"Inclusive Components Toggle Buttons"],[10],[0,", "],[7,"a"],[11,"href","https://github.com/rajasegar/ember-aria-switch"],[9],[0,"the GitHub repo for this code"],[10],[0," and the "],[7,"a"],[11,"href","https://github.com/scottaohara/aria-switch-button"],[9],[0,"original"],[10],[0," ARIA Switch button.\\n    "],[10],[0,"\\n  "],[10],[0,"\\n\\n  "],[7,"main"],[11,"aria-label","Demo Content"],[9],[0,"\\n    "],[1,[21,"outlet"],false],[0,"\\n   "],[10],[0,"\\n\\n"],[10],[0,"\\n"]],"hasEval":false}',meta:{moduleName:"dummy/templates/application.hbs"}})
+e.default=t}),define("dummy/templates/index",["exports"],function(e){Object.defineProperty(e,"__esModule",{value:!0}),e.default=void 0
+var t=Ember.HTMLBars.template({id:"JXd/5d1e",block:'{"symbols":[],"statements":[[1,[27,"aria-switch",null,[["label","checked"],["My Label",true]]],false],[0,"\\n\\n"],[7,"hr"],[9],[10],[0,"\\n\\n"],[7,"p"],[11,"id","ex_label"],[9],[0,"\\n  Item 2\\n"],[10],[0,"\\n"],[1,[27,"aria-switch",null,[["ariaLabelledBy","disabled"],["ex_label",true]]],false],[0,"\\n\\n"],[7,"hr"],[9],[10],[0,"\\n\\n"],[7,"p"],[11,"id","ex_label2"],[9],[0,"\\n  Item 3 (purposefully disabled)\\n"],[10],[0,"\\n"],[1,[27,"aria-switch",null,[["label","disabled"],["My Label",true]]],false],[0,"\\n\\n"],[7,"hr"],[9],[10],[0,"\\n\\n"],[7,"p"],[11,"id","ex_label3"],[9],[0,"\\n  Item 4 (purposefully missing aria-label)\\n"],[10],[0,"\\n"],[1,[21,"aria-switch"],false],[0,"\\n\\n"],[7,"hr"],[9],[10],[0,"\\n"],[7,"p"],[9],[0,"With custom on/off labels"],[10],[0,"\\n"],[1,[27,"aria-switch",null,[["onLabel","offLabel","class"],["Yes","No","toggle toggle-primary"]]],false],[0,"\\n"],[7,"hr"],[9],[10],[0,"\\n"],[7,"p"],[9],[0,"With toggle callback"],[10],[0,"\\n"],[1,[27,"aria-switch",null,[["onToggle"],[[27,"action",[[22,0,[]],"toggleCallback"],null]]]],false],[0,"\\n\\n"],[7,"hr"],[9],[10],[0,"\\n"],[7,"p"],[9],[0,"With color customization using CSS variables"],[10],[0,"\\n"],[1,[27,"aria-switch",null,[["onToggle"],[[27,"action",[[22,0,[]],"toggleCallback"],null]]]],false],[0,"\\n"]],"hasEval":false}',meta:{moduleName:"dummy/templates/index.hbs"}})
+e.default=t}),define("dummy/config/environment",[],function(){try{var e="dummy/config/environment",t=document.querySelector('meta[name="'+e+'"]').getAttribute("content"),a={default:JSON.parse(unescape(t))}
+return Object.defineProperty(a,"__esModule",{value:!0}),a}catch(t){throw new Error('Could not read config from meta tag with name "'+e+'".')}}),runningTests||require("dummy/app").default.create({})
