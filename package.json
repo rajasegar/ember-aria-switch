@@ -1,6 +1,6 @@
 {
   "name": "ember-aria-switch",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "ARIA Switch button in an Ember addon.",
   "keywords": [
     "ember-addon",
