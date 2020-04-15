@@ -8,7 +8,7 @@
 [![EmberObserver](http://emberobserver.com/badges/ember-aria-switch.svg?branch=master)](http://emberobserver.com/addons/ember-aria-switch)
 
 
-ARIA Switch button in an Ember addon
+ARIA Switch button in an Ember addon based on the WAI-ARIA specifications.
 
 ## Demo
 
