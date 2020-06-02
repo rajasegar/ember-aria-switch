@@ -4,7 +4,7 @@ on:
 jobs:
   lint_and_test:
     name: Lint_and_Test
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -14,7 +14,7 @@ jobs:
           node-version: 12
 
       - name: Cache (PNPM)
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         with:
           path: ~/.pnpm-store 
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -28,7 +28,7 @@ jobs:
           version: 4.14.2
 
       - name: Cache (build)
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         with:
           path: .next/cache
           key: ${{ runner.os }}-next-${{ hashFiles('**/pnpm-lock.yaml') }}
