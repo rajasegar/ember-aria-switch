@@ -1,0 +1,40 @@
+name: Build
+on:
+  pull_request:
+jobs:
+  lint_and_test:
+    name: Lint_and_Test
+    runs-on: ubuntu-18.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Setup Node.js
+        uses: actions/setup-node@v1
+        with:
+          node-version: 12
+
+      - name: Cache (PNPM)
+        uses: actions/cache@v1
+        with:
+          path: ~/.pnpm-store 
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+      - name: PNPM
+        uses: pnpm/action-setup@v1.2.0
+        with:
+          run_install: true
+          version: 4.14.2
+
+      - name: Cache (build)
+        uses: actions/cache@v1
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-next-
+
+      - name: Lint
+        run: pnpm run lint
+      - name: Test
+        run: pnpm test
