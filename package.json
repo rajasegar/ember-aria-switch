@@ -1,6 +1,6 @@
 {
   "name": "ember-aria-switch",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "ARIA Switch button in an Ember addon.",
   "keywords": [
     "ember-addon",
@@ -25,7 +25,6 @@
     "lint:js": "eslint .",
     "start": "ember server",
     "test": "ember test",
-    "deploy": "npm version patch && git push && git push --tags && npm publish",
     "semantic-release": "semantic-release"
   },
   "dependencies": {
@@ -69,7 +68,7 @@
     "yuidoc-ember-theme": "^2.0.1"
   },
   "engines": {
-    "node": ">= 4"
+    "node": "10.* || >= 12"
   },
   "ember-addon": {
     "configPath": "tests/dummy/config",
