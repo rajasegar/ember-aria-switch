@@ -6,10 +6,10 @@ on:
 jobs:
   release:
     name: Release
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v2
       - name: Setup Node.js
         uses: actions/setup-node@v1
         with:
@@ -17,12 +17,13 @@ jobs:
 
 
       - name: Cache (PNPM)
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         with:
-          path: ~/work/.pnpm-store 
+          path: ~/.pnpm-store 
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-
+
       - name: PNPM
         uses: pnpm/action-setup@v1.2.0
         with:
@@ -30,7 +31,7 @@ jobs:
           version: 4.14.2
 
       - name: Cache (build)
-        uses: actions/cache@v1
+        uses: actions/cache@v2
         with:
           path: .next/cache
           key: ${{ runner.os }}-next-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -41,4 +42,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npx semantic-release
+        run: pnpm run semantic-release
