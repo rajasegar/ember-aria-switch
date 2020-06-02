@@ -1,33 +1,33 @@
-{{aria-switch label="My Label" checked=true}}
+<AriaSwitch label="My Label" @checked={{true}} />
 
 <hr>
 
 <p id="ex_label">
   Item 2
 </p>
-{{aria-switch ariaLabelledBy="ex_label" disabled=true}}
+<AriaSwitch ariaLabelledBy="ex_label" @disabled={{true}} />
 
 <hr>
 
 <p id="ex_label2">
   Item 3 (purposefully disabled)
 </p>
-{{aria-switch label="My Label" disabled=true}}
+<AriaSwitch label="My Label" @disabled={{true}} />
 
 <hr>
 
 <p id="ex_label3">
   Item 4 (purposefully missing aria-label)
 </p>
-{{aria-switch}}
+<AriaSwitch />
 
 <hr>
 <p>With custom on/off labels</p>
-{{aria-switch onLabel="Yes" offLabel="No" class="toggle toggle-primary"}}
+<AriaSwitch onLabel="Yes" offLabel="No" class="toggle toggle-primary" />
 <hr>
 <p>With toggle callback</p>
-{{aria-switch onToggle=(action 'toggleCallback')}}
+<AriaSwitch @onToggle={{this.toggleCallback}} />
 
 <hr>
 <p>With color customization using CSS variables</p>
-{{aria-switch onToggle=(action 'toggleCallback')}}
+<AriaSwitch @onToggle={{this.toggleCallback}} />
