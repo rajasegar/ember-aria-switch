@@ -14,8 +14,29 @@ jobs:
         uses: actions/setup-node@v1
         with:
           node-version: 12
-      - name: Install dependencies
-        run: npm ci
+
+
+      - name: Cache (PNPM)
+        uses: actions/cache@v1
+        with:
+          path: ~/work/.pnpm-store 
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+      - name: PNPM
+        uses: pnpm/action-setup@v1.2.0
+        with:
+          run_install: true
+          version: 4.14.2
+
+      - name: Cache (build)
+        uses: actions/cache@v1
+        with:
+          path: .next/cache
+          key: ${{ runner.os }}-next-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-next-
+
       - name: Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
