@@ -26,6 +26,7 @@ devDependencies:
   ember-maybe-import-regenerator-for-testing: 1.0.0
   ember-resolver: 8.0.0
   ember-source: 3.18.1
+  ember-source-channel-url: 2.0.1
   ember-template-lint: 2.8.0
   ember-try: 1.4.0
   ember-welcome-page: 4.0.0
@@ -5887,7 +5888,7 @@ packages:
       p-cancelable: 0.4.1
       p-timeout: 2.0.1
       pify: 3.0.0
-      safe-buffer: 5.2.0
+      safe-buffer: 5.2.1
       timed-out: 4.0.1
       url-parse-lax: 3.0.0
       url-to-options: 1.0.1
@@ -9183,7 +9184,7 @@ packages:
       integrity: sha512-hgoSGrc3pjzAPHNBg+KnFcK2HwlHTs/YrAGUr6qgTVUZmXv1UEXXl0bZNBKMA9fud6lRYFdPGz0xXxycPzmmiw==
   /responselike/1.0.2:
     dependencies:
-      lowercase-keys: 1.0.1
+      lowercase-keys: 1.0.0
     dev: true
     resolution:
       integrity: sha1-kYcg7ztjHFZCvgaPFa3lpG9Loec=
@@ -11022,6 +11023,7 @@ specifiers:
   ember-maybe-import-regenerator-for-testing: ^1.0.0
   ember-resolver: ^8.0.0
   ember-source: ~3.18.0
+  ember-source-channel-url: ^2.0.1
   ember-template-lint: ^2.8.0
   ember-try: ^1.4.0
   ember-welcome-page: ^4.0.0
