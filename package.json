@@ -59,7 +59,7 @@
     "yuidoc-ember-theme": "^2.0.1"
   },
   "engines": {
-    "node": ">= 4"
+    "node": ">= 10"
   },
   "ember-addon": {
     "configPath": "tests/dummy/config",
