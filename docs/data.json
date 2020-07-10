@@ -2,7 +2,7 @@
     "project": {
         "name": "ember-aria-switch",
         "description": "The default blueprint for ember-cli addons.",
-        "version": "1.0.11.2d2d8b99"
+        "version": "1.0.11.c3bcee6d"
     },
     "files": {},
     "modules": {},
