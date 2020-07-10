@@ -529,11 +529,11 @@ define("dummy/tests/lint/tests.lint-test", [], function () {
     assert.ok(true, 'test-helper.js should pass ESLint\n\n');
   });
 });
-define("dummy/tests/test-helper", ["dummy/tests/helpers/resolver", "@ember/test-helpers", "ember-cli-qunit"], function (_resolver, _testHelpers, _emberCliQunit) {
+define("dummy/tests/test-helper", ["dummy/app", "dummy/config/environment", "@ember/test-helpers", "ember-qunit"], function (_app, _environment, _testHelpers, _emberQunit) {
   "use strict";
 
-  (0, _testHelpers.setResolver)(_resolver.default);
-  (0, _emberCliQunit.start)();
+  (0, _testHelpers.setApplication)(_app.default.create(_environment.default.APP));
+  (0, _emberQunit.start)();
 });
 define('dummy/config/environment', [], function() {
   var prefix = 'dummy';
