@@ -6,7 +6,7 @@
 [![npm version](http://img.shields.io/npm/v/ember-aria-switch.svg?style=flat)](https://npmjs.org/package/ember-aria-switch "View this project on npm")
 [![EmberObserver](http://emberobserver.com/badges/ember-aria-switch.svg?branch=master)](http://emberobserver.com/addons/ember-aria-switch)
 
-ARIA Switch button in an Ember addon based on the WAI-ARIA specifications.
+[ARIA Switch button](https://scottaohara.github.io/aria-switch-control/) in an Ember addon based on the WAI-ARIA specifications.
 
 ## Demo
 
