@@ -1,3 +1,10 @@
+## [1.0.14](https://github.com/rajasegar/ember-aria-switch/compare/v1.0.13...v1.0.14) (2020-08-25)
+
+
+### Bug Fixes
+
+* builds in ci with new package version ([01ebb03](https://github.com/rajasegar/ember-aria-switch/commit/01ebb03a2b40bb20a33083e6da2d330475d0f3e1))
+
 ## [1.0.13](https://github.com/rajasegar/ember-aria-switch/compare/v1.0.12...v1.0.13) (2020-08-25)
 
 
