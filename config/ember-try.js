@@ -19,7 +19,8 @@ module.exports = async function() {
           devDependencies: {
             'ember-source': '~3.16.0'
           }
-        }
+        },
+        useYarn: true
       },
       {
         name: 'ember-release',
@@ -27,7 +28,8 @@ module.exports = async function() {
           devDependencies: {
             'ember-source': await getChannelURL('release')
           }
-        }
+        },
+        useYarn: true
       },
       {
         name: 'ember-beta',
@@ -35,7 +37,8 @@ module.exports = async function() {
           devDependencies: {
             'ember-source': await getChannelURL('beta')
           }
-        }
+        },
+        useYarn: true
       },
       {
         name: 'ember-canary',
