@@ -78445,6 +78445,563 @@ require('ember');
   generateModule('rsvp', { 'default': Ember.RSVP });
 })();
 
+;define("@glimmer/component/-private/base-component-manager", ["exports", "@glimmer/component/-private/component"], function (_exports, _component) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.default = BaseComponentManager;
+
+  function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+  function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+  function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
+
+  function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+  /**
+   * This factory function returns a component manager class with common behavior
+   * that can be extend to add Glimmer.js- or Ember.js-specific functionality. As
+   * these environments converge, the need for two component manager
+   * implementations (and thus this factory) should go away.
+   */
+  function BaseComponentManager(setOwner, getOwner, capabilities) {
+    var _temp;
+
+    return _temp = /*#__PURE__*/function () {
+      _createClass(_temp, null, [{
+        key: "create",
+        value: function create(attrs) {
+          var owner = getOwner(attrs);
+          return new this(owner);
+        }
+      }]);
+
+      function _temp(owner) {
+        _classCallCheck(this, _temp);
+
+        _defineProperty(this, "capabilities", capabilities);
+
+        setOwner(this, owner);
+      }
+
+      _createClass(_temp, [{
+        key: "createComponent",
+        value: function createComponent(ComponentClass, args) {
+          if (true
+          /* DEBUG */
+          ) {
+            _component.ARGS_SET.set(args.named, true);
+          }
+
+          return new ComponentClass(getOwner(this), args.named);
+        }
+      }, {
+        key: "getContext",
+        value: function getContext(component) {
+          return component;
+        }
+      }]);
+
+      return _temp;
+    }(), _temp;
+  }
+});
+;define("@glimmer/component/-private/component", ["exports", "@glimmer/component/-private/owner", "@glimmer/component/-private/destroyables"], function (_exports, _owner, _destroyables) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.default = _exports.ARGS_SET = void 0;
+
+  function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+  function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+  function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+  function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
+
+  function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+  var ARGS_SET;
+  _exports.ARGS_SET = ARGS_SET;
+
+  if (true
+  /* DEBUG */
+  ) {
+    _exports.ARGS_SET = ARGS_SET = new WeakMap();
+  }
+  /**
+   * The `Component` class defines an encapsulated UI element that is rendered to
+   * the DOM. A component is made up of a template and, optionally, this component
+   * object.
+   *
+   * ## Defining a Component
+   *
+   * To define a component, subclass `Component` and add your own properties,
+   * methods and lifecycle hooks:
+   *
+   * ```ts
+   * import Component from '@glimmer/component';
+   *
+   * export default class extends Component {
+   * }
+   * ```
+   *
+   * ## Lifecycle Hooks
+   *
+   * Lifecycle hooks allow you to respond to changes to a component, such as when
+   * it gets created, rendered, updated or destroyed. To add a lifecycle hook to a
+   * component, implement the hook as a method on your component subclass.
+   *
+   * For example, to be notified when Glimmer has rendered your component so you
+   * can attach a legacy jQuery plugin, implement the `didInsertElement()` method:
+   *
+   * ```ts
+   * import Component from '@glimmer/component';
+   *
+   * export default class extends Component {
+   *   didInsertElement() {
+   *     $(this.element).pickadate();
+   *   }
+   * }
+   * ```
+   *
+   * ## Data for Templates
+   *
+   * `Component`s have two different kinds of data, or state, that can be
+   * displayed in templates:
+   *
+   * 1. Arguments
+   * 2. Properties
+   *
+   * Arguments are data that is passed in to a component from its parent
+   * component. For example, if I have a `UserGreeting` component, I can pass it
+   * a name and greeting to use:
+   *
+   * ```hbs
+   * <UserGreeting @name="Ricardo" @greeting="Olá" />
+   * ```
+   *
+   * Inside my `UserGreeting` template, I can access the `@name` and `@greeting`
+   * arguments that I've been given:
+   *
+   * ```hbs
+   * {{@greeting}}, {{@name}}!
+   * ```
+   *
+   * Arguments are also available inside my component:
+   *
+   * ```ts
+   * console.log(this.args.greeting); // prints "Olá"
+   * ```
+   *
+   * Properties, on the other hand, are internal to the component and declared in
+   * the class. You can use properties to store data that you want to show in the
+   * template, or pass to another component as an argument.
+   *
+   * ```ts
+   * import Component from '@glimmer/component';
+   *
+   * export default class extends Component {
+   *   user = {
+   *     name: 'Robbie'
+   *   }
+   * }
+   * ```
+   *
+   * In the above example, we've defined a component with a `user` property that
+   * contains an object with its own `name` property.
+   *
+   * We can render that property in our template:
+   *
+   * ```hbs
+   * Hello, {{user.name}}!
+   * ```
+   *
+   * We can also take that property and pass it as an argument to the
+   * `UserGreeting` component we defined above:
+   *
+   * ```hbs
+   * <UserGreeting @greeting="Hello" @name={{user.name}} />
+   * ```
+   *
+   * ## Arguments vs. Properties
+   *
+   * Remember, arguments are data that was given to your component by its parent
+   * component, and properties are data your component has defined for itself.
+   *
+   * You can tell the difference between arguments and properties in templates
+   * because arguments always start with an `@` sign (think "A is for arguments"):
+   *
+   * ```hbs
+   * {{@firstName}}
+   * ```
+   *
+   * We know that `@firstName` came from the parent component, not the current
+   * component, because it starts with `@` and is therefore an argument.
+   *
+   * On the other hand, if we see:
+   *
+   * ```hbs
+   * {{name}}
+   * ```
+   *
+   * We know that `name` is a property on the component. If we want to know where
+   * the data is coming from, we can go look at our component class to find out.
+   *
+   * Inside the component itself, arguments always show up inside the component's
+   * `args` property. For example, if `{{@firstName}}` is `Tom` in the template,
+   * inside the component `this.args.firstName` would also be `Tom`.
+   */
+
+
+  var BaseComponent = /*#__PURE__*/function () {
+    /**
+     * Constructs a new component and assigns itself the passed properties. You
+     * should not construct new components yourself. Instead, Glimmer will
+     * instantiate new components automatically as it renders.
+     *
+     * @param owner
+     * @param args
+     */
+    function BaseComponent(owner, args) {
+      _classCallCheck(this, BaseComponent);
+
+      _defineProperty(this, "args", void 0);
+
+      if (true
+      /* DEBUG */
+      && !(owner !== null && _typeof(owner) === 'object' && ARGS_SET.has(args))) {
+        throw new Error("You must pass both the owner and args to super() in your component: ".concat(this.constructor.name, ". You can pass them directly, or use ...arguments to pass all arguments through."));
+      }
+
+      this.args = args;
+      (0, _owner.setOwner)(this, owner);
+    }
+    /**
+     * Named arguments passed to the component from its parent component.
+     * They can be accessed in JavaScript via `this.args.argumentName` and in the template via `@argumentName`.
+     *
+     * Say you have the following component, which will have two `args`, `firstName` and `lastName`:
+     *
+     * ```hbs
+     * <my-component @firstName="Arthur" @lastName="Dent" />
+     * ```
+     *
+     * If you needed to calculate `fullName` by combining both of them, you would do:
+     *
+     * ```ts
+     * didInsertElement() {
+     *   console.log(`Hi, my full name is ${this.args.firstName} ${this.args.lastName}`);
+     * }
+     * ```
+     *
+     * While in the template you could do:
+     *
+     * ```hbs
+     * <p>Welcome, {{@firstName}} {{@lastName}}!</p>
+     * ```
+     */
+
+
+    _createClass(BaseComponent, [{
+      key: "willDestroy",
+
+      /**
+       * Called before the component has been removed from the DOM.
+       */
+      value: function willDestroy() {}
+    }, {
+      key: "isDestroying",
+      get: function get() {
+        return (0, _destroyables.isDestroying)(this);
+      }
+    }, {
+      key: "isDestroyed",
+      get: function get() {
+        return (0, _destroyables.isDestroyed)(this);
+      }
+    }]);
+
+    return BaseComponent;
+  }();
+
+  _exports.default = BaseComponent;
+});
+;define("@glimmer/component/-private/destroyables", ["exports"], function (_exports) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.setDestroying = setDestroying;
+  _exports.setDestroyed = setDestroyed;
+  _exports.isDestroying = isDestroying;
+  _exports.isDestroyed = isDestroyed;
+  var DESTROYING = new WeakMap();
+  var DESTROYED = new WeakMap(); // TODO: remove once glimmer.js is updated to glimmer-vm 0.54.0+ and can use the destroyables API directly
+
+  function setDestroying(component) {
+    DESTROYING.set(component, true);
+  }
+
+  function setDestroyed(component) {
+    DESTROYED.set(component, true);
+  }
+
+  function isDestroying(component) {
+    return DESTROYING.has(component);
+  }
+
+  function isDestroyed(component) {
+    return DESTROYED.has(component);
+  }
+});
+;define("@glimmer/component/-private/ember-component-manager", ["exports", "@glimmer/component/-private/base-component-manager", "@glimmer/component/-private/destroyables"], function (_exports, _baseComponentManager, _destroyables) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.default = void 0;
+
+  var _this = void 0;
+
+  function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+  function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+  function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+  function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
+
+  function _get(target, property, receiver) { if (typeof Reflect !== "undefined" && Reflect.get) { _get = Reflect.get; } else { _get = function _get(target, property, receiver) { var base = _superPropBase(target, property); if (!base) return; var desc = Object.getOwnPropertyDescriptor(base, property); if (desc.get) { return desc.get.call(receiver); } return desc.value; }; } return _get(target, property, receiver || target); }
+
+  function _superPropBase(object, property) { while (!Object.prototype.hasOwnProperty.call(object, property)) { object = _getPrototypeOf(object); if (object === null) break; } return object; }
+
+  function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
+
+  function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
+
+  function _createSuper(Derived) { var hasNativeReflectConstruct = _isNativeReflectConstruct(); return function _createSuperInternal() { var Super = _getPrototypeOf(Derived), result; if (hasNativeReflectConstruct) { var NewTarget = _getPrototypeOf(this).constructor; result = Reflect.construct(Super, arguments, NewTarget); } else { result = Super.apply(this, arguments); } return _possibleConstructorReturn(this, result); }; }
+
+  function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
+
+  function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+  function _isNativeReflectConstruct() { if (typeof Reflect === "undefined" || !Reflect.construct) return false; if (Reflect.construct.sham) return false; if (typeof Proxy === "function") return true; try { Date.prototype.toString.call(Reflect.construct(Date, [], function () {})); return true; } catch (e) { return false; } }
+
+  function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
+
+  var CAPABILITIES = true ? Ember._componentManagerCapabilities('3.13', {
+    destructor: true,
+    asyncLifecycleCallbacks: false,
+    updateHook: false
+  }) : Ember._componentManagerCapabilities('3.4', {
+    destructor: true,
+    asyncLifecycleCallbacks: false
+  });
+  var scheduledDestroyComponent = false // @ts-ignore
+  // @ts-ignore
+  ? undefined : function (component, meta) {
+    if (component.isDestroyed) {
+      return;
+    }
+
+    Ember.destroy(component);
+    meta.setSourceDestroyed();
+    (0, _destroyables.setDestroyed)(component);
+  };
+  var destroy = false ? Ember.__loader.require('@glimmer/runtime').destroy : function (component) {
+    if (component.isDestroying) {
+      return;
+    }
+
+    var meta = Ember.meta(component);
+    meta.setSourceDestroying();
+    (0, _destroyables.setDestroying)(component);
+    Ember.run.schedule('actions', component, component.willDestroy);
+    Ember.run.schedule('destroy', _this, scheduledDestroyComponent, component, meta);
+  };
+  var registerDestructor = false ? Ember.__loader.require('@glimmer/runtime').registerDestructor : undefined;
+  /**
+   * This component manager runs in Ember.js environments and extends the base component manager to:
+   *
+   * 1. Properly destroy the component's associated `meta` data structure
+   * 2. Schedule destruction using Ember's runloop
+   */
+
+  var EmberGlimmerComponentManager = /*#__PURE__*/function (_BaseComponentManager) {
+    _inherits(EmberGlimmerComponentManager, _BaseComponentManager);
+
+    var _super = _createSuper(EmberGlimmerComponentManager);
+
+    function EmberGlimmerComponentManager() {
+      _classCallCheck(this, EmberGlimmerComponentManager);
+
+      return _super.apply(this, arguments);
+    }
+
+    _createClass(EmberGlimmerComponentManager, [{
+      key: "createComponent",
+      value: function createComponent(ComponentClass, args) {
+        var component = _get(_getPrototypeOf(EmberGlimmerComponentManager.prototype), "createComponent", this).call(this, ComponentClass, args);
+
+        if (false) {
+          registerDestructor(component, function () {
+            component.willDestroy();
+          });
+        }
+
+        return component;
+      }
+    }, {
+      key: "destroyComponent",
+      value: function destroyComponent(component) {
+        destroy(component);
+      }
+    }]);
+
+    return EmberGlimmerComponentManager;
+  }((0, _baseComponentManager.default)(Ember.setOwner, Ember.getOwner, CAPABILITIES));
+
+  // In Ember 3.12 and earlier, the updateComponent hook was mandatory.
+  // As of Ember 3.13, the `args` object is stable and each property of the
+  // object participates in the autotrack stack on its own. This means we do not
+  // need to set the `args` property on the component instance to invalidate
+  // tracked getters that rely on `args`, and therefore don't require the `updateComponent`
+  // hook at all.
+  if (!true) {
+    EmberGlimmerComponentManager.prototype.updateComponent = function updateComponent(component, args) {
+      var argSnapshot = args.named;
+
+      if (true
+      /* DEBUG */
+      ) {
+        argSnapshot = Object.freeze(argSnapshot);
+      }
+
+      Ember.set(component, 'args', argSnapshot);
+    };
+  }
+
+  var _default = EmberGlimmerComponentManager;
+  _exports.default = _default;
+});
+;define("@glimmer/component/-private/owner", ["exports"], function (_exports) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.setOwner = void 0;
+  var setOwner = Ember.setOwner;
+  _exports.setOwner = setOwner;
+});
+;define("@glimmer/component/index", ["exports", "@glimmer/component/-private/ember-component-manager", "@glimmer/component/-private/component"], function (_exports, _emberComponentManager, _component) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.default = void 0;
+
+  function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+  function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+  function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
+
+  function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
+
+  function _createSuper(Derived) { var hasNativeReflectConstruct = _isNativeReflectConstruct(); return function _createSuperInternal() { var Super = _getPrototypeOf(Derived), result; if (hasNativeReflectConstruct) { var NewTarget = _getPrototypeOf(this).constructor; result = Reflect.construct(Super, arguments, NewTarget); } else { result = Super.apply(this, arguments); } return _possibleConstructorReturn(this, result); }; }
+
+  function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
+
+  function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+  function _isNativeReflectConstruct() { if (typeof Reflect === "undefined" || !Reflect.construct) return false; if (Reflect.construct.sham) return false; if (typeof Proxy === "function") return true; try { Date.prototype.toString.call(Reflect.construct(Date, [], function () {})); return true; } catch (e) { return false; } }
+
+  function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
+
+  var GlimmerComponent = _component.default;
+
+  if (true
+  /* DEBUG */
+  ) {
+    // Add assertions against using Glimmer.js only APIs
+    // TODO: Add GlimmerComponent API docs link to these messages once API docs are live
+    function throwMethodUseError(methodName) {
+      throw new Error("You attempted to define the '".concat(methodName, "' method on a Glimmer Component, but that lifecycle hook does not exist in Ember.js applications, it only exists in Glimmer.js apps. You can rename this method, and you can trigger it using a modifier such as {{did-insert}} from '@ember/render-modifiers': https://github.com/emberjs/ember-render-modifiers."));
+    }
+
+    function throwPropertyUseError(propertyName) {
+      throw new Error("You attempted to access the '".concat(propertyName, "' property on a Glimmer Component, but that property does not exist in Ember.js applications, it only exists in Glimmer.js apps. You define a class field with the same name on your component class and it will overwrite this error message, but it will not be used by the framework."));
+    }
+
+    GlimmerComponent = /*#__PURE__*/function (_GlimmerComponent) {
+      _inherits(GlimmerDebugComponent, _GlimmerComponent);
+
+      var _super = _createSuper(GlimmerDebugComponent);
+
+      function GlimmerDebugComponent(owner, args) {
+        var _this;
+
+        _classCallCheck(this, GlimmerDebugComponent);
+
+        _this = _super.call(this, owner, args);
+
+        if (typeof _this['didInsertElement'] === 'function') {
+          throwMethodUseError('didInsertElement');
+        }
+
+        if (typeof _this['didUpdate'] === 'function') {
+          throwMethodUseError('didUpdate');
+        }
+
+        return _this;
+      }
+
+      return GlimmerDebugComponent;
+    }(GlimmerComponent);
+
+    var proto = GlimmerComponent.prototype;
+
+    function defineErrorProp(proto, key, getterMethod) {
+      Object.defineProperty(proto, key, {
+        get: function get() {
+          return getterMethod(key);
+        },
+        set: function set(value) {
+          Object.defineProperty(this, key, {
+            value: value
+          });
+        }
+      });
+    } // Methods should still throw whenever they are accessed
+
+
+    defineErrorProp(proto, 'bounds', throwPropertyUseError);
+    defineErrorProp(proto, 'element', throwPropertyUseError);
+    defineErrorProp(proto, 'debugName', throwPropertyUseError);
+  }
+
+  if (true) {
+    Ember._setComponentManager(function (owner) {
+      return new _emberComponentManager.default(owner);
+    }, GlimmerComponent);
+  } else {
+    Ember._setComponentManager('glimmer', GlimmerComponent);
+  }
+
+  var _default = GlimmerComponent;
+  _exports.default = _default;
+});
 ;define("ember-ajax/-private/promise", ["exports"], function (_exports) {
   "use strict";
 
@@ -79976,7 +80533,7 @@ require('ember');
   var _default = ajax;
   _exports.default = _default;
 });
-;define("ember-aria-switch/components/aria-switch", ["exports", "ember-aria-switch/templates/components/aria-switch"], function (_exports, _ariaSwitch) {
+;define("ember-aria-switch/components/aria-switch", ["exports", "@glimmer/component"], function (_exports, _component) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -79984,49 +80541,105 @@ require('ember');
   });
   _exports.default = void 0;
 
-  var _default = Ember.Component.extend({
-    layout: _ariaSwitch.default,
-    checked: false,
-    dataAction: "aria-switch",
-    offLabel: "Off",
-    onLabel: "On",
-    role: "switch",
-    type: "button",
-    tagName: "button",
-    attributeBindings: ["ariaChecked:aria-checked", "ariaLabel:aria-label", "ariaLabelledBy:aria-labelledby", "dataAction:data-action", "dataKeepDisabled:data-keep-disabled", "disabled", "role", "type"],
-    ariaLabel: Ember.computed.reads("label"),
-    dataKeepDisabled: Ember.computed.reads("disabled"),
-    ariaChecked: Ember.computed("checked", function () {
-      return this.checked ? "true" : "false";
-    }),
-    click: function click() {
-      this.toggleProperty("checked");
+  var _dec, _dec2, _class, _descriptor, _temp;
 
-      if (this.onToggle) {
-        this.onToggle(this.checked);
+  function _typeof(obj) { "@babel/helpers - typeof"; if (typeof Symbol === "function" && typeof Symbol.iterator === "symbol") { _typeof = function _typeof(obj) { return typeof obj; }; } else { _typeof = function _typeof(obj) { return obj && typeof Symbol === "function" && obj.constructor === Symbol && obj !== Symbol.prototype ? "symbol" : typeof obj; }; } return _typeof(obj); }
+
+  function _initializerDefineProperty(target, property, descriptor, context) { if (!descriptor) return; Object.defineProperty(target, property, { enumerable: descriptor.enumerable, configurable: descriptor.configurable, writable: descriptor.writable, value: descriptor.initializer ? descriptor.initializer.call(context) : void 0 }); }
+
+  function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+  function _defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } }
+
+  function _createClass(Constructor, protoProps, staticProps) { if (protoProps) _defineProperties(Constructor.prototype, protoProps); if (staticProps) _defineProperties(Constructor, staticProps); return Constructor; }
+
+  function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function"); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, writable: true, configurable: true } }); if (superClass) _setPrototypeOf(subClass, superClass); }
+
+  function _setPrototypeOf(o, p) { _setPrototypeOf = Object.setPrototypeOf || function _setPrototypeOf(o, p) { o.__proto__ = p; return o; }; return _setPrototypeOf(o, p); }
+
+  function _createSuper(Derived) { var hasNativeReflectConstruct = _isNativeReflectConstruct(); return function _createSuperInternal() { var Super = _getPrototypeOf(Derived), result; if (hasNativeReflectConstruct) { var NewTarget = _getPrototypeOf(this).constructor; result = Reflect.construct(Super, arguments, NewTarget); } else { result = Super.apply(this, arguments); } return _possibleConstructorReturn(this, result); }; }
+
+  function _possibleConstructorReturn(self, call) { if (call && (_typeof(call) === "object" || typeof call === "function")) { return call; } return _assertThisInitialized(self); }
+
+  function _assertThisInitialized(self) { if (self === void 0) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return self; }
+
+  function _isNativeReflectConstruct() { if (typeof Reflect === "undefined" || !Reflect.construct) return false; if (Reflect.construct.sham) return false; if (typeof Proxy === "function") return true; try { Date.prototype.toString.call(Reflect.construct(Date, [], function () {})); return true; } catch (e) { return false; } }
+
+  function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
+
+  function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+  function _applyDecoratedDescriptor(target, property, decorators, descriptor, context) { var desc = {}; Object.keys(descriptor).forEach(function (key) { desc[key] = descriptor[key]; }); desc.enumerable = !!desc.enumerable; desc.configurable = !!desc.configurable; if ('value' in desc || desc.initializer) { desc.writable = true; } desc = decorators.slice().reverse().reduce(function (desc, decorator) { return decorator(target, property, desc) || desc; }, desc); if (context && desc.initializer !== void 0) { desc.value = desc.initializer ? desc.initializer.call(context) : void 0; desc.initializer = undefined; } if (desc.initializer === void 0) { Object.defineProperty(target, property, desc); desc = null; } return desc; }
+
+  function _initializerWarningHelper(descriptor, context) { throw new Error('Decorating class property failed. Please ensure that ' + 'proposal-class-properties is enabled and runs after the decorators transform.'); }
+
+  var __COLOCATED_TEMPLATE__ = Ember.HTMLBars.template(
+  /*
+    <button type="button" role="switch" data-action="aria-switch" aria-label={{@label}} data-keep-disabled={{@disabled}} {{on 'click' this.toggle}}
+    aria-checked={{this.ariaChecked}}
+    aria-labelledby={{this.ariaLabelledBy}}
+    disabled={{@disabled}}
+  >
+  <span> {{this.onLabel}} </span>
+  <span> {{this.offLabel}} </span>
+  </button>
+  
+  */
+  {"id":"LepUm69c","block":"{\"symbols\":[\"@label\",\"@disabled\"],\"statements\":[[11,\"button\"],[24,\"role\",\"switch\"],[24,\"data-action\",\"aria-switch\"],[16,\"aria-label\",[32,1]],[16,\"data-keep-disabled\",[32,2]],[16,\"aria-checked\",[32,0,[\"ariaChecked\"]]],[16,\"aria-labelledby\",[32,0,[\"ariaLabelledBy\"]]],[16,\"disabled\",[32,2]],[24,4,\"button\"],[4,[38,0],[\"click\",[32,0,[\"toggle\"]]],null],[12],[2,\"\\n\"],[10,\"span\"],[12],[2,\" \"],[1,[32,0,[\"onLabel\"]]],[2,\" \"],[13],[2,\"\\n\"],[10,\"span\"],[12],[2,\" \"],[1,[32,0,[\"offLabel\"]]],[2,\" \"],[13],[2,\"\\n\"],[13],[2,\"\\n\"]],\"hasEval\":false,\"upvars\":[\"on\"]}","meta":{"moduleName":"ember-aria-switch/components/aria-switch.hbs"}});
+
+  var AriaSwitch = (_dec = Ember._tracked, _dec2 = Ember._action, (_class = (_temp = /*#__PURE__*/function (_Component) {
+    _inherits(AriaSwitch, _Component);
+
+    var _super = _createSuper(AriaSwitch);
+
+    function AriaSwitch() {
+      var _this;
+
+      _classCallCheck(this, AriaSwitch);
+
+      for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
+        args[_key] = arguments[_key];
       }
+
+      _this = _super.call.apply(_super, [this].concat(args));
+
+      _initializerDefineProperty(_assertThisInitialized(_this), "checked", _descriptor, _assertThisInitialized(_this));
+
+      _defineProperty(_assertThisInitialized(_this), "offLabel", _this.args.offLabel || "Off");
+
+      _defineProperty(_assertThisInitialized(_this), "onLabel", _this.args.onLabel || "On");
+
+      return _this;
     }
-  });
 
-  _exports.default = _default;
-});
-;define("ember-aria-switch/templates/components/aria-switch", ["exports"], function (_exports) {
-  "use strict";
+    _createClass(AriaSwitch, [{
+      key: "toggle",
+      value: function toggle() {
+        this.checked = !this.checked;
 
-  Object.defineProperty(_exports, "__esModule", {
-    value: true
-  });
-  _exports.default = void 0;
+        if (this.args.onToggle) {
+          this.args.onToggle(this.checked);
+        }
+      }
+    }, {
+      key: "ariaChecked",
+      get: function get() {
+        return this.checked ? "true" : "false";
+      }
+    }]);
 
-  var _default = Ember.HTMLBars.template({
-    "id": "AjhM7HQq",
-    "block": "{\"symbols\":[],\"statements\":[[10,\"span\"],[12],[2,\" \"],[1,[32,0,[\"onLabel\"]]],[2,\" \"],[13],[2,\"\\n\"],[10,\"span\"],[12],[2,\" \"],[1,[32,0,[\"offLabel\"]]],[2,\" \"],[13],[2,\"\\n\"]],\"hasEval\":false,\"upvars\":[]}",
-    "meta": {
-      "moduleName": "ember-aria-switch/templates/components/aria-switch.hbs"
+    return AriaSwitch;
+  }(_component.default), _temp), (_descriptor = _applyDecoratedDescriptor(_class.prototype, "checked", [_dec], {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    initializer: function initializer() {
+      return this.args.checked || false;
     }
-  });
+  }), _applyDecoratedDescriptor(_class.prototype, "toggle", [_dec2], Object.getOwnPropertyDescriptor(_class.prototype, "toggle"), _class.prototype)), _class));
+  _exports.default = AriaSwitch;
 
-  _exports.default = _default;
+  Ember._setComponentTemplate(__COLOCATED_TEMPLATE__, AriaSwitch);
 });
 ;define("ember-load-initializers/index", ["exports", "require"], function (_exports, _require) {
   "use strict";

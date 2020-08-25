@@ -97,9 +97,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch}}
+                  <AriaSwitch/>
                 */
-                {"id":"g8c6C/tH","block":"{\"symbols\":[],\"statements\":[[1,[34,0]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal(this.element.querySelectorAll('button').length, 1);
@@ -125,9 +125,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context2.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch}}
+                  <AriaSwitch/>
                 */
-                {"id":"g8c6C/tH","block":"{\"symbols\":[],\"statements\":[[1,[34,0]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.findAll)('span').length, 2);
@@ -153,9 +153,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context3.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch}}
+                  <AriaSwitch/>
                 */
-                {"id":"g8c6C/tH","block":"{\"symbols\":[],\"statements\":[[1,[34,0]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('type'), "button");
@@ -181,9 +181,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context4.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch}}
+                  <AriaSwitch/>
                 */
-                {"id":"g8c6C/tH","block":"{\"symbols\":[],\"statements\":[[1,[34,0]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('role'), "switch");
@@ -209,9 +209,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context5.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch}}
+                  <AriaSwitch/>
                 */
-                {"id":"g8c6C/tH","block":"{\"symbols\":[],\"statements\":[[1,[34,0]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('data-action'), "aria-switch");
@@ -237,9 +237,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context6.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch}}
+                  <AriaSwitch/>
                 */
-                {"id":"g8c6C/tH","block":"{\"symbols\":[],\"statements\":[[1,[34,0]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-checked'), "false");
@@ -265,9 +265,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context7.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch checked=true}}
+                  <AriaSwitch @checked=true/>
                 */
-                {"id":"paKTxVQU","block":"{\"symbols\":[],\"statements\":[[1,[30,[36,0],null,[[\"checked\"],[true]]]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"ILG1K/CN","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@checked\"],[\"true\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-checked'), "true");
@@ -293,9 +293,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context8.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch}}
+                  <AriaSwitch/>
                 */
-                {"id":"g8c6C/tH","block":"{\"symbols\":[],\"statements\":[[1,[34,0]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-checked'), "false");
@@ -326,9 +326,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context9.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch disabled=true}}
+                  <AriaSwitch @disabled={{true}}/>
                 */
-                {"id":"FQyNmTKC","block":"{\"symbols\":[],\"statements\":[[1,[30,[36,0],null,[[\"disabled\"],[true]]]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"lEDvknUL","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@disabled\"],[true]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').disabled, true);
@@ -355,9 +355,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context10.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch label="My Aria Label"}}
+                  <AriaSwitch @label="My Aria Label"/>
                 */
-                {"id":"6+c25zoi","block":"{\"symbols\":[],\"statements\":[[1,[30,[36,0],null,[[\"label\"],[\"My Aria Label\"]]]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"ijeYF0Yn","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@label\"],[\"My Aria Label\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-label'), "My Aria Label");
@@ -383,9 +383,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context11.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch onLabel="Yes"}}
+                  <AriaSwitch @onLabel="Yes"/>
                 */
-                {"id":"hLODb6l8","block":"{\"symbols\":[],\"statements\":[[1,[30,[36,0],null,[[\"onLabel\"],[\"Yes\"]]]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"vB8jIxts","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onLabel\"],[\"Yes\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.findAll)('span')['0'].textContent.trim(), "Yes");
@@ -411,9 +411,9 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 _context12.next = 2;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch offLabel="No"}}
+                  <AriaSwitch @offLabel="No"/>
                 */
-                {"id":"qNV5mSRG","block":"{\"symbols\":[],\"statements\":[[1,[30,[36,0],null,[[\"offLabel\"],[\"No\"]]]]],\"hasEval\":false,\"upvars\":[\"aria-switch\"]}","meta":{}}));
+                {"id":"hWX5hfor","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@offLabel\"],[\"No\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
 
               case 2:
                 assert.equal((0, _testHelpers.findAll)('span')['1'].textContent.trim(), "No");
@@ -432,6 +432,8 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
     }());
     (0, _qunit.test)('it should invoke the onToggle callback once clicked', /*#__PURE__*/function () {
       var _ref14 = _asyncToGenerator( /*#__PURE__*/regeneratorRuntime.mark(function _callee13(assert) {
+        var _this = this;
+
         return regeneratorRuntime.wrap(function _callee13$(_context13) {
           while (1) {
             switch (_context13.prev = _context13.next) {
@@ -439,15 +441,16 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 this.set('result', '');
                 this.set('toggleCallback', function (toggleValue) {
                   var value = toggleValue ? "ON" : "OFF";
-                  this.set('result', value);
+
+                  _this.set('result', value);
                 });
                 _context13.next = 4;
                 return (0, _testHelpers.render)(Ember.HTMLBars.template(
                 /*
-                  {{aria-switch onToggle=(action toggleCallback)}}
+                  <AriaSwitch @onToggle={{this.toggleCallback}}/>
                                   <div id="result">{{result}}</div>
                 */
-                {"id":"oibHbvnc","block":"{\"symbols\":[],\"statements\":[[1,[30,[36,2],null,[[\"onToggle\"],[[30,[36,1],[[32,0],[35,0]],null]]]]],[2,\"\\n                  \"],[10,\"div\"],[14,1,\"result\"],[12],[1,[34,3]],[13]],\"hasEval\":false,\"upvars\":[\"toggleCallback\",\"action\",\"aria-switch\",\"result\"]}","meta":{}}));
+                {"id":"BVvEQlTI","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onToggle\"],[[32,0,[\"toggleCallback\"]]]],null],[2,\"\\n                  \"],[10,\"div\"],[14,1,\"result\"],[12],[1,[34,0]],[13]],\"hasEval\":false,\"upvars\":[\"result\"]}","meta":{}}));
 
               case 4:
                 _context13.next = 6;
