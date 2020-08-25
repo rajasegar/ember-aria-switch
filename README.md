@@ -63,14 +63,13 @@ With toggle callback
 And your `toggleCallback` can be defined such as:
 
 ```js
-export default Ember.Controller.extend({
-  actions: {
+export default class IndexController extends Controller{
+    @action
     toggleCallback(toggleValue) {
       let val = toggleValue ? "ON" : "OFF";
       alert(`ARIA Switch: You turned me ${val}!`);
     }
-  }
-});
+}
 
 ```
 
