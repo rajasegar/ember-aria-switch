@@ -3,7 +3,7 @@ import Component from "@glimmer/component";
 import { action } from '@ember/object';
 
 export default class AriaSwitch extends Component{
-  @tracked checked = false;
+  @tracked checked = this.args.checked || false;
   offLabel= this.args.offLabel || "Off";
   onLabel= this.args.onLabel || "On";
 
