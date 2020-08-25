@@ -99,7 +99,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch/>
                 */
-                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "mCytUXcv",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal(this.element.querySelectorAll('button').length, 1);
@@ -127,7 +131,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch/>
                 */
-                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "mCytUXcv",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.findAll)('span').length, 2);
@@ -155,7 +163,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch/>
                 */
-                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "mCytUXcv",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('type'), "button");
@@ -183,7 +195,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch/>
                 */
-                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "mCytUXcv",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('role'), "switch");
@@ -211,7 +227,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch/>
                 */
-                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "mCytUXcv",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('data-action'), "aria-switch");
@@ -239,7 +259,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch/>
                 */
-                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "mCytUXcv",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-checked'), "false");
@@ -267,7 +291,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch @checked=true/>
                 */
-                {"id":"ILG1K/CN","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@checked\"],[\"true\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "ILG1K/CN",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@checked\"],[\"true\"]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-checked'), "true");
@@ -295,7 +323,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch/>
                 */
-                {"id":"mCytUXcv","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "mCytUXcv",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-checked'), "false");
@@ -328,7 +360,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch @disabled={{true}}/>
                 */
-                {"id":"lEDvknUL","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@disabled\"],[true]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "lEDvknUL",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@disabled\"],[true]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').disabled, true);
@@ -357,7 +393,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch @label="My Aria Label"/>
                 */
-                {"id":"ijeYF0Yn","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@label\"],[\"My Aria Label\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "ijeYF0Yn",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@label\"],[\"My Aria Label\"]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.find)('button').getAttribute('aria-label'), "My Aria Label");
@@ -385,7 +425,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch @onLabel="Yes"/>
                 */
-                {"id":"vB8jIxts","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onLabel\"],[\"Yes\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "vB8jIxts",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onLabel\"],[\"Yes\"]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.findAll)('span')['0'].textContent.trim(), "Yes");
@@ -413,7 +457,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                 /*
                   <AriaSwitch @offLabel="No"/>
                 */
-                {"id":"hWX5hfor","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@offLabel\"],[\"No\"]],null]],\"hasEval\":false,\"upvars\":[]}","meta":{}}));
+                {
+                  id: "hWX5hfor",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@offLabel\"],[\"No\"]],null]],\"hasEval\":false,\"upvars\":[]}",
+                  meta: {}
+                }));
 
               case 2:
                 assert.equal((0, _testHelpers.findAll)('span')['1'].textContent.trim(), "No");
@@ -450,7 +498,11 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @onToggle={{this.toggleCallback}}/>
                                   <div id="result">{{result}}</div>
                 */
-                {"id":"BVvEQlTI","block":"{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onToggle\"],[[32,0,[\"toggleCallback\"]]]],null],[2,\"\\n                  \"],[10,\"div\"],[14,1,\"result\"],[12],[1,[34,0]],[13]],\"hasEval\":false,\"upvars\":[\"result\"]}","meta":{}}));
+                {
+                  id: "BVvEQlTI",
+                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onToggle\"],[[32,0,[\"toggleCallback\"]]]],null],[2,\"\\n                  \"],[10,\"div\"],[14,1,\"result\"],[12],[1,[34,0]],[13]],\"hasEval\":false,\"upvars\":[\"result\"]}",
+                  meta: {}
+                }));
 
               case 4:
                 _context13.next = 6;
@@ -476,60 +528,6 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
         return _ref14.apply(this, arguments);
       };
     }());
-  });
-});
-define("dummy/tests/lint/app.lint-test", [], function () {
-  "use strict";
-
-  QUnit.module('ESLint | app');
-  QUnit.test('app.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'app.js should pass ESLint\n\n');
-  });
-  QUnit.test('controllers/index.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'controllers/index.js should pass ESLint\n\n');
-  });
-  QUnit.test('resolver.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'resolver.js should pass ESLint\n\n');
-  });
-  QUnit.test('router.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'router.js should pass ESLint\n\n');
-  });
-  QUnit.test('routes/index.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'routes/index.js should pass ESLint\n\n');
-  });
-});
-define("dummy/tests/lint/tests.lint-test", [], function () {
-  "use strict";
-
-  QUnit.module('ESLint | tests');
-  QUnit.test('helpers/destroy-app.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'helpers/destroy-app.js should pass ESLint\n\n');
-  });
-  QUnit.test('helpers/module-for-acceptance.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'helpers/module-for-acceptance.js should pass ESLint\n\n');
-  });
-  QUnit.test('helpers/resolver.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'helpers/resolver.js should pass ESLint\n\n');
-  });
-  QUnit.test('helpers/start-app.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'helpers/start-app.js should pass ESLint\n\n');
-  });
-  QUnit.test('integration/components/aria-switch-test.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'integration/components/aria-switch-test.js should pass ESLint\n\n');
-  });
-  QUnit.test('test-helper.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'test-helper.js should pass ESLint\n\n');
   });
 });
 define("dummy/tests/test-helper", ["dummy/app", "dummy/config/environment", "@ember/test-helpers", "ember-qunit"], function (_app, _environment, _testHelpers, _emberQunit) {

@@ -87,19 +87,6 @@
     }
   });
 });
-;define("dummy/components/welcome-page", ["exports", "ember-welcome-page/components/welcome-page"], function (_exports, _welcomePage) {
-  "use strict";
-
-  Object.defineProperty(_exports, "__esModule", {
-    value: true
-  });
-  Object.defineProperty(_exports, "default", {
-    enumerable: true,
-    get: function get() {
-      return _welcomePage.default;
-    }
-  });
-});
 ;define("dummy/controllers/index", ["exports"], function (_exports) {
   "use strict";
 
@@ -156,24 +143,6 @@
     return IndexController;
   }(Ember.Controller), (_applyDecoratedDescriptor(_class.prototype, "toggleCallback", [_dec], Object.getOwnPropertyDescriptor(_class.prototype, "toggleCallback"), _class.prototype)), _class));
   _exports.default = IndexController;
-});
-;define("dummy/ember-aria-switch/tests/addon.lint-test", [], function () {
-  "use strict";
-
-  QUnit.module('ESLint | addon');
-  QUnit.test('addon/components/aria-switch.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'addon/components/aria-switch.js should pass ESLint\n\n');
-  });
-});
-;define("dummy/ember-aria-switch/tests/app.lint-test", [], function () {
-  "use strict";
-
-  QUnit.module('ESLint | app');
-  QUnit.test('app/components/aria-switch.js', function (assert) {
-    assert.expect(1);
-    assert.ok(true, 'app/components/aria-switch.js should pass ESLint\n\n');
-  });
 });
 ;define("dummy/initializers/container-debug-adapter", ["exports", "ember-resolver/resolvers/classic/container-debug-adapter"], function (_exports, _containerDebugAdapter) {
   "use strict";
@@ -324,19 +293,6 @@
   var _default = Ember.Route.extend({});
 
   _exports.default = _default;
-});
-;define("dummy/services/ajax", ["exports", "ember-ajax/services/ajax"], function (_exports, _ajax) {
-  "use strict";
-
-  Object.defineProperty(_exports, "__esModule", {
-    value: true
-  });
-  Object.defineProperty(_exports, "default", {
-    enumerable: true,
-    get: function get() {
-      return _ajax.default;
-    }
-  });
 });
 ;define("dummy/templates/application", ["exports"], function (_exports) {
   "use strict";
