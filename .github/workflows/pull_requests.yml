@@ -1,7 +1,5 @@
 name: Pull Requests
 
-# Inspiration:
-# https://github.com/alexdiliberto/ember-transformicons/blob/master/.github/workflows/ci.yml
 on:
   pull_request:
 
@@ -57,4 +55,4 @@ jobs:
     - name: Install
       run: yarn install
     - name: Test with ${{ matrix.scenario }}
-      run: yarn test:ember-compatibility ${{ matrix.scenario }}
+      run: yarn test:try-one ${{ matrix.scenario }}
