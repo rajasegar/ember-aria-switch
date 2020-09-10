@@ -1,6 +1,6 @@
 # ember-aria-switch
 
-![Build and Deploy](https://github.com/rajasegar/ember-aria-switch/workflows/Build-and-Deploy/badge.svg)
+![Build and Deploy](https://github.com/rajasegar/ember-aria-switch/workflows/Build%20and%20Deploy/badge.svg)
 [![Coverage Status](https://coveralls.io/repos/github/rajasegar/ember-aria-switch/badge.svg?branch=master)](https://coveralls.io/github/rajasegar/ember-aria-switch?branch=master)
 [![semantic-release](https://img.shields.io/badge/%20%20%F0%9F%93%A6%F0%9F%9A%80-semantic--release-e10079.svg)](https://github.com/semantic-release/semantic-release)
 [![npm version](http://img.shields.io/npm/v/ember-aria-switch.svg?style=flat)](https://npmjs.org/package/ember-aria-switch "View this project on npm")
