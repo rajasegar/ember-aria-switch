@@ -1021,12 +1021,12 @@ var runningTests = false;
 ;(function() {
 /*!
  * @overview  Ember - JavaScript Application Framework
- * @copyright Copyright 2011-2019 Tilde Inc. and contributors
+ * @copyright Copyright 2011-2020 Tilde Inc. and contributors
  *            Portions Copyright 2006-2011 Strobe Inc.
  *            Portions Copyright 2008-2011 Apple Inc. All rights reserved.
  * @license   Licensed under MIT license
  *            See https://raw.github.com/emberjs/ember.js/master/LICENSE
- * @version   3.18.1
+ * @version   3.22.0
  */
 /*globals process */
 var define, require, Ember; // Used in @ember/-internals/environment/lib/global.js
@@ -1351,7 +1351,9 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
     value: true
   });
   _exports.privatize = privatize;
-  _exports.FACTORY_FOR = _exports.Container = _exports.Registry = void 0;
+  _exports.getFactoryFor = getFactoryFor;
+  _exports.setFactoryFor = setFactoryFor;
+  _exports.INIT_FACTORY = _exports.Container = _exports.Registry = void 0;
   var leakTracking;
   var containers;
 
@@ -1531,9 +1533,9 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
     ;
 
     _proto.ownerInjection = function ownerInjection() {
-      var _ref;
-
-      return _ref = {}, _ref[_owner.OWNER] = this.owner, _ref;
+      var injection = {};
+      (0, _owner.setOwner)(injection, this.owner);
+      return injection;
     }
     /**
      Given a fullName, return the corresponding factory. The consumer of the factory
@@ -1608,8 +1610,7 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
           return m.create(props);
         }
       };
-      var proxy = new Proxy(proxiedManager, validator);
-      FACTORY_FOR.set(proxy, manager);
+      return new Proxy(proxiedManager, validator);
     }
 
     return manager;
@@ -1683,27 +1684,27 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
     return manager;
   }
 
-  function isSingletonClass(container, fullName, _ref2) {
-    var instantiate = _ref2.instantiate,
-        singleton = _ref2.singleton;
+  function isSingletonClass(container, fullName, _ref) {
+    var instantiate = _ref.instantiate,
+        singleton = _ref.singleton;
     return singleton !== false && !instantiate && isSingleton(container, fullName) && !isInstantiatable(container, fullName);
   }
 
-  function isSingletonInstance(container, fullName, _ref3) {
-    var instantiate = _ref3.instantiate,
-        singleton = _ref3.singleton;
+  function isSingletonInstance(container, fullName, _ref2) {
+    var instantiate = _ref2.instantiate,
+        singleton = _ref2.singleton;
     return singleton !== false && instantiate !== false && isSingleton(container, fullName) && isInstantiatable(container, fullName);
   }
 
-  function isFactoryClass(container, fullname, _ref4) {
-    var instantiate = _ref4.instantiate,
-        singleton = _ref4.singleton;
+  function isFactoryClass(container, fullname, _ref3) {
+    var instantiate = _ref3.instantiate,
+        singleton = _ref3.singleton;
     return instantiate === false && (singleton === false || !isSingleton(container, fullname)) && !isInstantiatable(container, fullname);
   }
 
-  function isFactoryInstance(container, fullName, _ref5) {
-    var instantiate = _ref5.instantiate,
-        singleton = _ref5.singleton;
+  function isFactoryInstance(container, fullName, _ref4) {
+    var instantiate = _ref4.instantiate,
+        singleton = _ref4.singleton;
     return instantiate !== false && (singleton !== false || isSingleton(container, fullName)) && isInstantiatable(container, fullName);
   }
 
@@ -1751,10 +1752,6 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
 
     var hash = result.injections;
 
-    if (hash === undefined) {
-      hash = result.injections = {};
-    }
-
     for (var i = 0; i < injections.length; i++) {
       var _injections$i = injections[i],
           property = _injections$i.property,
@@ -1776,8 +1773,10 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
   }
 
   function buildInjections(container, typeInjections, injections) {
+    var injectionsHash = {};
+    (0, _owner.setOwner)(injectionsHash, container.owner);
     var result = {
-      injections: undefined,
+      injections: injectionsHash,
       isDynamic: false
     };
 
@@ -1835,8 +1834,16 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
     }
   }
 
-  var FACTORY_FOR = new WeakMap();
-  _exports.FACTORY_FOR = FACTORY_FOR;
+  var INIT_FACTORY = (0, _utils.symbol)('INIT_FACTORY');
+  _exports.INIT_FACTORY = INIT_FACTORY;
+
+  function getFactoryFor(obj) {
+    return obj[INIT_FACTORY];
+  }
+
+  function setFactoryFor(obj, factory) {
+    obj[INIT_FACTORY] = factory;
+  }
 
   var FactoryManager = /*#__PURE__*/function () {
     function FactoryManager(container, factory, fullName, normalizedName) {
@@ -1847,7 +1854,7 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
       this.normalizedName = normalizedName;
       this.madeToString = undefined;
       this.injections = undefined;
-      FACTORY_FOR.set(this, this);
+      setFactoryFor(this, this);
     }
 
     var _proto2 = FactoryManager.prototype;
@@ -1867,24 +1874,23 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
         throw new Error("Can not create new instances after the owner has been destroyed (you attempted to create " + this.fullName + ")");
       }
 
-      var injectionsCache = this.injections;
+      var props = this.injections;
 
-      if (injectionsCache === undefined) {
+      if (props === undefined) {
         var _injectionsFor = injectionsFor(this.container, this.normalizedName),
             injections = _injectionsFor.injections,
             isDynamic = _injectionsFor.isDynamic;
 
-        injectionsCache = injections;
+        setFactoryFor(injections, this);
+        props = injections;
 
         if (!isDynamic) {
           this.injections = injections;
         }
       }
 
-      var props = injectionsCache;
-
       if (options !== undefined) {
-        props = (0, _polyfills.assign)({}, injectionsCache, options);
+        props = (0, _polyfills.assign)({}, props, options);
       }
 
       if (true
@@ -1900,35 +1906,10 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
         }
 
         validationCache[this.fullName] = true;
+        (true && !(typeof this.class.create === 'function') && (0, _debug.assert)("Failed to create an instance of '" + this.normalizedName + "'. Most likely an improperly defined class or an invalid module export.", typeof this.class.create === 'function'));
       }
 
-      if (!this.class.create) {
-        throw new Error("Failed to create an instance of '" + this.normalizedName + "'. Most likely an improperly defined class or an invalid module export.");
-      } // required to allow access to things like
-      // the customized toString, _debugContainerKey,
-      // owner, etc. without a double extend and without
-      // modifying the objects properties
-
-
-      if (typeof this.class._initFactory === 'function') {
-        this.class._initFactory(this);
-      } else {
-        // in the non-EmberObject case we need to still setOwner
-        // this is required for supporting glimmer environment and
-        // template instantiation which rely heavily on
-        // `options[OWNER]` being passed into `create`
-        // TODO: clean this up, and remove in future versions
-        if (options === undefined || props === undefined) {
-          // avoid mutating `props` here since they are the cached injections
-          props = (0, _polyfills.assign)({}, props);
-        }
-
-        (0, _owner.setOwner)(props, this.owner);
-      }
-
-      var instance = this.class.create(props);
-      FACTORY_FOR.set(instance, this);
-      return instance;
+      return this.class.create(props);
     };
 
     return FactoryManager;
@@ -2503,7 +2484,7 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
       var injections = [];
 
       for (var key in hash) {
-        if (hash.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(hash, key)) {
           var _hash$key = hash[key],
               specifier = _hash$key.specifier,
               source = _hash$key.source,
@@ -2612,8 +2593,8 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
   var privateNames = (0, _utils.dictionary)(null);
   var privateSuffix = ("" + Math.random() + Date.now()).replace('.', '');
 
-  function privatize(_ref6) {
-    var fullName = _ref6[0];
+  function privatize(_ref5) {
+    var fullName = _ref5[0];
     var name = privateNames[fullName];
 
     if (name) {
@@ -2634,7 +2615,7 @@ define("@ember/-internals/container/index", ["exports", "@ember/-internals/owner
   */
 
 });
-define("@ember/-internals/environment/index", ["exports", "@ember/debug", "@ember/deprecated-features"], function (_exports, _debug, _deprecatedFeatures) {
+define("@ember/-internals/environment/index", ["exports", "@ember/deprecated-features"], function (_exports, _deprecatedFeatures) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -2778,8 +2759,7 @@ define("@ember/-internals/environment/index", ["exports", "@ember/debug", "@embe
       API work.
          This has to be set before the ember JavaScript code is evaluated. This is
       usually done by setting `window.EmberENV = { _DEBUG_RENDER_TREE: true };`
-      or `window.ENV = { _DEBUG_RENDER_TREE: true };` before the "vendor"
-      `<script>` tag in `index.html`.
+      before the "vendor" `<script>` tag in `index.html`.
          Setting the flag after Ember is already loaded will not work correctly. It
       may appear to work somewhat, but fundamentally broken.
          This is not intended to be set directly. Ember Inspector will enable the
@@ -2840,21 +2820,12 @@ define("@ember/-internals/environment/index", ["exports", "@ember/debug", "@embe
     FEATURES: {}
   };
   _exports.ENV = ENV;
-  var providedEnv = global$1.EmberENV;
-
-  if (providedEnv === undefined) {
-    providedEnv = global$1.ENV;
-    (true && !(providedEnv === undefined) && (0, _debug.deprecate)("Configuring Ember's boot options via `window.ENV` is deprecated, please migrate to `window.EmberENV` instead.", providedEnv === undefined, {
-      id: 'ember-environment.window.env',
-      until: '3.17.0'
-    }));
-  }
 
   (function (EmberENV) {
     if (typeof EmberENV !== 'object' || EmberENV === null) return;
 
     for (var flag in EmberENV) {
-      if (!EmberENV.hasOwnProperty(flag) || flag === 'EXTEND_PROTOTYPES' || flag === 'EMBER_LOAD_HOOKS') continue;
+      if (!Object.prototype.hasOwnProperty.call(EmberENV, flag) || flag === 'EXTEND_PROTOTYPES' || flag === 'EMBER_LOAD_HOOKS') continue;
       var defaultValue = ENV[flag];
 
       if (defaultValue === true) {
@@ -2893,7 +2864,7 @@ define("@ember/-internals/environment/index", ["exports", "@ember/debug", "@embe
 
     if (typeof EMBER_LOAD_HOOKS === 'object' && EMBER_LOAD_HOOKS !== null) {
       for (var hookName in EMBER_LOAD_HOOKS) {
-        if (!EMBER_LOAD_HOOKS.hasOwnProperty(hookName)) continue;
+        if (!Object.prototype.hasOwnProperty.call(EMBER_LOAD_HOOKS, hookName)) continue;
         var hooks = EMBER_LOAD_HOOKS[hookName];
 
         if (Array.isArray(hooks)) {
@@ -2908,7 +2879,7 @@ define("@ember/-internals/environment/index", ["exports", "@ember/debug", "@embe
 
     if (typeof FEATURES === 'object' && FEATURES !== null) {
       for (var feature in FEATURES) {
-        if (!FEATURES.hasOwnProperty(feature)) continue;
+        if (!Object.prototype.hasOwnProperty.call(FEATURES, feature)) continue;
         ENV.FEATURES[feature] = FEATURES[feature] === true;
       }
     }
@@ -2918,7 +2889,7 @@ define("@ember/-internals/environment/index", ["exports", "@ember/debug", "@embe
     ) {
       ENV._DEBUG_RENDER_TREE = true;
     }
-  })(providedEnv);
+  })(global$1.EmberENV);
 
   function getENV() {
     return ENV;
@@ -3069,7 +3040,7 @@ define("@ember/-internals/extension-support/lib/container_debug_adapter", ["expo
       var typeSuffixRegex = new RegExp((0, _string.classify)(type) + "$");
       namespaces.forEach(function (namespace) {
         for (var key in namespace) {
-          if (!namespace.hasOwnProperty(key)) {
+          if (!Object.prototype.hasOwnProperty.call(namespace, key)) {
             continue;
           }
 
@@ -3475,7 +3446,7 @@ define("@ember/-internals/extension-support/lib/data_adapter", ["exports", "@emb
       var types = (0, _runtime.A)();
       namespaces.forEach(function (namespace) {
         for (var key in namespace) {
-          if (!namespace.hasOwnProperty(key)) {
+          if (!Object.prototype.hasOwnProperty.call(namespace, key)) {
             continue;
           } // Even though we will filter again in `getModelTypes`,
           // we should not call `lookupFactory` on non-models
@@ -3582,7 +3553,7 @@ define("@ember/-internals/extension-support/lib/data_adapter", ["exports", "@emb
 
   _exports.default = _default;
 });
-define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/polyfills", "@glimmer/opcode-compiler", "@ember/-internals/metal", "@ember/-internals/owner", "@ember/-internals/runtime", "@ember/-internals/utils", "@ember/-internals/views", "@ember/debug", "@glimmer/reference", "@glimmer/runtime", "@glimmer/validator", "@ember/-internals/browser-environment", "@ember/instrumentation", "@ember/service", "@ember/runloop", "@ember/-internals/environment", "@glimmer/util", "@ember/deprecated-features", "@ember/string", "@ember/-internals/container", "@glimmer/node", "@ember/-internals/routing", "@ember/component/template-only", "@ember/error", "rsvp"], function (_exports, _emberBabel, _polyfills, _opcodeCompiler, _metal, _owner, _runtime, _utils, _views, _debug, _reference, _runtime2, _validator, _browserEnvironment, _instrumentation, _service, _runloop, _environment2, _util, _deprecatedFeatures, _string, _container, _node, _routing, _templateOnly, _error, _rsvp) {
+define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/polyfills", "@glimmer/opcode-compiler", "@ember/-internals/metal", "@ember/-internals/owner", "@ember/-internals/runtime", "@ember/-internals/utils", "@ember/-internals/views", "@ember/debug", "@glimmer/reference", "@glimmer/runtime", "@glimmer/validator", "@ember/-internals/browser-environment", "@ember/instrumentation", "@ember/service", "@ember/runloop", "@ember/-internals/environment", "@glimmer/util", "@ember/deprecated-features", "@ember/string", "@ember/-internals/container", "@glimmer/node", "@glimmer/global-context", "@ember/-internals/routing", "@ember/component/template-only", "@ember/error", "rsvp"], function (_exports, _emberBabel, _polyfills, _opcodeCompiler, _metal, _owner, _runtime, _utils, _views, _debug, _reference, _runtime2, _validator, _browserEnvironment, _instrumentation, _service, _runloop, _environment2, _util, _deprecatedFeatures, _string, _container, _node, _globalContext, _routing, _templateOnly, _error, _rsvp) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -3753,10 +3724,10 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     }
   });
   _exports.RootTemplate = RootTemplate;
+  var ARGS = (0, _utils.enumerableSymbol)('ARGS');
+  var HAS_BLOCK = (0, _utils.enumerableSymbol)('HAS_BLOCK');
   var DIRTY_TAG = (0, _utils.symbol)('DIRTY_TAG');
-  var ARGS = (0, _utils.symbol)('ARGS');
   var IS_DISPATCHING_ATTRS = (0, _utils.symbol)('IS_DISPATCHING_ATTRS');
-  var HAS_BLOCK = (0, _utils.symbol)('HAS_BLOCK');
   var BOUNDS = (0, _utils.symbol)('BOUNDS');
   /**
   @module @ember/component
@@ -4537,7 +4508,6 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     isComponentFactory: true,
     positionalParams: []
   });
-  (0, _runtime.setFrameworkClass)(Component);
   var layout = template({
     "id": "SWbqsLhV",
     "block": "{\"symbols\":[],\"statements\":[],\"hasEval\":false,\"upvars\":[]}",
@@ -5225,6 +5195,25 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     In general, this is not recommended. Instead, you can use the `transition-to` helper together
     with a click event handler on the HTML tag of your choosing.
   
+    ### Supplying query parameters
+  
+    If you need to add optional key-value pairs that appear to the right of the ? in a URL,
+    you can use the `query` argument.
+  
+    ```handlebars
+    <LinkTo @route='photoGallery' @query={{hash page=1 per_page=20}}>
+      Great Hamster Photos
+    </LinkTo>
+    ```
+  
+    This will result in:
+  
+    ```html
+    <a href="/hamster-photos?page=1&per_page=20">
+      Great Hamster Photos
+    </a>
+    ```
+  
     @for Ember.Templates.components
     @method LinkTo
     @see {LinkComponent}
@@ -5872,7 +5861,6 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
   _exports.Helper = Helper;
   Helper.isHelperFactory = true;
-  (0, _runtime.setFrameworkClass)(Helper);
 
   var Wrapper = /*#__PURE__*/function () {
     function Wrapper(compute) {
@@ -6160,7 +6148,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       var currentStateRef = definition.ref;
       dynamicScope.outletState = currentStateRef;
       var state = {
-        self: new _reference.ComponentRootReference(definition.controller, environment),
+        self: new _reference.ComponentRootReference(definition.controller),
         environment: environment,
         finalize: (0, _instrumentation._instrumentStart)('render.outlet', instrumentationPayload, definition)
       };
@@ -6204,13 +6192,32 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           instance: definition.controller,
           template: definition.template
         });
+        (0, _runtime2.registerDestructor)(state, function () {
+          state.environment.extra.debugRenderTree.willDestroy(state);
+
+          if (state.engine) {
+            state.environment.extra.debugRenderTree.willDestroy(state.engine);
+          }
+
+          state.environment.extra.debugRenderTree.willDestroy(state.outlet);
+        });
       }
 
       return state;
     };
 
-    _proto5.getJitStaticLayout = function getJitStaticLayout(_ref, _resolver) {
-      var template = _ref.template;
+    _proto5.getDebugName = function getDebugName(_ref) {
+      var name = _ref.name;
+
+      if (name === '-top-level') {
+        return '- While rendering:';
+      }
+
+      return name;
+    };
+
+    _proto5.getJitStaticLayout = function getJitStaticLayout(_ref2, _resolver) {
+      var template = _ref2.template;
       // The router has already resolved the template
       return (0, _util.unwrapTemplate)(template).asLayout();
     };
@@ -6219,19 +6226,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return CAPABILITIES;
     };
 
-    _proto5.getSelf = function getSelf(_ref2) {
-      var self = _ref2.self;
+    _proto5.getSelf = function getSelf(_ref3) {
+      var self = _ref3.self;
       return self;
-    };
-
-    _proto5.getTag = function getTag() {
-      if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        // returning a const tag skips the update hook (VM BUG?)
-        return (0, _validator.createTag)();
-      } else {
-        // an outlet has no hooks
-        return _validator.CONSTANT_TAG;
-      }
     };
 
     _proto5.didRenderLayout = function didRenderLayout(state, bounds) {
@@ -6272,19 +6269,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto5.getDestructor = function getDestructor(state) {
+    _proto5.getDestroyable = function getDestroyable(state) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        return {
-          destroy: function destroy() {
-            state.environment.extra.debugRenderTree.willDestroy(state);
-
-            if (state.engine) {
-              state.environment.extra.debugRenderTree.willDestroy(state.engine);
-            }
-
-            state.environment.extra.debugRenderTree.willDestroy(state.outlet);
-          }
-        };
+        return state;
       } else {
         return null;
       }
@@ -6325,8 +6312,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           return 'div';
         };
 
-        _proto6.getJitStaticLayout = function getJitStaticLayout(_ref3) {
-          var template = _ref3.template;
+        _proto6.getJitStaticLayout = function getJitStaticLayout(_ref4) {
+          var template = _ref4.template;
           // The router has already resolved the template
           return (0, _util.unwrapTemplate)(template).asWrappedLayout();
         };
@@ -6365,16 +6352,25 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
 
   var ComponentStateBucket = /*#__PURE__*/function () {
-    function ComponentStateBucket(environment, component, args, finalizer, hasWrappedElement) {
+    function ComponentStateBucket(environment, component, args, argsTag, finalizer, hasWrappedElement) {
+      var _this2 = this;
+
       this.environment = environment;
       this.component = component;
       this.args = args;
+      this.argsTag = argsTag;
       this.finalizer = finalizer;
       this.hasWrappedElement = hasWrappedElement;
       this.classRef = null;
       this.classRef = null;
-      this.argsRevision = args === null ? 0 : (0, _validator.valueForTag)(args.tag);
-      this.rootRef = new _reference.ComponentRootReference(component, environment);
+      this.argsRevision = args === null ? 0 : (0, _validator.valueForTag)(argsTag);
+      this.rootRef = new _reference.ComponentRootReference(component);
+      (0, _runtime2.registerDestructor)(this, function () {
+        return _this2.willDestroy();
+      }, true);
+      (0, _runtime2.registerDestructor)(this, function () {
+        return _this2.component.destroy();
+      });
     }
 
     var _proto7 = ComponentStateBucket.prototype;
@@ -6397,10 +6393,6 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       component.renderer.unregister(component);
     };
 
-    _proto7.destroy = function destroy() {
-      this.component.destroy();
-    };
-
     _proto7.finalize = function finalize() {
       var finalizer = this.finalizer;
       finalizer();
@@ -6413,26 +6405,26 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var EmberHelperRootReference = /*#__PURE__*/function (_HelperRootReference) {
     (0, _emberBabel.inheritsLoose)(EmberHelperRootReference, _HelperRootReference);
 
-    function EmberHelperRootReference(helper$$1, args, env) {
-      var _this2;
+    function EmberHelperRootReference(helper$$1, args) {
+      var _this3;
 
       var fnWrapper = function fnWrapper(args) {
-        var positional = args.positional,
-            named = args.named;
-        var positionalValue = positional.value();
-        var namedValue = named.value();
+        var _reifyArgs = (0, _runtime2.reifyArgs)(args),
+            positional = _reifyArgs.positional,
+            named = _reifyArgs.named;
+
         var ret;
 
         if (true
         /* DEBUG */
         ) {
-          (0, _debug.debugFreeze)(positionalValue);
-          (0, _debug.debugFreeze)(namedValue);
-          (0, _validator.deprecateMutationsInAutotrackingTransaction)(function () {
-            ret = helper$$1.compute(positionalValue, namedValue);
+          (0, _debug.debugFreeze)(positional);
+          (0, _debug.debugFreeze)(named);
+          (0, _validator.deprecateMutationsInTrackingTransaction)(function () {
+            ret = helper$$1.compute(positional, named);
           });
         } else {
-          ret = helper$$1.compute(positionalValue, namedValue);
+          ret = helper$$1.compute(positional, named);
         }
 
         if (helper$$1[RECOMPUTE_TAG]) {
@@ -6446,12 +6438,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       /* DEBUG */
       ) {
         var debugName = isClassHelper(helper$$1) ? (0, _utils.getDebugName)(helper$$1) : (0, _utils.getDebugName)(helper$$1.compute);
-        _this2 = _HelperRootReference.call(this, fnWrapper, args, env, debugName) || this;
+        _this3 = _HelperRootReference.call(this, fnWrapper, args, debugName) || this;
       } else {
-        _this2 = _HelperRootReference.call(this, fnWrapper, args, env) || this;
+        _this3 = _HelperRootReference.call(this, fnWrapper, args) || this;
       }
 
-      return (0, _emberBabel.assertThisInitialized)(_this2);
+      return (0, _emberBabel.assertThisInitialized)(_this3);
     }
 
     return EmberHelperRootReference;
@@ -6460,25 +6452,32 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var UnboundRootReference = /*#__PURE__*/function (_RootReference) {
     (0, _emberBabel.inheritsLoose)(UnboundRootReference, _RootReference);
 
-    function UnboundRootReference(inner, env, parent, key) {
-      var _this3;
+    function UnboundRootReference(inner, parent, key) {
+      var _this4;
 
-      _this3 = _RootReference.call(this, env) || this;
-      _this3.inner = inner;
-      _this3.env = env;
+      _this4 = _RootReference.call(this) || this;
+      _this4.inner = inner;
 
       if (true
       /* DEBUG */
       ) {
-        env.setTemplatePathDebugContext((0, _emberBabel.assertThisInitialized)(_this3), key || 'this', parent || null);
+        _this4.debugLabel = parent ? parent.debugLabel + "." + key : "this";
       }
 
-      return _this3;
+      return _this4;
     }
 
     var _proto8 = UnboundRootReference.prototype;
 
+    _proto8.isConst = function isConst() {
+      return true;
+    };
+
     _proto8.value = function value() {
+      return this.inner;
+    };
+
+    _proto8.compute = function compute() {
       return this.inner;
     };
 
@@ -6487,7 +6486,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
       if ((0, _utils.isObject)(value)) {
         // root of interop with ember objects
-        return new UnboundPropertyReference(value[key], this.env, this, key);
+        return new UnboundPropertyReference(value[key], this, key);
       } else {
         return _runtime2.PrimitiveReference.create(value);
       }
@@ -6548,7 +6547,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         return [prop, attribute, false];
       }
     },
-    install: function install(component, rootRef, parsed, operations, env) {
+    install: function install(component, rootRef, parsed, operations) {
       var prop = parsed[0],
           attribute = parsed[1],
           isSimple = parsed[2];
@@ -6571,7 +6570,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       (true && !(!(isSimple && isPath)) && (0, _debug.assert)("Illegal attributeBinding: '" + prop + "' is not a valid attribute name.", !(isSimple && isPath)));
 
       if (_deprecatedFeatures.EMBER_COMPONENT_IS_VISIBLE && attribute === 'style' && StyleBindingReference !== undefined) {
-        reference = new StyleBindingReference(rootRef, reference, referenceForKey(rootRef, 'isVisible'), env);
+        reference = new StyleBindingReference(rootRef, reference, referenceForKey(rootRef, 'isVisible'));
       }
 
       operations.setAttribute(attribute, reference, false, null); // operations.addDynamicAttribute(element, attribute, reference, false);
@@ -6583,28 +6582,35 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var installIsVisibleBinding;
 
   if (_deprecatedFeatures.EMBER_COMPONENT_IS_VISIBLE) {
-    StyleBindingReference = /*#__PURE__*/function () {
-      function StyleBindingReference(parent, inner, isVisible, env) {
-        this.inner = inner;
-        this.isVisible = isVisible;
-        this.env = env;
-        this.tag = (0, _validator.combine)([inner.tag, isVisible.tag]);
+    StyleBindingReference = /*#__PURE__*/function (_CachedReference) {
+      (0, _emberBabel.inheritsLoose)(StyleBindingReference, _CachedReference);
+
+      function StyleBindingReference(parent, inner, isVisible) {
+        var _this5;
+
+        _this5 = _CachedReference.call(this) || this;
+        _this5.inner = inner;
+        _this5.isVisible = isVisible;
 
         if (true
         /* DEBUG */
         ) {
-          env.setTemplatePathDebugContext(this, 'style', parent);
+          _this5.debugLabel = parent.debugLabel + ".style";
         }
+
+        return _this5;
       }
 
       var _proto9 = StyleBindingReference.prototype;
 
-      _proto9.value = function value() {
+      _proto9.compute = function compute() {
         var value = this.inner.value();
         var isVisible = this.isVisible.value();
 
-        if (isVisible !== undefined) {
-          (true && !(false) && (0, _debug.deprecate)("The `isVisible` property on classic component classes is deprecated. Was accessed " + this.env.getTemplatePathDebugContext(this).replace(/^W/, 'w'), false, {
+        if (true
+        /* DEBUG */
+        && isVisible !== undefined) {
+          (true && !(false) && (0, _debug.deprecate)("The `isVisible` property on classic component classes is deprecated. Was accessed:\n\n" + (0, _validator.logTrackingStack)(), false, {
             id: 'ember-component.is-visible',
             until: '4.0.0',
             url: 'https://deprecations.emberjs.com/v3.x#toc_ember-component-is-visible'
@@ -6626,10 +6632,10 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       };
 
       return StyleBindingReference;
-    }();
+    }(_reference.CachedReference);
 
-    installIsVisibleBinding = function installIsVisibleBinding(rootRef, operations, environment) {
-      operations.setAttribute('style', new StyleBindingReference(rootRef, _runtime2.UNDEFINED_REFERENCE, rootRef.get('isVisible'), environment), false, null);
+    installIsVisibleBinding = function installIsVisibleBinding(rootRef, operations) {
+      operations.setAttribute('style', new StyleBindingReference(rootRef, _runtime2.UNDEFINED_REFERENCE, rootRef.get('isVisible')), false, null);
     };
   }
 
@@ -6665,11 +6671,14 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     function SimpleClassNameBindingReference(inner, path) {
       this.inner = inner;
       this.path = path;
-      this.tag = inner.tag;
       this.dasherizedPath = null;
     }
 
     var _proto10 = SimpleClassNameBindingReference.prototype;
+
+    _proto10.isConst = function isConst() {
+      return this.inner.isConst();
+    };
 
     _proto10.value = function value() {
       var value = this.inner.value();
@@ -6701,10 +6710,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this.inner = inner;
       this.truthy = truthy;
       this.falsy = falsy;
-      this.tag = inner.tag;
     }
 
     var _proto11 = ColonClassNameBindingReference.prototype;
+
+    _proto11.isConst = function isConst() {
+      return this.inner.isConst();
+    };
 
     _proto11.value = function value() {
       var inner = this.inner,
@@ -6798,23 +6810,20 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   _exports.INVOKE = INVOKE;
   var SOURCE = (0, _utils.symbol)('SOURCE');
 
-  var MutReference = /*#__PURE__*/function (_RootReference2) {
-    (0, _emberBabel.inheritsLoose)(MutReference, _RootReference2);
-
-    function MutReference(inner, env) {
-      var _this4;
-
-      _this4 = _RootReference2.call(this, env) || this;
-      _this4.inner = inner;
-      _this4.tag = inner.tag;
-      _this4[SOURCE] = inner;
-      return _this4;
+  var MutReference = /*#__PURE__*/function () {
+    function MutReference(inner) {
+      this.inner = inner;
+      this[SOURCE] = inner;
     }
 
     var _proto12 = MutReference.prototype;
 
     _proto12.value = function value() {
       return this.inner.value();
+    };
+
+    _proto12.isConst = function isConst() {
+      return this.inner.isConst();
     };
 
     _proto12.get = function get(key) {
@@ -6830,13 +6839,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     };
 
     return MutReference;
-  }(_reference.RootReference);
+  }();
 
   function unMut(ref) {
     return ref[SOURCE] || ref;
   }
 
-  function mut(args, vm) {
+  function mut(args) {
     var rawRef = args.positional.at(0);
 
     if (typeof rawRef[INVOKE] === 'function') {
@@ -6856,7 +6865,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
 
     (true && !(rawRef[_reference.UPDATE_REFERENCED_VALUE] !== undefined) && (0, _debug.assert)('You can only pass a path to mut', rawRef[_reference.UPDATE_REFERENCED_VALUE] !== undefined));
-    return new MutReference(rawRef, vm.env);
+    return new MutReference(rawRef);
   }
   /**
   @module ember
@@ -7128,7 +7137,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     @public
   */
 
-  function action(args, vm) {
+  function action(args) {
     var named = args.named,
         positional = args.positional;
     var capturedArgs = positional.capture(); // The first two argument slots are reserved.
@@ -7136,11 +7145,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     // pos[1] is the action name or function
     // Anything else is an action argument.
 
-    var _capturedArgs$referen = capturedArgs.references,
-        context = _capturedArgs$referen[0],
-        action = _capturedArgs$referen[1],
-        restArgs = _capturedArgs$referen.slice(2); // TODO: Is there a better way of doing this?
-
+    var context = capturedArgs[0],
+        action = capturedArgs[1],
+        restArgs = capturedArgs.slice(2); // TODO: Is there a better way of doing this?
 
     var debugKey = action.propertyKey;
     var target = named.has('target') ? named.get('target') : context;
@@ -7149,14 +7156,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
     if (typeof action[INVOKE] === 'function') {
       fn = makeClosureAction(action, action, action[INVOKE], processArgs, debugKey);
-    } else if ((0, _validator.isConst)(target) && (0, _validator.isConst)(action)) {
-      fn = makeClosureAction(context.value(), target.value(), action.value(), processArgs, debugKey);
     } else {
       fn = makeDynamicClosureAction(context.value(), target, action, processArgs, debugKey);
     }
 
     fn[ACTION] = true;
-    return new UnboundRootReference(fn, vm.env);
+    return new UnboundRootReference(fn);
   }
 
   function NOOP$1(args) {
@@ -7253,21 +7258,20 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
 
   function processComponentArgs(namedArgs) {
-    var keys = namedArgs.names;
-    var attrs = namedArgs.value();
+    var attrs = Object.create(null);
     var props = Object.create(null);
     var args = Object.create(null);
     props[ARGS] = args;
 
-    for (var i = 0; i < keys.length; i++) {
-      var name = keys[i];
-      var ref = namedArgs.get(name);
-      var value = attrs[name];
+    for (var name in namedArgs) {
+      var ref = namedArgs[name];
+      var value = ref.value();
+      var isAction = typeof value === 'function' && value[ACTION];
 
-      if (typeof value === 'function' && value[ACTION]) {
-        attrs[name] = value;
-      } else if (ref[_reference.UPDATE_REFERENCED_VALUE]) {
+      if (ref[_reference.UPDATE_REFERENCED_VALUE] && !isAction) {
         attrs[name] = new MutableCell(ref, value);
+      } else {
+        attrs[name] = value;
       }
 
       args[name] = ref;
@@ -7320,7 +7324,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   // properties applying right to left.
 
 
-  function applyAttributeBindings(attributeBindings, component, rootRef, operations, environment) {
+  function applyAttributeBindings(attributeBindings, component, rootRef, operations) {
     var seen = [];
     var i = attributeBindings.length - 1;
 
@@ -7331,7 +7335,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
       if (seen.indexOf(attribute) === -1) {
         seen.push(attribute);
-        AttributeBinding.install(component, rootRef, parsed, operations, environment);
+        AttributeBinding.install(component, rootRef, parsed, operations);
       }
 
       i--;
@@ -7343,7 +7347,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     }
 
     if (_deprecatedFeatures.EMBER_COMPONENT_IS_VISIBLE && installIsVisibleBinding !== undefined && seen.indexOf('style') === -1) {
-      installIsVisibleBinding(rootRef, operations, environment);
+      installIsVisibleBinding(rootRef, operations);
     }
   }
 
@@ -7417,7 +7421,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
     _proto14.prepareArgs = function prepareArgs(state, args) {
       if (args.named.has('__ARGS__')) {
-        var _a = args.named.capture().map,
+        var _a = args.named.capture(),
             __ARGS__ = _a.__ARGS__,
             rest = __rest(_a, ["__ARGS__"]);
 
@@ -7440,12 +7444,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         var _named;
 
         (true && !(!args.named.has(positionalParams)) && (0, _debug.assert)("You cannot specify positional parameters and the hash argument `" + positionalParams + "`.", !args.named.has(positionalParams)));
-        named = (_named = {}, _named[positionalParams] = args.positional.capture(), _named);
-        (0, _polyfills.assign)(named, args.named.capture().map);
+        named = (_named = {}, _named[positionalParams] = new _runtime2.ReifyPositionalReference(args.positional.capture()), _named);
+        (0, _polyfills.assign)(named, args.named.capture());
       } else if (Array.isArray(positionalParams) && positionalParams.length > 0) {
         var count = Math.min(positionalParams.length, args.positional.length);
         named = {};
-        (0, _polyfills.assign)(named, args.named.capture().map);
+        (0, _polyfills.assign)(named, args.named.capture());
 
         for (var i = 0; i < count; i++) {
           var name = positionalParams[i];
@@ -7478,7 +7482,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       // copy of the Arguments object that is safe to hold on to between renders.
 
       var capturedArgs = args.named.capture();
-      var props = processComponentArgs(capturedArgs); // Alias `id` argument to `elementId` property on the component instance.
+      (0, _validator.beginTrackFrame)();
+      var props = processComponentArgs(capturedArgs);
+      var argsTag = (0, _validator.endTrackFrame)(); // Alias `id` argument to `elementId` property on the component instance.
 
       aliasIdToElementId(args, props); // Set component instance's parentView property to point to nearest concrete
       // component.
@@ -7503,6 +7509,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       // actually create it.
 
 
+      (0, _validator.beginUntrackFrame)();
       var component = factory.create(props);
       var finalizer = (0, _instrumentation._instrumentStart)('render.component', initialRenderInstrumentDetails, component); // We become the new parentView for downstream components, so save our
       // component off on the dynamic scope.
@@ -7531,7 +7538,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       // Essentially we're saving off all the state we'll need in the future.
 
 
-      var bucket = new ComponentStateBucket(environment, component, capturedArgs, finalizer, hasWrappedElement);
+      var bucket = new ComponentStateBucket(environment, component, capturedArgs, argsTag, finalizer, hasWrappedElement);
 
       if (args.named.has('class')) {
         bucket.classRef = args.named.get('class');
@@ -7547,6 +7554,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         component.trigger('willRender');
       }
 
+      (0, _validator.endUntrackFrame)();
+
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         environment.extra.debugRenderTree.create(bucket, {
           type: 'component',
@@ -7555,21 +7564,32 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           instance: component,
           template: state.template
         });
-      }
+        (0, _runtime2.registerDestructor)(bucket, function () {
+          environment.extra.debugRenderTree.willDestroy(bucket);
+        });
+      } // consume every argument so we always run again
 
+
+      (0, _validator.consumeTag)(bucket.argsTag);
+      (0, _validator.consumeTag)(component[DIRTY_TAG]);
       return bucket;
     };
 
-    _proto14.getSelf = function getSelf(_ref4) {
-      var rootRef = _ref4.rootRef;
+    _proto14.getDebugName = function getDebugName(_ref5) {
+      var name = _ref5.name;
+      return name;
+    };
+
+    _proto14.getSelf = function getSelf(_ref6) {
+      var rootRef = _ref6.rootRef;
       return rootRef;
     };
 
-    _proto14.didCreateElement = function didCreateElement(_ref5, element, operations) {
-      var component = _ref5.component,
-          classRef = _ref5.classRef,
-          environment = _ref5.environment,
-          rootRef = _ref5.rootRef;
+    _proto14.didCreateElement = function didCreateElement(_ref7, element, operations) {
+      var component = _ref7.component,
+          classRef = _ref7.classRef,
+          environment = _ref7.environment,
+          rootRef = _ref7.rootRef;
       (0, _views.setViewElement)(component, element);
       (0, _views.setElementView)(element, component);
       var attributeBindings = component.attributeBindings,
@@ -7577,13 +7597,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           classNameBindings = component.classNameBindings;
 
       if (attributeBindings && attributeBindings.length) {
-        applyAttributeBindings(attributeBindings, component, rootRef, operations, environment);
+        applyAttributeBindings(attributeBindings, component, rootRef, operations);
       } else {
         var id$$1 = component.elementId ? component.elementId : (0, _utils.guidFor)(component);
         operations.setAttribute('id', _runtime2.PrimitiveReference.create(id$$1), false, null);
 
         if (_deprecatedFeatures.EMBER_COMPONENT_IS_VISIBLE) {
-          installIsVisibleBinding(rootRef, operations, environment);
+          installIsVisibleBinding(rootRef, operations);
         }
       }
 
@@ -7626,15 +7646,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto14.getTag = function getTag(_ref6) {
-      var args = _ref6.args,
-          component = _ref6.component;
-      return args ? (0, _validator.combine)([args.tag, component[DIRTY_TAG]]) : component[DIRTY_TAG];
-    };
-
-    _proto14.didCreate = function didCreate(_ref7) {
-      var component = _ref7.component,
-          environment = _ref7.environment;
+    _proto14.didCreate = function didCreate(_ref8) {
+      var component = _ref8.component,
+          environment = _ref8.environment;
 
       if (environment.isInteractive) {
         component._transitionTo('inDOM');
@@ -7647,6 +7661,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     _proto14.update = function update(bucket) {
       var component = bucket.component,
           args = bucket.args,
+          argsTag = bucket.argsTag,
           argsRevision = bucket.argsRevision,
           environment = bucket.environment;
 
@@ -7655,10 +7670,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
 
       bucket.finalizer = (0, _instrumentation._instrumentStart)('render.component', rerenderInstrumentDetails, component);
+      (0, _validator.beginUntrackFrame)();
 
-      if (args && !(0, _validator.validateTag)(args.tag, argsRevision)) {
+      if (args !== null && !(0, _validator.validateTag)(argsTag, argsRevision)) {
+        (0, _validator.beginTrackFrame)();
         var props = processComponentArgs(args);
-        bucket.argsRevision = (0, _validator.valueForTag)(args.tag);
+        argsTag = bucket.argsTag = (0, _validator.endTrackFrame)();
+        bucket.argsRevision = (0, _validator.valueForTag)(argsTag);
         component[IS_DISPATCHING_ATTRS] = true;
         component.setProperties(props);
         component[IS_DISPATCHING_ATTRS] = false;
@@ -7670,6 +7688,10 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         component.trigger('willUpdate');
         component.trigger('willRender');
       }
+
+      (0, _validator.endUntrackFrame)();
+      (0, _validator.consumeTag)(argsTag);
+      (0, _validator.consumeTag)(component[DIRTY_TAG]);
     };
 
     _proto14.didUpdateLayout = function didUpdateLayout(bucket, bounds) {
@@ -7680,9 +7702,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto14.didUpdate = function didUpdate(_ref8) {
-      var component = _ref8.component,
-          environment = _ref8.environment;
+    _proto14.didUpdate = function didUpdate(_ref9) {
+      var component = _ref9.component,
+          environment = _ref9.environment;
 
       if (environment.isInteractive) {
         component.trigger('didUpdate');
@@ -7690,20 +7712,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto14.getDestructor = function getDestructor(bucket) {
-      if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        return {
-          willDestroy: function willDestroy() {
-            bucket.willDestroy();
-          },
-          destroy: function destroy() {
-            bucket.environment.extra.debugRenderTree.willDestroy(bucket);
-            bucket.destroy();
-          }
-        };
-      } else {
-        return bucket;
-      }
+    _proto14.getDestroyable = function getDestroyable(bucket) {
+      return bucket;
     };
 
     return CurlyComponentManager;
@@ -7811,14 +7821,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     (0, _emberBabel.inheritsLoose)(RootComponentManager, _CurlyComponentManage);
 
     function RootComponentManager(component) {
-      var _this5;
+      var _this6;
 
-      _this5 = _CurlyComponentManage.call(this) || this;
-      _this5.component = component;
-      return _this5;
+      _this6 = _CurlyComponentManage.call(this) || this;
+      _this6.component = component;
+      return _this6;
     }
 
     var _proto15 = RootComponentManager.prototype;
+
+    _proto15.getDebugName = function getDebugName() {
+      return '- While rendering:';
+    };
 
     _proto15.getJitStaticLayout = function getJitStaticLayout(_state) {
       var template = this.templateFor(this.component);
@@ -7849,7 +7863,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         processComponentInitializationAssertions(component, {});
       }
 
-      var bucket = new ComponentStateBucket(environment, component, null, finalizer, hasWrappedElement);
+      var bucket = new ComponentStateBucket(environment, component, null, _validator.CONSTANT_TAG, finalizer, hasWrappedElement);
 
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         environment.extra.debugRenderTree.create(bucket, {
@@ -7861,6 +7875,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         });
       }
 
+      (0, _validator.consumeTag)(component[DIRTY_TAG]);
       return bucket;
     };
 
@@ -7884,89 +7899,19 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     willDestroy: false
   };
 
-  var RootComponentDefinition = /*#__PURE__*/function () {
-    function RootComponentDefinition(component) {
-      this.component = component;
-      var manager = new RootComponentManager(component);
-      this.manager = manager;
-
-      var factory = _container.FACTORY_FOR.get(component);
-
-      this.state = {
-        name: factory.fullName.slice(10),
-        capabilities: ROOT_CAPABILITIES,
-        ComponentClass: factory
-      };
-    }
-
-    var _proto16 = RootComponentDefinition.prototype;
-
-    _proto16.getTag = function getTag(_ref9) {
-      var component = _ref9.component;
-      return component[DIRTY_TAG];
+  var RootComponentDefinition = function RootComponentDefinition(component) {
+    this.component = component;
+    var manager = new RootComponentManager(component);
+    this.manager = manager;
+    var factory = (0, _container.getFactoryFor)(component);
+    this.state = {
+      name: factory.fullName.slice(10),
+      capabilities: ROOT_CAPABILITIES,
+      ComponentClass: factory
     };
-
-    return RootComponentDefinition;
-  }();
-  /* globals module, URL */
-
-
-  var nodeURL;
-  var parsingNode;
-
-  function installProtocolForURL(environment) {
-    var protocol;
-
-    if (_browserEnvironment.hasDOM) {
-      protocol = browserProtocolForURL.call(environment, 'foobar:baz');
-    } // Test to see if our DOM implementation parses
-    // and normalizes URLs.
-
-
-    if (protocol === 'foobar:') {
-      // Swap in the method that doesn't do this test now that
-      // we know it works.
-      environment.protocolForURL = browserProtocolForURL;
-    } else if (typeof URL === 'object') {
-      // URL globally provided, likely from FastBoot's sandbox
-      nodeURL = URL;
-      environment.protocolForURL = nodeProtocolForURL;
-    } else if (typeof module !== 'undefined' && typeof module.require === 'function') {
-      // Otherwise, we need to fall back to our own URL parsing.
-      // Global `require` is shadowed by Ember's loader so we have to use the fully
-      // qualified `module.require`.
-      // tslint:disable-next-line:no-require-imports
-      nodeURL = module.require('url');
-      environment.protocolForURL = nodeProtocolForURL;
-    } else {
-      throw new Error('Could not find valid URL parsing mechanism for URL Sanitization');
-    }
-  }
-
-  function browserProtocolForURL(url) {
-    if (!parsingNode) {
-      parsingNode = document.createElement('a');
-    }
-
-    parsingNode.href = url;
-    return parsingNode.protocol;
-  }
-
-  function nodeProtocolForURL(url) {
-    var protocol = null;
-
-    if (typeof url === 'string') {
-      protocol = nodeURL.parse(url).protocol;
-    }
-
-    return protocol === null ? ':' : protocol;
-  }
+  };
 
   var GUID = 0;
-
-  function isPathNode(node) {
-    return node.type === 'root' || node.type === 'argument' || node.type === 'property' || node.type === 'iterator';
-  }
 
   var Ref = /*#__PURE__*/function () {
     function Ref(value) {
@@ -7974,18 +7919,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this.value = value;
     }
 
-    var _proto17 = Ref.prototype;
+    var _proto16 = Ref.prototype;
 
-    _proto17.get = function get() {
+    _proto16.get = function get() {
       return this.value;
     };
 
-    _proto17.release = function release() {
+    _proto16.release = function release() {
       (true && !(this.value !== null) && (0, _debug.assert)('BUG: double release?', this.value !== null));
       this.value = null;
     };
 
-    _proto17.toString = function toString() {
+    _proto16.toString = function toString() {
       var label = "Ref " + this.id;
 
       if (this.value === null) {
@@ -8002,151 +7947,58 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     return Ref;
   }();
 
-  var _repeat = String.prototype.repeat || function (count) {
-    return new Array(count + 1).join(this);
-  };
-
-  function repeatString(str, count) {
-    return _repeat.call(str, count);
-  }
-
   var DebugRenderTree = /*#__PURE__*/function () {
     function DebugRenderTree() {
       this.stack = new _util.Stack();
       this.refs = new WeakMap();
       this.roots = new Set();
       this.nodes = new WeakMap();
-      this.pathNodes = new WeakMap();
     }
 
-    var _proto18 = DebugRenderTree.prototype;
+    var _proto17 = DebugRenderTree.prototype;
 
-    _proto18.begin = function begin() {
+    _proto17.begin = function begin() {
       this.reset();
     };
 
-    _proto18.create = function create(state, node) {
+    _proto17.create = function create(state, node) {
       var internalNode = (0, _polyfills.assign)({}, node, {
         bounds: null,
-        refs: new Set(),
-        paths: new Set()
+        refs: new Set()
       });
       this.nodes.set(state, internalNode);
       this.appendChild(internalNode, state);
       this.enter(state);
     };
 
-    _proto18.update = function update(state) {
+    _proto17.update = function update(state) {
       this.enter(state);
     } // for dynamic layouts
     ;
 
-    _proto18.setTemplate = function setTemplate(state, template) {
+    _proto17.setTemplate = function setTemplate(state, template) {
       this.nodeFor(state).template = template;
     };
 
-    _proto18.didRender = function didRender(state, bounds) {
+    _proto17.didRender = function didRender(state, bounds) {
       (true && !(this.stack.current === state) && (0, _debug.assert)("BUG: expecting " + this.stack.current + ", got " + state, this.stack.current === state));
       this.nodeFor(state).bounds = bounds;
       this.exit();
     };
 
-    _proto18.willDestroy = function willDestroy(state) {
+    _proto17.willDestroy = function willDestroy(state) {
       (0, _util.expect)(this.refs.get(state), 'BUG: missing ref').release();
     };
 
-    _proto18.commit = function commit() {
+    _proto17.commit = function commit() {
       this.reset();
     };
 
-    _proto18.capture = function capture() {
+    _proto17.capture = function capture() {
       return this.captureRefs(this.roots);
     };
 
-    _proto18.createPath = function createPath(pathRef, name, type, parentRef) {
-      (true && !(!this.pathNodes.has(pathRef)) && (0, _debug.assert)('BUG: Attempted to register a path that had already been registered', !this.pathNodes.has(pathRef)));
-      var current = this.stack.current;
-
-      if (current === null) {
-        // Not currently in a rendering context, don't register the node
-        return;
-      }
-
-      var currentNode = (0, _util.expect)(this.nodes.get(current), 'BUG: Attempted to create a path, but there is no current render node');
-      var parent;
-
-      if (parentRef === null) {
-        parent = currentNode;
-      } else {
-        var named = currentNode.args.named;
-        var refIndex = named.references.indexOf(parentRef);
-
-        if (refIndex !== -1) {
-          parent = {
-            parent: currentNode,
-            type: 'argument',
-            name: "@" + named.names[refIndex],
-            paths: new Set()
-          };
-        } else if (this.pathNodes.has(parentRef)) {
-          parent = this.pathNodes.get(parentRef);
-        } else {
-          // Some RootReferences get created before a component context has been
-          // setup (root, curly). This is mainly because the debugRenderTree is
-          // tied to the manager hooks, and not built into the VM directly. In
-          // these cases, we setup the path lazily when the first property is
-          // accessed.
-          this.createPath(parentRef, 'this', 'root', null);
-          parent = this.pathNodes.get(parentRef);
-        }
-      }
-
-      var pathNode = {
-        name: name,
-        type: type,
-        parent: parent,
-        paths: new Set()
-      };
-      parent.paths.add(pathNode);
-      this.pathNodes.set(pathRef, pathNode);
-    };
-
-    _proto18.logRenderStackForPath = function logRenderStackForPath(pathRef) {
-      var node = (0, _util.expect)(this.pathNodes.get(pathRef), 'BUG: Attempted to create a log for a path reference, but no node exist for that reference');
-      var pathParts = [];
-
-      while (node !== undefined && isPathNode(node)) {
-        if (node.type === 'iterator') {
-          // Iterator items are a combination of their own name (the key of the item) and
-          // their parent, the iterable itself.
-          var part = node.parent.name + "[" + node.name + "]";
-          pathParts.push(part);
-          node = node.parent;
-        } else {
-          pathParts.unshift(node.name);
-        }
-
-        node = node.parent;
-      }
-
-      var messageParts = [pathParts.join('.')];
-
-      while (node !== undefined) {
-        if (node.type === 'outlet' || node.name === '-top-level') {
-          node = node.parent;
-          continue;
-        }
-
-        messageParts.unshift(node.name);
-        node = node.parent;
-      }
-
-      return messageParts.map(function (part, index) {
-        return "" + repeatString(' ', index * 2) + part;
-      }).join('\n');
-    };
-
-    _proto18.reset = function reset() {
+    _proto17.reset = function reset() {
       if (this.stack.size !== 0) {
         // We probably encountered an error during the rendering loop. This will
         // likely trigger undefined behavior and memory leaks as the error left
@@ -8159,20 +8011,20 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto18.enter = function enter(state) {
+    _proto17.enter = function enter(state) {
       this.stack.push(state);
     };
 
-    _proto18.exit = function exit() {
+    _proto17.exit = function exit() {
       (true && !(this.stack.size !== 0) && (0, _debug.assert)('BUG: unbalanced pop', this.stack.size !== 0));
       this.stack.pop();
     };
 
-    _proto18.nodeFor = function nodeFor(state) {
+    _proto17.nodeFor = function nodeFor(state) {
       return (0, _util.expect)(this.nodes.get(state), 'BUG: missing node');
     };
 
-    _proto18.appendChild = function appendChild(node, state) {
+    _proto17.appendChild = function appendChild(node, state) {
       (true && !(!this.refs.has(state)) && (0, _debug.assert)('BUG: child already appended', !this.refs.has(state)));
       var parent = this.stack.current;
       var ref = new Ref(state);
@@ -8187,15 +8039,15 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto18.captureRefs = function captureRefs(refs) {
-      var _this6 = this;
+    _proto17.captureRefs = function captureRefs(refs) {
+      var _this7 = this;
 
       var captured = [];
       refs.forEach(function (ref) {
         var state = ref.get();
 
         if (state) {
-          captured.push(_this6.captureNode("render-node:" + ref.id, state));
+          captured.push(_this7.captureNode("render-node:" + ref.id, state));
         } else {
           refs.delete(ref);
         }
@@ -8203,7 +8055,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return captured;
     };
 
-    _proto18.captureNode = function captureNode(id, state) {
+    _proto17.captureNode = function captureNode(id, state) {
       var node = this.nodeFor(state);
       var type = node.type,
           name = node.name,
@@ -8217,7 +8069,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         id: id,
         type: type,
         name: name,
-        args: args.value(),
+        args: (0, _runtime2.reifyArgs)(args),
         instance: instance,
         template: template,
         bounds: bounds,
@@ -8225,12 +8077,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       };
     };
 
-    _proto18.captureTemplate = function captureTemplate(_ref10) {
+    _proto17.captureTemplate = function captureTemplate(_ref10) {
       var template = _ref10.template;
       return template && (0, _util.unwrapTemplate)(template).referrer.moduleName || null;
     };
 
-    _proto18.captureBounds = function captureBounds(node) {
+    _proto17.captureBounds = function captureBounds(node) {
       var bounds = (0, _util.expect)(node.bounds, 'BUG: missing bounds');
       var parentElement = bounds.parentElement();
       var firstNode = bounds.firstNode();
@@ -8334,6 +8186,11 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     has previously seen an object from the `@developers` array with a matching
     name, its DOM elements will be re-used.
   
+    There are two special values for `key`:
+  
+      * `@index` - The index of the item in the array.
+      * `@identity` - The item in the array itself.
+  
     ### {{else}} condition
   
     `{{#each}}` can have a matching `{{else}}`. The contents of this block will render
@@ -8394,15 +8251,17 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var EachInReference = /*#__PURE__*/function () {
     function EachInReference(inner) {
       this.inner = inner;
-      this.valueTag = (0, _validator.createUpdatableTag)();
-      this.tag = (0, _validator.combine)([inner.tag, this.valueTag]);
     }
 
-    var _proto19 = EachInReference.prototype;
+    var _proto18 = EachInReference.prototype;
 
-    _proto19.value = function value() {
+    _proto18.isConst = function isConst() {
+      return this.inner.isConst();
+    };
+
+    _proto18.value = function value() {
       var iterable = this.inner.value();
-      var tag = (0, _metal.tagForObject)(iterable);
+      (0, _validator.consumeTag)((0, _metal.tagForObject)(iterable));
 
       if ((0, _utils.isProxy)(iterable)) {
         // this is because the each-in doesn't actually get(proxy, 'key') but bypasses it
@@ -8410,11 +8269,10 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         iterable = (0, _runtime._contentFor)(iterable);
       }
 
-      (0, _validator.updateTag)(this.valueTag, tag);
       return new EachInWrapper(iterable);
     };
 
-    _proto19.get = function get(key) {
+    _proto18.get = function get(key) {
       return this.inner.get(key);
     };
 
@@ -8477,17 +8335,17 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this.position = 0;
     }
 
-    var _proto20 = BoundedIterator.prototype;
+    var _proto19 = BoundedIterator.prototype;
 
-    _proto20.isEmpty = function isEmpty() {
+    _proto19.isEmpty = function isEmpty() {
       return false;
     };
 
-    _proto20.memoFor = function memoFor(position) {
+    _proto19.memoFor = function memoFor(position) {
       return position;
     };
 
-    _proto20.next = function next() {
+    _proto19.next = function next() {
       var length = this.length,
           position = this.position;
 
@@ -8511,11 +8369,11 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     (0, _emberBabel.inheritsLoose)(ArrayIterator, _BoundedIterator);
 
     function ArrayIterator(array) {
-      var _this7;
+      var _this8;
 
-      _this7 = _BoundedIterator.call(this, array.length) || this;
-      _this7.array = array;
-      return _this7;
+      _this8 = _BoundedIterator.call(this, array.length) || this;
+      _this8.array = array;
+      return _this8;
     }
 
     ArrayIterator.from = function from(iterable) {
@@ -8530,9 +8388,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return this.from(array);
     };
 
-    var _proto21 = ArrayIterator.prototype;
+    var _proto20 = ArrayIterator.prototype;
 
-    _proto21.valueFor = function valueFor(position) {
+    _proto20.valueFor = function valueFor(position) {
       return this.array[position];
     };
 
@@ -8543,20 +8401,20 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     (0, _emberBabel.inheritsLoose)(EmberArrayIterator, _BoundedIterator2);
 
     function EmberArrayIterator(array) {
-      var _this8;
+      var _this9;
 
-      _this8 = _BoundedIterator2.call(this, array.length) || this;
-      _this8.array = array;
-      return _this8;
+      _this9 = _BoundedIterator2.call(this, array.length) || this;
+      _this9.array = array;
+      return _this9;
     }
 
     EmberArrayIterator.from = function from(iterable) {
       return iterable.length > 0 ? new this(iterable) : null;
     };
 
-    var _proto22 = EmberArrayIterator.prototype;
+    var _proto21 = EmberArrayIterator.prototype;
 
-    _proto22.valueFor = function valueFor(position) {
+    _proto21.valueFor = function valueFor(position) {
       return (0, _metal.objectAt)(this.array, position);
     };
 
@@ -8567,12 +8425,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     (0, _emberBabel.inheritsLoose)(ObjectIterator, _BoundedIterator3);
 
     function ObjectIterator(keys, values) {
-      var _this9;
+      var _this10;
 
-      _this9 = _BoundedIterator3.call(this, values.length) || this;
-      _this9.keys = keys;
-      _this9.values = values;
-      return _this9;
+      _this10 = _BoundedIterator3.call(this, values.length) || this;
+      _this10.keys = keys;
+      _this10.values = values;
+      return _this10;
     }
 
     ObjectIterator.fromIndexable = function fromIndexable(obj) {
@@ -8591,10 +8449,10 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           // should always cause updates if they are consumed and then changed
 
           if ((0, _validator.isTracking)()) {
-            (0, _validator.consumeTag)((0, _metal.tagForProperty)(obj, key));
+            (0, _validator.consumeTag)((0, _validator.tagFor)(obj, key));
 
-            if (Array.isArray(value) || (0, _utils.isEmberArray)(value)) {
-              (0, _validator.consumeTag)((0, _metal.tagForProperty)(value, '[]'));
+            if (Array.isArray(value)) {
+              (0, _validator.consumeTag)((0, _validator.tagFor)(value, '[]'));
             }
           }
 
@@ -8631,13 +8489,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    var _proto23 = ObjectIterator.prototype;
+    var _proto22 = ObjectIterator.prototype;
 
-    _proto23.valueFor = function valueFor(position) {
+    _proto22.valueFor = function valueFor(position) {
       return this.values[position];
     };
 
-    _proto23.memoFor = function memoFor(position) {
+    _proto22.memoFor = function memoFor(position) {
       return this.keys[position];
     };
 
@@ -8663,13 +8521,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    var _proto24 = NativeIterator.prototype;
+    var _proto23 = NativeIterator.prototype;
 
-    _proto24.isEmpty = function isEmpty() {
+    _proto23.isEmpty = function isEmpty() {
       return false;
     };
 
-    _proto24.next = function next() {
+    _proto23.next = function next() {
       var iterable = this.iterable,
           result = this.result,
           position = this.position;
@@ -8698,13 +8556,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _NativeIterator.apply(this, arguments) || this;
     }
 
-    var _proto25 = ArrayLikeNativeIterator.prototype;
+    var _proto24 = ArrayLikeNativeIterator.prototype;
 
-    _proto25.valueFor = function valueFor(result) {
+    _proto24.valueFor = function valueFor(result) {
       return result.value;
     };
 
-    _proto25.memoFor = function memoFor(_result, position) {
+    _proto24.memoFor = function memoFor(_result, position) {
       return position;
     };
 
@@ -8718,13 +8576,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _NativeIterator2.apply(this, arguments) || this;
     }
 
-    var _proto26 = MapLikeNativeIterator.prototype;
+    var _proto25 = MapLikeNativeIterator.prototype;
 
-    _proto26.valueFor = function valueFor(result) {
+    _proto25.valueFor = function valueFor(result) {
       return result.value[1];
     };
 
-    _proto26.memoFor = function memoFor(result) {
+    _proto25.memoFor = function memoFor(result) {
       return result.value[0];
     };
 
@@ -8745,12 +8603,63 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
   function toBool(predicate) {
     if ((0, _utils.isProxy)(predicate)) {
+      (0, _validator.consumeTag)((0, _metal.tagForProperty)(predicate, 'content'));
       return Boolean((0, _metal.get)(predicate, 'isTruthy'));
     } else if ((0, _runtime.isArray)(predicate)) {
+      (0, _validator.consumeTag)((0, _metal.tagForProperty)(predicate, '[]'));
       return predicate.length !== 0;
     } else {
       return Boolean(predicate);
     }
+  } // Setup global context
+
+
+  (0, _globalContext.default)({
+    scheduleRevalidate: function scheduleRevalidate() {
+      _runloop.backburner.ensureInstance();
+    },
+    toBool: toBool,
+    toIterator: toIterator,
+    getProp: _metal._getProp,
+    setProp: _metal.set,
+    getPath: _metal.get,
+    scheduleDestroy: function scheduleDestroy(destroyable, destructor) {
+      (0, _runloop.schedule)('actions', null, destructor, destroyable);
+    },
+    scheduleDestroyed: function scheduleDestroyed(finalizeDestructor) {
+      (0, _runloop.schedule)('destroy', null, finalizeDestructor);
+    },
+    warnIfStyleNotTrusted: function warnIfStyleNotTrusted(value) {
+      (true && (0, _debug.warn)((0, _views.constructStyleDeprecationMessage)(value), function () {
+        if (value === null || value === undefined || isHTMLSafe(value)) {
+          return true;
+        }
+
+        return false;
+      }(), {
+        id: 'ember-htmlbars.style-xss-warning'
+      }));
+    }
+  });
+
+  if (true
+  /* DEBUG */
+  ) {
+    (0, _validator.setTrackingTransactionEnv)({
+      assert: function assert(message) {
+        (true && !(false) && (0, _debug.assert)(message, false));
+      },
+      deprecate: function deprecate(message) {
+        (true && !(false) && (0, _debug.deprecate)(message, false, {
+          id: 'autotracking.mutation-after-consumption',
+          until: '4.0.0'
+        }));
+      },
+      debugMessage: function debugMessage(obj, keyName) {
+        var dirtyString = keyName ? "`" + keyName + "` on `" + (0, _utils.getDebugName)(obj) + "`" : "`" + (0, _utils.getDebugName)(obj) + "`";
+        return "You attempted to update " + dirtyString + ", but it had already been used previously in the same computation.  Attempting to update a value after using it in a computation can cause logical errors, infinite revalidation bugs, and performance issues, and is not supported.";
+      }
+    });
   }
 
   var EmberEnvironmentExtra = /*#__PURE__*/function () {
@@ -8762,15 +8671,15 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     }
 
-    var _proto27 = EmberEnvironmentExtra.prototype;
+    var _proto26 = EmberEnvironmentExtra.prototype;
 
-    _proto27.begin = function begin() {
+    _proto26.begin = function begin() {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         this.debugRenderTree.begin();
       }
     };
 
-    _proto27.commit = function commit() {
+    _proto26.commit = function commit() {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         this.debugRenderTree.commit();
       }
@@ -8791,104 +8700,206 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
   var EmberEnvironmentDelegate = /*#__PURE__*/function () {
     function EmberEnvironmentDelegate(owner, isInteractive) {
-      this.toBool = toBool;
-      this.toIterator = toIterator;
-      this.getPath = _metal.get;
-      this.setPath = _metal.set;
       this.extra = new EmberEnvironmentExtra(owner);
       this.isInteractive = isInteractive;
-      installProtocolForURL(this);
-    } // this gets clobbered by installPlatformSpecificProtocolForURL
-    // it really should just delegate to a platform specific injection
+    }
 
+    var _proto27 = EmberEnvironmentDelegate.prototype;
 
-    var _proto28 = EmberEnvironmentDelegate.prototype;
-
-    _proto28.protocolForURL = function protocolForURL(s) {
-      return s;
-    };
-
-    _proto28.getTemplatePathDebugContext = function getTemplatePathDebugContext(pathRef) {
-      var stack = this.extra.debugRenderTree.logRenderStackForPath(pathRef);
-      return "While rendering:\n\n" + stack;
-    };
-
-    _proto28.setTemplatePathDebugContext = function setTemplatePathDebugContext(pathRef, desc, parentRef) {
-      var type = 'root';
-
-      if (pathRef instanceof _reference.IterationItemReference) {
-        type = 'iterator';
-      } else if (pathRef instanceof _reference.PropertyReference) {
-        type = 'property';
-      }
-
-      this.extra.debugRenderTree.createPath(pathRef, desc, type, parentRef);
-    };
-
-    _proto28.onTransactionBegin = function onTransactionBegin() {
+    _proto27.onTransactionBegin = function onTransactionBegin() {
       this.extra.begin();
     };
 
-    _proto28.onTransactionCommit = function onTransactionCommit() {
+    _proto27.onTransactionCommit = function onTransactionCommit() {
       this.extra.commit();
     };
 
     return EmberEnvironmentDelegate;
   }();
 
-  if (true
-  /* DEBUG */
-  ) {
-    var StyleAttributeManager = /*#__PURE__*/function (_SimpleDynamicAttribu) {
-      (0, _emberBabel.inheritsLoose)(StyleAttributeManager, _SimpleDynamicAttribu);
+  function convertToInt(prop) {
+    if (typeof prop === 'symbol') return null;
+    var num = Number(prop);
+    if (isNaN(num)) return null;
+    return num % 1 === 0 ? num : null;
+  }
 
-      function StyleAttributeManager() {
-        return _SimpleDynamicAttribu.apply(this, arguments) || this;
+  function tagForNamedArg(namedArgs, key) {
+    return (0, _validator.track)(function () {
+      if (key in namedArgs) {
+        namedArgs[key].value();
       }
+    });
+  }
 
-      var _proto29 = StyleAttributeManager.prototype;
-
-      _proto29.set = function set(dom, value, env) {
-        (true && (0, _debug.warn)((0, _views.constructStyleDeprecationMessage)(value), function () {
-          if (value === null || value === undefined || isHTMLSafe(value)) {
-            return true;
-          }
-
-          return false;
-        }(), {
-          id: 'ember-htmlbars.style-xss-warning'
-        }));
-
-        _SimpleDynamicAttribu.prototype.set.call(this, dom, value, env);
-      };
-
-      _proto29.update = function update(value, env) {
-        (true && (0, _debug.warn)((0, _views.constructStyleDeprecationMessage)(value), function () {
-          if (value === null || value === undefined || isHTMLSafe(value)) {
-            return true;
-          }
-
-          return false;
-        }(), {
-          id: 'ember-htmlbars.style-xss-warning'
-        }));
-
-        _SimpleDynamicAttribu.prototype.update.call(this, value, env);
-      };
-
-      return StyleAttributeManager;
-    }(_runtime2.SimpleDynamicAttribute);
-
-    EmberEnvironmentDelegate.prototype.attributeFor = function (element, attribute, isTrusting, namespace) {
-      if (attribute === 'style' && !isTrusting) {
-        return new StyleAttributeManager({
-          element: element,
-          name: attribute,
-          namespace: namespace
+  function tagForPositionalArg(positionalArgs, key) {
+    return (0, _validator.track)(function () {
+      if (key === '[]') {
+        // consume all of the tags in the positional array
+        positionalArgs.forEach(function (ref) {
+          return ref.value();
         });
       }
 
-      return (0, _runtime2.dynamicAttribute)(element, attribute, namespace);
+      var parsed = convertToInt(key);
+
+      if (parsed !== null && parsed < positionalArgs.length) {
+        // consume the tag of the referenced index
+        positionalArgs[parsed].value();
+      }
+    });
+  }
+
+  var argsProxyFor;
+
+  if (_utils.HAS_NATIVE_PROXY) {
+    argsProxyFor = function argsProxyFor(capturedArgs, type) {
+      var named = capturedArgs.named,
+          positional = capturedArgs.positional;
+
+      var getNamedTag = function getNamedTag(key) {
+        return tagForNamedArg(named, key);
+      };
+
+      var getPositionalTag = function getPositionalTag(key) {
+        return tagForPositionalArg(positional, key);
+      };
+
+      var namedHandler = {
+        get: function get(_target, prop) {
+          var ref = named[prop];
+
+          if (ref !== undefined) {
+            return ref.value();
+          } else if (prop === _metal.CUSTOM_TAG_FOR) {
+            return getNamedTag;
+          }
+        },
+        has: function has(_target, prop) {
+          return prop in named;
+        },
+        ownKeys: function ownKeys(_target) {
+          return Object.keys(named);
+        },
+        isExtensible: function isExtensible() {
+          return false;
+        },
+        getOwnPropertyDescriptor: function getOwnPropertyDescriptor(_target, prop) {
+          (true && !(prop in named) && (0, _debug.assert)('args proxies do not have real property descriptors, so you should never need to call getOwnPropertyDescriptor yourself. This code exists for enumerability, such as in for-in loops and Object.keys()', prop in named));
+          return {
+            enumerable: true,
+            configurable: true
+          };
+        }
+      };
+      var positionalHandler = {
+        get: function get(target, prop) {
+          if (prop === 'length') {
+            return positional.length;
+          }
+
+          var parsed = convertToInt(prop);
+
+          if (parsed !== null && parsed < positional.length) {
+            return positional[parsed].value();
+          }
+
+          if (prop === _metal.CUSTOM_TAG_FOR) {
+            return getPositionalTag;
+          }
+
+          return target[prop];
+        },
+        isExtensible: function isExtensible() {
+          return false;
+        },
+        has: function has(_target, prop) {
+          var parsed = convertToInt(prop);
+          return parsed !== null && parsed < positional.length;
+        }
+      };
+      var namedTarget = Object.create(null);
+      var positionalTarget = [];
+
+      if (true
+      /* DEBUG */
+      ) {
+        var setHandler = function setHandler(_target, prop) {
+          throw new Error("You attempted to set " + String(prop) + " on the arguments of a component, helper, or modifier. Arguments are immutable and cannot be updated directly, they always represent the values that is passed down. If you want to set default values, you should use a getter and local tracked state instead.");
+        };
+
+        var forInDebugHandler = function forInDebugHandler() {
+          throw new Error("Object.keys() was called on the positional arguments array for a " + type + ", which is not supported. This function is a low-level function that should not need to be called for positional argument arrays. You may be attempting to iterate over the array using for...in instead of for...of.");
+        };
+
+        namedHandler.set = setHandler;
+        positionalHandler.set = setHandler;
+        positionalHandler.ownKeys = forInDebugHandler;
+      }
+
+      return {
+        named: new Proxy(namedTarget, namedHandler),
+        positional: new Proxy(positionalTarget, positionalHandler)
+      };
+    };
+  } else {
+    argsProxyFor = function argsProxyFor(capturedArgs, _type) {
+      var named = capturedArgs.named,
+          positional = capturedArgs.positional;
+
+      var getNamedTag = function getNamedTag(key) {
+        return tagForNamedArg(named, key);
+      };
+
+      var getPositionalTag = function getPositionalTag(key) {
+        return tagForPositionalArg(positional, key);
+      };
+
+      var namedProxy = {};
+      Object.defineProperty(namedProxy, _metal.CUSTOM_TAG_FOR, {
+        configurable: false,
+        enumerable: false,
+        value: getNamedTag
+      });
+      Object.keys(named).forEach(function (name) {
+        Object.defineProperty(namedProxy, name, {
+          enumerable: true,
+          configurable: true,
+          get: function get() {
+            return named[name].value();
+          }
+        });
+      });
+      var positionalProxy = [];
+      Object.defineProperty(positionalProxy, _metal.CUSTOM_TAG_FOR, {
+        configurable: false,
+        enumerable: false,
+        value: getPositionalTag
+      });
+      positional.forEach(function (ref, index) {
+        Object.defineProperty(positionalProxy, index, {
+          enumerable: true,
+          configurable: true,
+          get: function get() {
+            return ref.value();
+          }
+        });
+      });
+
+      if (true
+      /* DEBUG */
+      ) {
+        // Prevent mutations in development mode. This will not prevent the
+        // proxy from updating, but will prevent assigning new values or pushing
+        // for instance.
+        Object.freeze(namedProxy);
+        Object.freeze(positionalProxy);
+      }
+
+      return {
+        named: namedProxy,
+        positional: positionalProxy
+      };
     };
   }
 
@@ -8914,9 +8925,11 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
     (true && !(managerAPI === '3.4' || managerAPI === '3.13') && (0, _debug.assert)('Invalid component manager compatibility specified', managerAPI === '3.4' || managerAPI === '3.13'));
     var updateHook = true;
-    {
-      updateHook = managerAPI === '3.13' ? Boolean(options.updateHook) : true;
+
+    if (managerAPI === '3.13') {
+      updateHook = Boolean(options.updateHook);
     }
+
     return {
       asyncLifeCycleCallbacks: Boolean(options.asyncLifecycleCallbacks),
       destructor: Boolean(options.destructor),
@@ -8973,202 +8986,102 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _AbstractManager3.apply(this, arguments) || this;
     }
 
-    var _proto30 = CustomComponentManager.prototype;
+    var _proto28 = CustomComponentManager.prototype;
 
-    _proto30.create = function create(env, definition, args) {
+    _proto28.create = function create(env, definition, vmArgs) {
       var delegate = definition.delegate;
-      var capturedArgs = args.capture();
-      var namedArgs = capturedArgs.named;
-      var value;
-      var namedArgsProxy = {};
-      {
-        var getTag = function getTag(key) {
-          return namedArgs.get(key).tag;
-        };
-
-        if (_utils.HAS_NATIVE_PROXY) {
-          var handler = {
-            get: function get(_target, prop) {
-              if (namedArgs.has(prop)) {
-                var ref = namedArgs.get(prop);
-                (0, _validator.consumeTag)(ref.tag);
-                return ref.value();
-              } else if (prop === _metal.CUSTOM_TAG_FOR) {
-                return getTag;
-              }
-            },
-            has: function has(_target, prop) {
-              return namedArgs.has(prop);
-            },
-            ownKeys: function ownKeys(_target) {
-              return namedArgs.names;
-            },
-            getOwnPropertyDescriptor: function getOwnPropertyDescriptor(_target, prop) {
-              (true && !(namedArgs.has(prop)) && (0, _debug.assert)('args proxies do not have real property descriptors, so you should never need to call getOwnPropertyDescriptor yourself. This code exists for enumerability, such as in for-in loops and Object.keys()', namedArgs.has(prop)));
-              return {
-                enumerable: true,
-                configurable: true
-              };
-            }
-          };
-
-          if (true
-          /* DEBUG */
-          ) {
-            handler.set = function (_target, prop) {
-              (true && !(false) && (0, _debug.assert)("You attempted to set " + definition.ComponentClass.class + "#" + String(prop) + " on a components arguments. Component arguments are immutable and cannot be updated directly, they always represent the values that are passed to your component. If you want to set default values, you should use a getter instead"));
-              return false;
-            };
-          }
-
-          namedArgsProxy = new Proxy(namedArgsProxy, handler);
-        } else {
-          Object.defineProperty(namedArgsProxy, _metal.CUSTOM_TAG_FOR, {
-            configurable: false,
-            enumerable: false,
-            value: getTag
-          });
-          namedArgs.names.forEach(function (name) {
-            Object.defineProperty(namedArgsProxy, name, {
-              enumerable: true,
-              configurable: true,
-              get: function get() {
-                var ref = namedArgs.get(name);
-                (0, _validator.consumeTag)(ref.tag);
-                return ref.value();
-              }
-            });
-          });
-        }
-
-        value = {
-          named: namedArgsProxy,
-          positional: capturedArgs.positional.value()
-        };
-      }
-      var component = delegate.createComponent(definition.ComponentClass.class, value);
-      var bucket = new CustomComponentState(delegate, component, capturedArgs, env, namedArgsProxy);
+      var args = argsProxyFor(vmArgs.capture(), 'component');
+      var component = delegate.createComponent(definition.ComponentClass.class, args);
+      var bucket = new CustomComponentState(delegate, component, args, env);
 
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         env.extra.debugRenderTree.create(bucket, {
           type: 'component',
           name: definition.name,
-          args: args.capture(),
+          args: vmArgs.capture(),
           instance: component,
           template: definition.template
+        });
+        (0, _runtime2.registerDestructor)(bucket, function () {
+          env.extra.debugRenderTree.willDestroy(bucket);
         });
       }
 
       return bucket;
     };
 
-    _proto30.update = function update(bucket) {
+    _proto28.getDebugName = function getDebugName(_ref11) {
+      var name = _ref11.name;
+      return name;
+    };
+
+    _proto28.update = function update(bucket) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.env.extra.debugRenderTree.update(bucket);
       }
 
-      var delegate = bucket.delegate,
-          component = bucket.component,
-          args = bucket.args,
-          namedArgsProxy = bucket.namedArgsProxy;
-      var value;
-      {
-        value = {
-          named: namedArgsProxy,
-          positional: args.positional.value()
-        };
-      }
-
-      if (hasUpdateHook(delegate)) {
-        delegate.updateComponent(component, value);
+      if (hasUpdateHook(bucket.delegate)) {
+        var delegate = bucket.delegate,
+            component = bucket.component,
+            args = bucket.args;
+        delegate.updateComponent(component, args);
       }
     };
 
-    _proto30.didCreate = function didCreate(_ref11) {
-      var delegate = _ref11.delegate,
-          component = _ref11.component;
+    _proto28.didCreate = function didCreate(_ref12) {
+      var delegate = _ref12.delegate,
+          component = _ref12.component;
 
       if (hasAsyncLifeCycleCallbacks(delegate)) {
         delegate.didCreateComponent(component);
       }
     };
 
-    _proto30.didUpdate = function didUpdate(_ref12) {
-      var delegate = _ref12.delegate,
-          component = _ref12.component;
+    _proto28.didUpdate = function didUpdate(_ref13) {
+      var delegate = _ref13.delegate,
+          component = _ref13.component;
 
       if (hasAsyncUpdateHook(delegate)) {
         delegate.didUpdateComponent(component);
       }
     };
 
-    _proto30.getContext = function getContext(_ref13) {
-      var delegate = _ref13.delegate,
-          component = _ref13.component;
+    _proto28.getContext = function getContext(_ref14) {
+      var delegate = _ref14.delegate,
+          component = _ref14.component;
       delegate.getContext(component);
     };
 
-    _proto30.getSelf = function getSelf(_ref14) {
-      var env = _ref14.env,
-          delegate = _ref14.delegate,
-          component = _ref14.component;
-      return new _reference.ComponentRootReference(delegate.getContext(component), env);
+    _proto28.getSelf = function getSelf(_ref15) {
+      var delegate = _ref15.delegate,
+          component = _ref15.component;
+      return new _reference.ComponentRootReference(delegate.getContext(component));
     };
 
-    _proto30.getDestructor = function getDestructor(state) {
-      var destructor = null;
-
-      if (hasDestructors(state.delegate)) {
-        destructor = state;
-      }
-
-      if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        var inner = destructor;
-        destructor = {
-          destroy: function destroy() {
-            state.env.extra.debugRenderTree.willDestroy(state);
-
-            if (inner) {
-              inner.destroy();
-            }
-          }
-        };
-      }
-
-      return destructor;
+    _proto28.getDestroyable = function getDestroyable(bucket) {
+      return bucket;
     };
 
-    _proto30.getCapabilities = function getCapabilities(_ref15) {
-      var delegate = _ref15.delegate;
+    _proto28.getCapabilities = function getCapabilities(_ref16) {
+      var delegate = _ref16.delegate;
       return (0, _polyfills.assign)({}, CAPABILITIES$1, {
         updateHook: _environment2.ENV._DEBUG_RENDER_TREE || delegate.capabilities.updateHook
       });
     };
 
-    _proto30.getTag = function getTag(_ref16) {
-      var args = _ref16.args;
-
-      if ((0, _validator.isConst)(args)) {
-        // returning a const tag skips the update hook (VM BUG?)
-        return (0, _validator.createTag)();
-      } else {
-        return args.tag;
-      }
-    };
-
-    _proto30.didRenderLayout = function didRenderLayout(bucket, bounds) {
+    _proto28.didRenderLayout = function didRenderLayout(bucket, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.env.extra.debugRenderTree.didRender(bucket, bounds);
       }
     };
 
-    _proto30.didUpdateLayout = function didUpdateLayout(bucket, bounds) {
+    _proto28.didUpdateLayout = function didUpdateLayout(bucket, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.env.extra.debugRenderTree.didRender(bucket, bounds);
       }
     };
 
-    _proto30.getJitStaticLayout = function getJitStaticLayout(state) {
+    _proto28.getJitStaticLayout = function getJitStaticLayout(state) {
       return (0, _util.unwrapTemplate)(state.template).asLayout();
     };
 
@@ -9180,28 +9093,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
    * Stores internal state about a component instance after it's been created.
    */
 
-  var CustomComponentState = /*#__PURE__*/function () {
-    function CustomComponentState(delegate, component, args, env, namedArgsProxy) {
-      this.delegate = delegate;
-      this.component = component;
-      this.args = args;
-      this.env = env;
-      this.namedArgsProxy = namedArgsProxy;
+  var CustomComponentState = function CustomComponentState(delegate, component, args, env) {
+    this.delegate = delegate;
+    this.component = component;
+    this.args = args;
+    this.env = env;
+
+    if (hasDestructors(delegate)) {
+      (0, _runtime2.registerDestructor)(this, function () {
+        return delegate.destroyComponent(component);
+      });
     }
-
-    var _proto31 = CustomComponentState.prototype;
-
-    _proto31.destroy = function destroy() {
-      var delegate = this.delegate,
-          component = this.component;
-
-      if (hasDestructors(delegate)) {
-        delegate.destroyComponent(component);
-      }
-    };
-
-    return CustomComponentState;
-  }();
+  };
 
   var CustomManagerDefinition = function CustomManagerDefinition(name, ComponentClass, delegate, template) {
     this.name = name;
@@ -9229,16 +9132,16 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     (0, _emberBabel.inheritsLoose)(InternalManager, _AbstractManager4);
 
     function InternalManager(owner) {
-      var _this10;
+      var _this11;
 
-      _this10 = _AbstractManager4.call(this) || this;
-      _this10.owner = owner;
-      return _this10;
+      _this11 = _AbstractManager4.call(this) || this;
+      _this11.owner = owner;
+      return _this11;
     }
 
-    var _proto32 = InternalManager.prototype;
+    var _proto29 = InternalManager.prototype;
 
-    _proto32.getJitStaticLayout = function getJitStaticLayout(_ref17) {
+    _proto29.getJitStaticLayout = function getJitStaticLayout(_ref17) {
       var template = _ref17.layout;
       return (0, _util.unwrapTemplate)(template).asLayout();
     };
@@ -9268,18 +9171,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _AbstractManager5.apply(this, arguments) || this;
     }
 
-    var _proto33 = TemplateOnlyComponentManager.prototype;
+    var _proto30 = TemplateOnlyComponentManager.prototype;
 
-    _proto33.getJitStaticLayout = function getJitStaticLayout(_ref18) {
+    _proto30.getJitStaticLayout = function getJitStaticLayout(_ref18) {
       var template = _ref18.template;
       return (0, _util.unwrapTemplate)(template).asLayout();
     };
 
-    _proto33.getCapabilities = function getCapabilities() {
+    _proto30.getCapabilities = function getCapabilities() {
       return CAPABILITIES$2;
     };
 
-    _proto33.create = function create(environment, _ref19, args) {
+    _proto30.create = function create(environment, _ref19, args) {
       var name = _ref19.name,
           template = _ref19.template;
 
@@ -9294,51 +9197,45 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           instance: null,
           template: template
         });
+        (0, _runtime2.registerDestructor)(bucket, function () {
+          bucket.environment.extra.debugRenderTree.willDestroy(bucket);
+        });
         return bucket;
       } else {
         return null;
       }
     };
 
-    _proto33.getSelf = function getSelf() {
+    _proto30.getDebugName = function getDebugName(_ref20) {
+      var name = _ref20.name;
+      return name;
+    };
+
+    _proto30.getSelf = function getSelf() {
       return _runtime2.NULL_REFERENCE;
     };
 
-    _proto33.getTag = function getTag() {
+    _proto30.getDestroyable = function getDestroyable(bucket) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        // returning a const tag skips the update hook (VM BUG?)
-        return (0, _validator.createTag)();
-      } else {
-        // an outlet has no hooks
-        return _validator.CONSTANT_TAG;
-      }
-    };
-
-    _proto33.getDestructor = function getDestructor(bucket) {
-      if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        return {
-          destroy: function destroy() {
-            bucket.environment.extra.debugRenderTree.willDestroy(bucket);
-          }
-        };
+        return bucket;
       } else {
         return null;
       }
     };
 
-    _proto33.didRenderLayout = function didRenderLayout(bucket, bounds) {
+    _proto30.didRenderLayout = function didRenderLayout(bucket, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.environment.extra.debugRenderTree.didRender(bucket, bounds);
       }
     };
 
-    _proto33.update = function update(bucket) {
+    _proto30.update = function update(bucket) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.environment.extra.debugRenderTree.update(bucket);
       }
     };
 
-    _proto33.didUpdateLayout = function didUpdateLayout(bucket, bounds) {
+    _proto30.didUpdateLayout = function didUpdateLayout(bucket, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.environment.extra.debugRenderTree.didRender(bucket, bounds);
       }
@@ -9374,18 +9271,21 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       function ComponentAssertionReference(component, message) {
         this.component = component;
         this.message = message;
-        this.tag = component.tag;
       }
 
-      var _proto34 = ComponentAssertionReference.prototype;
+      var _proto31 = ComponentAssertionReference.prototype;
 
-      _proto34.value = function value() {
+      _proto31.isConst = function isConst() {
+        return this.component.isConst();
+      };
+
+      _proto31.value = function value() {
         var value = this.component.value();
         (true && !(typeof value !== 'string') && (0, _debug.assert)(this.message, typeof value !== 'string'));
         return value;
       };
 
-      _proto34.get = function get(property) {
+      _proto31.get = function get(property) {
         return this.component.get(property);
       };
 
@@ -9402,27 +9302,51 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   }
 
   var componentAssertionHelper = helper$1;
+  var helper$2;
 
-  function inputTypeHelper(_ref20) {
-    var positional = _ref20.positional;
-    var type = positional.at(0).value();
+  if (true
+  /* DEBUG */
+  ) {
+    var InElementNullCheckReference = /*#__PURE__*/function () {
+      function InElementNullCheckReference(inner) {
+        this.inner = inner;
+      }
 
-    if (type === 'checkbox') {
-      return '-checkbox';
-    }
+      var _proto32 = InElementNullCheckReference.prototype;
 
-    return '-text-field';
+      _proto32.isConst = function isConst() {
+        return this.inner.isConst();
+      };
+
+      _proto32.value = function value() {
+        var value = this.inner.value();
+        (true && !(value !== null && value !== undefined) && (0, _debug.assert)('You cannot pass a null or undefined destination element to in-element', value !== null && value !== undefined));
+        return value;
+      };
+
+      _proto32.get = function get(key) {
+        return this.inner.get(key);
+      };
+
+      return InElementNullCheckReference;
+    }();
+
+    helper$2 = function helper$2(args) {
+      return new InElementNullCheckReference(args.positional.at(0));
+    };
+  } else {
+    helper$2 = function helper$2(args) {
+      return args.positional.at(0);
+    };
   }
 
-  function inputTypeHelper$1(args, vm) {
-    return new _reference.HelperRootReference(inputTypeHelper, args.capture(), vm.env);
-  }
+  var inElementNullCheckHelper = helper$2;
 
   function normalizeClass(_ref21) {
     var positional = _ref21.positional;
-    var classNameParts = positional.at(0).value().split('.');
+    var classNameParts = positional[0].value().split('.');
     var className = classNameParts[classNameParts.length - 1];
-    var value = positional.at(1).value();
+    var value = positional[1].value();
 
     if (value === true) {
       return (0, _string.dasherize)(className);
@@ -9433,8 +9357,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     }
   }
 
-  function normalizeClassHelper(args, vm) {
-    return new _reference.HelperRootReference(normalizeClass, args.capture(), vm.env);
+  function normalizeClassHelper(args) {
+    return new _reference.HelperRootReference(normalizeClass, args.capture());
   }
   /**
   @module ember
@@ -9450,20 +9374,25 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var TrackArrayReference = /*#__PURE__*/function () {
     function TrackArrayReference(inner) {
       this.inner = inner;
-      this.valueTag = (0, _validator.createUpdatableTag)();
-      this.tag = (0, _validator.combine)([inner.tag, this.valueTag]);
     }
 
-    var _proto35 = TrackArrayReference.prototype;
+    var _proto33 = TrackArrayReference.prototype;
 
-    _proto35.value = function value() {
+    _proto33.isConst = function isConst() {
+      return this.inner.isConst();
+    };
+
+    _proto33.value = function value() {
       var iterable = this.inner.value();
-      var tag = (0, _metal.tagForProperty)(iterable, '[]');
-      (0, _validator.updateTag)(this.valueTag, tag);
+
+      if ((0, _utils.isObject)(iterable)) {
+        (0, _validator.consumeTag)((0, _metal.tagForProperty)(iterable, '[]'));
+      }
+
       return iterable;
     };
 
-    _proto35.get = function get(key) {
+    _proto33.get = function get(key) {
       return this.inner.get(key);
     };
 
@@ -9483,7 +9412,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   
      ```handlebars
      <MyComponent @people={{array
-       'Tom Dade'
+       'Tom Dale'
        'Yehuda Katz'
        this.myOtherPerson}}
      />
@@ -9491,7 +9420,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       or
      ```handlebars
      {{my-component people=(array
-       'Tom Dade'
+       'Tom Dale'
        'Yehuda Katz'
        this.myOtherPerson)
      }}
@@ -9500,7 +9429,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
      Would result in an object such as:
   
      ```js
-     ['Tom Date', 'Yehuda Katz', this.get('myOtherPerson')]
+     ['Tom Dale', 'Yehuda Katz', this.get('myOtherPerson')]
      ```
   
      Where the 3rd item in the array is bound to updates of the `myOtherPerson` property.
@@ -9515,7 +9444,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
 
   function array(args) {
-    return args.positional.capture();
+    return new _runtime2.ReifyPositionalReference(args.positional.capture());
   }
 
   var isEmpty = function isEmpty(value) {
@@ -9559,11 +9488,11 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
   function concat(_ref22) {
     var positional = _ref22.positional;
-    return positional.value().map(normalizeTextValue).join('');
+    return (0, _runtime2.reifyPositional)(positional).map(normalizeTextValue).join('');
   }
 
-  function concat$1(args, vm) {
-    return new _reference.HelperRootReference(concat, args.capture(), vm.env);
+  function concat$1(args) {
+    return new _reference.HelperRootReference(concat, args.capture());
   }
 
   function buildUntouchableThis(source) {
@@ -9669,19 +9598,20 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
   function fn(_ref23) {
     var positional = _ref23.positional;
-    var callbackRef = positional.at(0);
+    var callbackRef = positional[0];
+    (true && !(callbackRef !== undefined) && (0, _debug.assert)("You must pass a function as the `fn` helpers first argument.", callbackRef !== undefined));
 
     if (true
     /* DEBUG */
     && typeof callbackRef[INVOKE] !== 'function') {
       var callback = callbackRef.value();
-      (true && !(typeof callback === 'function') && (0, _debug.assert)("You must pass a function as the `fn` helpers first argument, you passed " + callback, typeof callback === 'function'));
+      (true && !(typeof callback === 'function') && (0, _debug.assert)("You must pass a function as the `fn` helpers first argument, you passed " + (callback === null ? 'null' : typeof callback) + ". While rendering:\n\n" + callbackRef.debugLabel, typeof callback === 'function'));
     }
 
     return function () {
-      var _positional$value = positional.value(),
-          fn = _positional$value[0],
-          args = _positional$value.slice(1);
+      var _reifyPositional = (0, _runtime2.reifyPositional)(positional),
+          fn = _reifyPositional[0],
+          args = _reifyPositional.slice(1);
 
       for (var _len2 = arguments.length, invocationArgs = new Array(_len2), _key3 = 0; _key3 < _len2; _key3++) {
         invocationArgs[_key3] = arguments[_key3];
@@ -9697,8 +9627,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     };
   }
 
-  function fn$1(args, vm) {
-    return new _reference.HelperRootReference(fn, args.capture(), vm.env);
+  function fn$1(args) {
+    return new _reference.HelperRootReference(fn, args.capture());
   }
   /**
   @module ember
@@ -9786,16 +9716,15 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
    */
 
 
-  function get$1(args, vm) {
+  function get$1(args) {
     var sourceReference = args.positional.at(0);
     var pathReference = args.positional.at(1);
+    var path = pathReference.value();
 
-    if ((0, _validator.isConst)(pathReference)) {
+    if (pathReference.isConst()) {
       // Since the path is constant, we can create a normal chain of property
       // references. The source reference will update like normal, and all of the
       // child references will update accordingly.
-      var path = pathReference.value();
-
       if (path === undefined || path === null || path === '') {
         return _runtime2.NULL_REFERENCE;
       } else if (typeof path === 'string' && path.indexOf('.') > -1) {
@@ -9804,16 +9733,16 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         return sourceReference.get(String(path));
       }
     } else {
-      return new GetHelperRootReference(args.capture(), vm.env);
+      return new GetHelperRootReference(args.capture());
     }
   }
 
   function get$2(_ref24) {
     var positional = _ref24.positional;
-    var source = positional.at(0).value();
+    var source = positional[0].value();
 
     if ((0, _utils.isObject)(source)) {
-      var path = positional.at(1).value();
+      var path = positional[1].value();
       return (0, _metal.get)(source, String(path));
     }
   }
@@ -9821,18 +9750,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var GetHelperRootReference = /*#__PURE__*/function (_HelperRootReference2) {
     (0, _emberBabel.inheritsLoose)(GetHelperRootReference, _HelperRootReference2);
 
-    function GetHelperRootReference(args, env) {
-      var _this11;
+    function GetHelperRootReference(args) {
+      var _this12;
 
-      _this11 = _HelperRootReference2.call(this, get$2, args, env) || this;
-      _this11.sourceReference = args.positional.at(0);
-      _this11.pathReference = args.positional.at(1);
-      return _this11;
+      _this12 = _HelperRootReference2.call(this, get$2, args) || this;
+      _this12.sourceReference = args.positional[0];
+      _this12.pathReference = args.positional[1];
+      return _this12;
     }
 
-    var _proto36 = GetHelperRootReference.prototype;
+    var _proto34 = GetHelperRootReference.prototype;
 
-    _proto36[_reference.UPDATE_REFERENCED_VALUE] = function (value) {
+    _proto34[_reference.UPDATE_REFERENCED_VALUE] = function (value) {
       var source = this.sourceReference.value();
 
       if ((0, _utils.isObject)(source)) {
@@ -9888,7 +9817,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
 
   function hash(args) {
-    return args.named.capture();
+    return new _runtime2.ReifyNamedReference(args.named.capture());
   }
   /**
   @module ember
@@ -9898,9 +9827,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   function ifHelper(_ref25) {
     var positional = _ref25.positional;
     (true && !(positional.length === 3 || positional.length === 2) && (0, _debug.assert)('The inline form of the `if` helper expects two or three arguments, e.g. `{{if trialExpired "Expired" expiryDate}}`.', positional.length === 3 || positional.length === 2));
-    var condition = positional.at(0);
-    var truthyValue = positional.at(1);
-    var falsyValue = positional.at(2);
+    var condition = positional[0],
+        truthyValue = positional[1],
+        falsyValue = positional[2];
 
     if (toBool(condition.value()) === true) {
       return truthyValue.value();
@@ -9912,9 +9841,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   function unless(_ref26) {
     var positional = _ref26.positional;
     (true && !(positional.length === 3 || positional.length === 2) && (0, _debug.assert)('The inline form of the `unless` helper expects two or three arguments, e.g. `{{unless isFirstLogin "Welcome back!"}}`.', positional.length === 3 || positional.length === 2));
-    var condition = positional.at(0);
-    var truthyValue = positional.at(2);
-    var falsyValue = positional.at(1);
+    var condition = positional[0],
+        falsyValue = positional[1],
+        truthyValue = positional[2];
 
     if (toBool(condition.value()) === true) {
       return truthyValue !== undefined ? truthyValue.value() : undefined;
@@ -10015,8 +9944,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   */
 
 
-  function inlineIf(args, vm) {
-    return new _reference.HelperRootReference(ifHelper, args.capture(), vm.env);
+  function inlineIf(args) {
+    return new _reference.HelperRootReference(ifHelper, args.capture());
   }
   /**
     The `unless` helper is the inverse of the `if` helper. It displays if a value
@@ -10105,8 +10034,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   */
 
 
-  function inlineUnless(args, vm) {
-    return new _reference.HelperRootReference(unless, args.capture(), vm.env);
+  function inlineUnless(args) {
+    return new _reference.HelperRootReference(unless, args.capture());
   }
   /**
   @module ember
@@ -10133,13 +10062,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     var positional = _ref27.positional;
 
     /* eslint-disable no-console */
-    (_console = console).log.apply(_console, positional.value());
+    (_console = console).log.apply(_console, (0, _runtime2.reifyPositional)(positional));
     /* eslint-enable no-console */
 
   }
 
-  function log$1(args, vm) {
-    return new _reference.HelperRootReference(log, args.capture(), vm.env);
+  function log$1(args) {
+    return new _reference.HelperRootReference(log, args.capture());
   }
   /**
   @module ember
@@ -10172,12 +10101,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     var positional = _ref28.positional,
         named = _ref28.named;
     // tslint:disable-next-line:max-line-length
-    (true && !(positional.value().length === 0) && (0, _debug.assert)("The `query-params` helper only accepts hash parameters, e.g. (query-params queryParamPropertyName='foo') as opposed to just (query-params 'foo')", positional.value().length === 0));
-    return new _routing.QueryParams((0, _polyfills.assign)({}, named.value()));
+    (true && !(positional.length === 0) && (0, _debug.assert)("The `query-params` helper only accepts hash parameters, e.g. (query-params queryParamPropertyName='foo') as opposed to just (query-params 'foo')", positional.length === 0));
+    return new _routing.QueryParams((0, _polyfills.assign)({}, (0, _runtime2.reifyNamed)(named)));
   }
 
-  function queryParams$1(args, vm) {
-    return new _reference.HelperRootReference(queryParams, args.capture(), vm.env);
+  function queryParams$1(args) {
+    return new _reference.HelperRootReference(queryParams, args.capture());
   }
   /**
     The `readonly` helper let's you specify that a binding is one-way only,
@@ -10296,25 +10225,22 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   */
 
 
-  var ReadonlyReference = /*#__PURE__*/function (_RootReference3) {
-    (0, _emberBabel.inheritsLoose)(ReadonlyReference, _RootReference3);
-
-    function ReadonlyReference(inner, env) {
-      var _this12;
-
-      _this12 = _RootReference3.call(this, env) || this;
-      _this12.inner = inner;
-      _this12.tag = inner.tag;
-      return _this12;
+  var ReadonlyReference = /*#__PURE__*/function () {
+    function ReadonlyReference(inner) {
+      this.inner = inner;
     }
 
-    var _proto37 = ReadonlyReference.prototype;
+    var _proto35 = ReadonlyReference.prototype;
 
-    _proto37.value = function value() {
+    _proto35.isConst = function isConst() {
+      return this.inner.isConst();
+    };
+
+    _proto35.value = function value() {
       return this.inner.value();
     };
 
-    _proto37.get = function get(key) {
+    _proto35.get = function get(key) {
       return this.inner.get(key);
     };
 
@@ -10325,11 +10251,11 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     }]);
     return ReadonlyReference;
-  }(_reference.RootReference);
+  }();
 
-  function readonly(args, vm) {
+  function readonly(args) {
     var ref = unMut(args.positional.at(0));
-    return new ReadonlyReference(ref, vm.env);
+    return new ReadonlyReference(ref);
   }
   /**
   @module ember
@@ -10364,9 +10290,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   */
 
 
-  function unbound(args, vm) {
+  function unbound(args) {
     (true && !(args.positional.length === 1 && args.named.length === 0) && (0, _debug.assert)('unbound helper cannot be called with multiple params or hash params', args.positional.length === 1 && args.named.length === 0));
-    return new UnboundRootReference(args.positional.at(0).value(), vm.env);
+    return new UnboundRootReference(args.positional.at(0).value());
   }
 
   var MODIFIERS = ['alt', 'shift', 'meta', 'ctrl'];
@@ -10410,26 +10336,30 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   };
 
   var ActionState = /*#__PURE__*/function () {
-    function ActionState(element, actionId, actionName, actionArgs, namedArgs, positionalArgs, implicitTarget, dom, tag) {
+    function ActionState(element, actionId, actionArgs, namedArgs, positionalArgs, dom) {
+      var _this13 = this;
+
+      this.tag = (0, _validator.createUpdatableTag)();
       this.element = element;
       this.actionId = actionId;
-      this.actionName = actionName;
       this.actionArgs = actionArgs;
       this.namedArgs = namedArgs;
       this.positional = positionalArgs;
-      this.implicitTarget = implicitTarget;
       this.dom = dom;
       this.eventName = this.getEventName();
-      this.tag = tag;
+      (0, _runtime2.registerDestructor)(this, function () {
+        return ActionHelper.unregisterAction(_this13);
+      });
     }
 
-    var _proto38 = ActionState.prototype;
+    var _proto36 = ActionState.prototype;
 
-    _proto38.getEventName = function getEventName() {
-      return this.namedArgs.get('on').value() || 'click';
+    _proto36.getEventName = function getEventName() {
+      var onRef = this.namedArgs.on;
+      return onRef !== undefined ? onRef.value() : 'click';
     };
 
-    _proto38.getActionArgs = function getActionArgs() {
+    _proto36.getActionArgs = function getActionArgs() {
       var result = new Array(this.actionArgs.length);
 
       for (var i = 0; i < this.actionArgs.length; i++) {
@@ -10439,36 +10369,32 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return result;
     };
 
-    _proto38.getTarget = function getTarget() {
+    _proto36.getTarget = function getTarget() {
       var implicitTarget = this.implicitTarget,
           namedArgs = this.namedArgs;
-      var target;
-
-      if (namedArgs.has('target')) {
-        target = namedArgs.get('target').value();
-      } else {
-        target = implicitTarget.value();
-      }
-
-      return target;
+      var target = namedArgs.target;
+      return target !== undefined ? target.value() : implicitTarget.value();
     };
 
-    _proto38.handler = function handler(event) {
-      var _this13 = this;
+    _proto36.handler = function handler(event) {
+      var _this14 = this;
 
       var actionName = this.actionName,
           namedArgs = this.namedArgs;
-      var bubbles = namedArgs.get('bubbles');
-      var preventDefault = namedArgs.get('preventDefault');
-      var allowedKeys = namedArgs.get('allowedKeys');
+      var bubbles = namedArgs.bubbles,
+          preventDefault = namedArgs.preventDefault,
+          allowedKeys = namedArgs.allowedKeys;
+      var bubblesVal = bubbles !== undefined ? bubbles.value() : undefined;
+      var preventDefaultVal = preventDefault !== undefined ? preventDefault.value() : undefined;
+      var allowedKeysVal = allowedKeys !== undefined ? allowedKeys.value() : undefined;
       var target = this.getTarget();
-      var shouldBubble = bubbles.value() !== false;
+      var shouldBubble = bubblesVal !== false;
 
-      if (!isAllowedEvent(event, allowedKeys.value())) {
+      if (!isAllowedEvent(event, allowedKeysVal)) {
         return true;
       }
 
-      if (preventDefault.value() !== false) {
+      if (preventDefaultVal !== false) {
         event.preventDefault();
       }
 
@@ -10477,7 +10403,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
 
       (0, _runloop.join)(function () {
-        var args = _this13.getActionArgs();
+        var args = _this14.getActionArgs();
 
         var payload = {
           args: args,
@@ -10515,10 +10441,6 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return shouldBubble;
     };
 
-    _proto38.destroy = function destroy() {
-      ActionHelper.unregisterAction(this);
-    };
-
     return ActionState;
   }(); // implements ModifierManager<Action>
 
@@ -10526,21 +10448,46 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var ActionModifierManager = /*#__PURE__*/function () {
     function ActionModifierManager() {}
 
-    var _proto39 = ActionModifierManager.prototype;
+    var _proto37 = ActionModifierManager.prototype;
 
-    _proto39.create = function create(element, _state, args, _dynamicScope, dom) {
+    _proto37.create = function create(element, _state, args, _dynamicScope, dom) {
       var _args$capture = args.capture(),
           named = _args$capture.named,
-          positional = _args$capture.positional,
-          tag = _args$capture.tag;
+          positional = _args$capture.positional;
 
-      var implicitTarget;
+      var actionArgs = []; // The first two arguments are (1) `this` and (2) the action name.
+      // Everything else is a param.
+
+      for (var i = 2; i < positional.length; i++) {
+        actionArgs.push(positional[i]);
+      }
+
+      var actionId = (0, _utils.uuid)();
+      var actionState = new ActionState(element, actionId, actionArgs, named, positional, dom);
+      (true && !(actionState.eventName !== 'mouseEnter' && actionState.eventName !== 'mouseLeave' && actionState.eventName !== 'mouseMove') && (0, _debug.deprecate)("Using the `{{action}}` modifier with `" + actionState.eventName + "` events has been deprecated.", actionState.eventName !== 'mouseEnter' && actionState.eventName !== 'mouseLeave' && actionState.eventName !== 'mouseMove', {
+        id: 'ember-views.event-dispatcher.mouseenter-leave-move',
+        until: '4.0.0',
+        url: 'https://emberjs.com/deprecations/v3.x#toc_action-mouseenter-leave-move'
+      }));
+      return actionState;
+    };
+
+    _proto37.getDebugName = function getDebugName() {
+      return 'action';
+    };
+
+    _proto37.install = function install(actionState) {
+      var dom = actionState.dom,
+          element = actionState.element,
+          actionId = actionState.actionId,
+          positional = actionState.positional;
       var actionName;
       var actionNameRef;
+      var implicitTarget;
 
       if (positional.length > 1) {
-        implicitTarget = positional.at(0);
-        actionNameRef = positional.at(1);
+        implicitTarget = positional[0];
+        actionNameRef = positional[1];
 
         if (actionNameRef[INVOKE]) {
           actionName = actionNameRef;
@@ -10551,35 +10498,16 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         }
       }
 
-      var actionArgs = []; // The first two arguments are (1) `this` and (2) the action name.
-      // Everything else is a param.
-
-      for (var i = 2; i < positional.length; i++) {
-        actionArgs.push(positional.at(i));
-      }
-
-      var actionId = (0, _utils.uuid)();
-      var actionState = new ActionState(element, actionId, actionName, actionArgs, named, positional, implicitTarget, dom, tag);
-      (true && !(actionState.eventName !== 'mouseEnter' && actionState.eventName !== 'mouseLeave' && actionState.eventName !== 'mouseMove') && (0, _debug.deprecate)("Using the `{{action}}` modifier with `" + actionState.eventName + "` events has been deprecated.", actionState.eventName !== 'mouseEnter' && actionState.eventName !== 'mouseLeave' && actionState.eventName !== 'mouseMove', {
-        id: 'ember-views.event-dispatcher.mouseenter-leave-move',
-        until: '4.0.0',
-        url: 'https://emberjs.com/deprecations/v3.x#toc_action-mouseenter-leave-move'
-      }));
-      return actionState;
-    };
-
-    _proto39.install = function install(actionState) {
-      var dom = actionState.dom,
-          element = actionState.element,
-          actionId = actionState.actionId;
+      actionState.actionName = actionName;
+      actionState.implicitTarget = implicitTarget;
       ActionHelper.registerAction(actionState);
       dom.setAttribute(element, 'data-ember-action', '');
       dom.setAttribute(element, "data-ember-action-" + actionId, actionId);
     };
 
-    _proto39.update = function update(actionState) {
+    _proto37.update = function update(actionState) {
       var positional = actionState.positional;
-      var actionNameRef = positional.at(1);
+      var actionNameRef = positional[1];
 
       if (!actionNameRef[INVOKE]) {
         actionState.actionName = actionNameRef.value();
@@ -10588,45 +10516,27 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       actionState.eventName = actionState.getEventName();
     };
 
-    _proto39.getTag = function getTag(actionState) {
+    _proto37.getTag = function getTag(actionState) {
       return actionState.tag;
     };
 
-    _proto39.getDestructor = function getDestructor(modifier) {
-      return modifier;
+    _proto37.getDestroyable = function getDestroyable(actionState) {
+      return actionState;
     };
 
     return ActionModifierManager;
   }();
-
-  var debugRenderMessage;
-
-  if (true
-  /* DEBUG */
-  ) {
-    debugRenderMessage = function debugRenderMessage(renderingStack) {
-      return "While rendering:\n----------------\n" + renderingStack.replace(/^/gm, '  ');
-    };
-  }
-
-  var debugRenderMessage$1 = debugRenderMessage;
 
   function capabilities$1(managerAPI, optionalFeatures) {
     if (optionalFeatures === void 0) {
       optionalFeatures = {};
     }
 
-    if (managerAPI !== '3.13') {
-      managerAPI = '3.13';
-      (true && !(false) && (0, _debug.deprecate)('Modifier manager capabilities now require you to pass a valid version when being generated. Valid versions include: 3.13', false, {
-        until: '3.17.0',
-        id: 'implicit-modifier-manager-capabilities'
-      }));
-    }
-
-    (true && !(managerAPI === '3.13') && (0, _debug.assert)('Invalid modifier manager compatibility specified', managerAPI === '3.13'));
+    (true && !(managerAPI === '3.13' || managerAPI === '3.22') && (0, _debug.assert)('Invalid modifier manager compatibility specified', managerAPI === '3.13' || managerAPI === '3.22'));
     return {
-      disableAutoTracking: Boolean(optionalFeatures.disableAutoTracking)
+      disableAutoTracking: Boolean(optionalFeatures.disableAutoTracking),
+      useArgsProxy: managerAPI === '3.13' ? false : true,
+      passFactoryToCreate: managerAPI === '3.13'
     };
   }
 
@@ -10641,27 +10551,6 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     };
     this.manager = isInteractive ? CUSTOM_INTERACTIVE_MODIFIER_MANAGER : CUSTOM_NON_INTERACTIVE_MODIFIER_MANAGER;
   };
-
-  var CustomModifierState = /*#__PURE__*/function () {
-    function CustomModifierState(element, delegate, modifier, args) {
-      this.element = element;
-      this.delegate = delegate;
-      this.modifier = modifier;
-      this.args = args;
-      this.tag = (0, _validator.createUpdatableTag)();
-    }
-
-    var _proto40 = CustomModifierState.prototype;
-
-    _proto40.destroy = function destroy() {
-      var delegate = this.delegate,
-          modifier = this.modifier,
-          args = this.args;
-      delegate.destroyModifier(modifier, args.value());
-    };
-
-    return CustomModifierState;
-  }();
   /**
     The CustomModifierManager allows addons to provide custom modifier
     implementations that integrate seamlessly into Ember. This is accomplished
@@ -10691,75 +10580,97 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var InteractiveCustomModifierManager = /*#__PURE__*/function () {
     function InteractiveCustomModifierManager() {}
 
-    var _proto41 = InteractiveCustomModifierManager.prototype;
+    var _proto38 = InteractiveCustomModifierManager.prototype;
 
-    _proto41.create = function create(element, definition, args) {
+    _proto38.create = function create(element, definition, vmArgs) {
       var delegate = definition.delegate,
           ModifierClass = definition.ModifierClass;
-      var capturedArgs = args.capture();
-      var instance = definition.delegate.createModifier(ModifierClass, capturedArgs.value());
+      var capturedArgs = vmArgs.capture();
+      (true && !(typeof delegate.capabilities === 'object' && delegate.capabilities !== null) && (0, _debug.assert)('Custom modifier managers must define their capabilities using the capabilities() helper function', typeof delegate.capabilities === 'object' && delegate.capabilities !== null));
+      var _delegate$capabilitie = delegate.capabilities,
+          useArgsProxy = _delegate$capabilitie.useArgsProxy,
+          passFactoryToCreate = _delegate$capabilitie.passFactoryToCreate;
+      var args = useArgsProxy ? argsProxyFor(capturedArgs, 'modifier') : (0, _runtime2.reifyArgs)(capturedArgs);
+      var instance = delegate.createModifier(passFactoryToCreate ? ModifierClass : ModifierClass.class, args);
+      var tag = (0, _validator.createUpdatableTag)();
+      var state;
 
-      if (delegate.capabilities === undefined) {
-        delegate.capabilities = capabilities$1('3.13');
-        (true && !(false) && (0, _debug.deprecate)('Custom modifier managers must define their capabilities using the capabilities() helper function', false, {
-          until: '3.17.0',
-          id: 'implicit-modifier-manager-capabilities'
-        }));
+      if (useArgsProxy) {
+        state = {
+          tag: tag,
+          element: element,
+          delegate: delegate,
+          args: args,
+          modifier: instance
+        };
+      } else {
+        state = {
+          tag: tag,
+          element: element,
+          delegate: delegate,
+          modifier: instance,
+
+          get args() {
+            return (0, _runtime2.reifyArgs)(capturedArgs);
+          }
+
+        };
       }
 
-      return new CustomModifierState(element, delegate, instance, capturedArgs);
+      if (true
+      /* DEBUG */
+      ) {
+        state.debugName = definition.name;
+      }
+
+      (0, _runtime2.registerDestructor)(state, function () {
+        return delegate.destroyModifier(instance, state.args);
+      });
+      return state;
     };
 
-    _proto41.getTag = function getTag(_ref29) {
-      var args = _ref29.args,
-          tag = _ref29.tag;
-      return (0, _validator.combine)([tag, args.tag]);
+    _proto38.getDebugName = function getDebugName(_ref29) {
+      var debugName = _ref29.debugName;
+      return debugName;
     };
 
-    _proto41.install = function install(state) {
+    _proto38.getTag = function getTag(_ref30) {
+      var tag = _ref30.tag;
+      return tag;
+    };
+
+    _proto38.install = function install(state) {
       var element = state.element,
           args = state.args,
           delegate = state.delegate,
-          modifier = state.modifier,
-          tag = state.tag;
+          modifier = state.modifier;
       var capabilities = delegate.capabilities;
 
       if (capabilities.disableAutoTracking === true) {
         (0, _validator.untrack)(function () {
-          return delegate.installModifier(modifier, element, args.value());
+          return delegate.installModifier(modifier, element, args);
         });
       } else {
-        var combinedTrackingTag = (0, _validator.track)(function () {
-          return delegate.installModifier(modifier, element, args.value());
-        }, true
-        /* DEBUG */
-        && debugRenderMessage$1("(instance of a `" + (0, _utils.getDebugName)(modifier) + "` modifier)"));
-        (0, _validator.updateTag)(tag, combinedTrackingTag);
+        delegate.installModifier(modifier, element, args);
       }
     };
 
-    _proto41.update = function update(state) {
+    _proto38.update = function update(state) {
       var args = state.args,
           delegate = state.delegate,
-          modifier = state.modifier,
-          tag = state.tag;
+          modifier = state.modifier;
       var capabilities = delegate.capabilities;
 
       if (capabilities.disableAutoTracking === true) {
         (0, _validator.untrack)(function () {
-          return delegate.updateModifier(modifier, args.value());
+          return delegate.updateModifier(modifier, args);
         });
       } else {
-        var combinedTrackingTag = (0, _validator.track)(function () {
-          return delegate.updateModifier(modifier, args.value());
-        }, true
-        /* DEBUG */
-        && debugRenderMessage$1("(instance of a `" + (0, _utils.getDebugName)(modifier) + "` modifier)"));
-        (0, _validator.updateTag)(tag, combinedTrackingTag);
+        delegate.updateModifier(modifier, args);
       }
     };
 
-    _proto41.getDestructor = function getDestructor(state) {
+    _proto38.getDestroyable = function getDestroyable(state) {
       return state;
     };
 
@@ -10769,21 +10680,25 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   var NonInteractiveCustomModifierManager = /*#__PURE__*/function () {
     function NonInteractiveCustomModifierManager() {}
 
-    var _proto42 = NonInteractiveCustomModifierManager.prototype;
+    var _proto39 = NonInteractiveCustomModifierManager.prototype;
 
-    _proto42.create = function create() {
+    _proto39.create = function create() {
       return null;
     };
 
-    _proto42.getTag = function getTag() {
-      return _validator.CONSTANT_TAG;
+    _proto39.getDebugName = function getDebugName() {
+      return '';
     };
 
-    _proto42.install = function install() {};
+    _proto39.getTag = function getTag() {
+      return null;
+    };
 
-    _proto42.update = function update() {};
+    _proto39.install = function install() {};
 
-    _proto42.getDestructor = function getDestructor() {
+    _proto39.update = function update() {};
+
+    _proto39.getDestroyable = function getDestroyable() {
       return null;
     };
 
@@ -10837,22 +10752,23 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   }();
 
   var OnModifierState = /*#__PURE__*/function () {
-    function OnModifierState(element, args) {
+    function OnModifierState(owner, element, args) {
+      this.tag = (0, _validator.createUpdatableTag)();
       this.shouldUpdate = true;
+      this.owner = owner;
       this.element = element;
       this.args = args;
-      this.tag = args.tag;
     }
 
-    var _proto43 = OnModifierState.prototype;
+    var _proto40 = OnModifierState.prototype;
 
-    _proto43.updateFromArgs = function updateFromArgs() {
+    _proto40.updateFromArgs = function updateFromArgs() {
       var args = this.args;
 
-      var _args$named$value = args.named.value(),
-          once = _args$named$value.once,
-          passive = _args$named$value.passive,
-          capture = _args$named$value.capture;
+      var _reifyNamed = (0, _runtime2.reifyNamed)(args.named),
+          once = _reifyNamed.once,
+          passive = _reifyNamed.passive,
+          capture = _reifyNamed.capture;
 
       if (once !== this.once) {
         this.once = once;
@@ -10881,16 +10797,25 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         this.options = undefined;
       }
 
-      (true && !(args.positional.at(0) !== undefined && typeof args.positional.at(0).value() === 'string') && (0, _debug.assert)('You must pass a valid DOM event name as the first argument to the `on` modifier', args.positional.at(0) !== undefined && typeof args.positional.at(0).value() === 'string'));
-      var eventName = args.positional.at(0).value();
+      (true && !(args.positional[0] !== undefined && typeof args.positional[0].value() === 'string') && (0, _debug.assert)('You must pass a valid DOM event name as the first argument to the `on` modifier', args.positional[0] !== undefined && typeof args.positional[0].value() === 'string'));
+      var eventName = args.positional[0].value();
 
       if (eventName !== this.eventName) {
         this.eventName = eventName;
         this.shouldUpdate = true;
       }
 
-      (true && !(args.positional.at(1) !== undefined && typeof args.positional.at(1).value() === 'function') && (0, _debug.assert)('You must pass a function as the second argument to the `on` modifier', args.positional.at(1) !== undefined && typeof args.positional.at(1).value() === 'function'));
-      var userProvidedCallback = args.positional.at(1).value();
+      var userProvidedCallbackReference = args.positional[1];
+
+      if (true
+      /* DEBUG */
+      ) {
+        (true && !(args.positional[1] !== undefined) && (0, _debug.assert)("You must pass a function as the second argument to the `on` modifier.", args.positional[1] !== undefined));
+        var value = userProvidedCallbackReference.value();
+        (true && !(typeof value === 'function') && (0, _debug.assert)("You must pass a function as the second argument to the `on` modifier, you passed " + (value === null ? 'null' : typeof value) + ". While rendering:\n\n" + userProvidedCallbackReference.debugLabel, typeof value === 'function'));
+      }
+
+      var userProvidedCallback = userProvidedCallbackReference.value();
 
       if (userProvidedCallback !== this.userProvidedCallback) {
         this.userProvidedCallback = userProvidedCallback;
@@ -10932,14 +10857,6 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           this.callback = userProvidedCallback;
         }
       }
-    };
-
-    _proto43.destroy = function destroy() {
-      var element = this.element,
-          eventName = this.eventName,
-          callback = this.callback,
-          options = this.options;
-      removeEventListener(element, eventName, callback, options);
     };
 
     return OnModifierState;
@@ -11085,31 +11002,36 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
 
   var OnModifierManager = /*#__PURE__*/function () {
-    function OnModifierManager(isInteractive) {
+    function OnModifierManager(owner, isInteractive) {
       this.SUPPORTS_EVENT_OPTIONS = SUPPORTS_EVENT_OPTIONS;
       this.isInteractive = isInteractive;
+      this.owner = owner;
     }
 
-    var _proto44 = OnModifierManager.prototype;
+    var _proto41 = OnModifierManager.prototype;
 
-    _proto44.create = function create(element, _state, args) {
+    _proto41.getDebugName = function getDebugName() {
+      return 'on';
+    };
+
+    _proto41.create = function create(element, _state, args) {
       if (!this.isInteractive) {
         return null;
       }
 
       var capturedArgs = args.capture();
-      return new OnModifierState(element, capturedArgs);
+      return new OnModifierState(this.owner, element, capturedArgs);
     };
 
-    _proto44.getTag = function getTag(state) {
+    _proto41.getTag = function getTag(state) {
       if (state === null) {
-        return _validator.CONSTANT_TAG;
+        return null;
       }
 
       return state.tag;
     };
 
-    _proto44.install = function install(state) {
+    _proto41.install = function install(state) {
       if (state === null) {
         return;
       }
@@ -11120,10 +11042,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           callback = state.callback,
           options = state.options;
       addEventListener(element, eventName, callback, options);
+      (0, _runtime2.registerDestructor)(state, function () {
+        return removeEventListener(element, eventName, callback, options);
+      });
       state.shouldUpdate = false;
     };
 
-    _proto44.update = function update(state) {
+    _proto41.update = function update(state) {
       if (state === null) {
         return;
       } // stash prior state for el.removeEventListener
@@ -11146,7 +11071,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       state.shouldUpdate = false;
     };
 
-    _proto44.getDestructor = function getDestructor(state) {
+    _proto41.getDestroyable = function getDestroyable(state) {
       return state;
     };
 
@@ -11175,11 +11100,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     createInstance: true,
     wrapped: false,
     willDestroy: false
-  }; // TODO
-  // This "disables" the "@model" feature by making the arg untypable syntatically
-  // Delete this when EMBER_ROUTING_MODEL_ARG has shipped
-
-  var MODEL_ARG_NAME = 'model';
+  };
 
   var MountManager = /*#__PURE__*/function (_AbstractManager6) {
     (0, _emberBabel.inheritsLoose)(MountManager, _AbstractManager6);
@@ -11188,9 +11109,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _AbstractManager6.apply(this, arguments) || this;
     }
 
-    var _proto45 = MountManager.prototype;
+    var _proto42 = MountManager.prototype;
 
-    _proto45.getJitDynamicLayout = function getJitDynamicLayout(state, _) {
+    _proto42.getJitDynamicLayout = function getJitDynamicLayout(state, _) {
       var templateFactory$$1 = state.engine.lookup('template:application');
       var template = templateFactory$$1(state.engine);
 
@@ -11201,12 +11122,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return template;
     };
 
-    _proto45.getCapabilities = function getCapabilities() {
+    _proto42.getCapabilities = function getCapabilities() {
       return CAPABILITIES$3;
     };
 
-    _proto45.create = function create(environment, _ref30, args) {
-      var name = _ref30.name;
+    _proto42.create = function create(environment, _ref31, args) {
+      var name = _ref31.name;
       // TODO
       // mount is a runtime helper, this shouldn't use dynamic layout
       // we should resolve the engine app template in the helper
@@ -11220,13 +11141,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       var bucket;
       var modelRef;
 
-      if (args.named.has(MODEL_ARG_NAME)) {
-        modelRef = args.named.get(MODEL_ARG_NAME);
+      if (args.named.has('model')) {
+        modelRef = args.named.get('model');
       }
 
       if (modelRef === undefined) {
         controller = controllerFactory.create();
-        self = new _reference.ComponentRootReference(controller, environment);
+        self = new _reference.ComponentRootReference(controller);
         bucket = {
           engine: engine,
           controller: controller,
@@ -11238,7 +11159,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         controller = controllerFactory.create({
           model: model
         });
-        self = new _reference.ComponentRootReference(controller, environment);
+        self = new _reference.ComponentRootReference(controller);
         bucket = {
           engine: engine,
           controller: controller,
@@ -11264,56 +11185,37 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           // set in getDynamicLayout
           template: undefined
         });
+        (0, _runtime2.registerDestructor)(engine, function () {
+          environment.extra.debugRenderTree.willDestroy(controller);
+          environment.extra.debugRenderTree.willDestroy(bucket);
+        });
       }
 
       return bucket;
     };
 
-    _proto45.getSelf = function getSelf(_ref31) {
-      var self = _ref31.self;
+    _proto42.getDebugName = function getDebugName(_ref32) {
+      var name = _ref32.name;
+      return name;
+    };
+
+    _proto42.getSelf = function getSelf(_ref33) {
+      var self = _ref33.self;
       return self;
     };
 
-    _proto45.getTag = function getTag(state) {
-      var tag = _validator.CONSTANT_TAG;
-
-      if (state.modelRef) {
-        tag = state.modelRef.tag;
-      }
-
-      if (_environment2.ENV._DEBUG_RENDER_TREE && (0, _validator.isConstTag)(tag)) {
-        tag = (0, _validator.createTag)();
-      }
-
-      return tag;
+    _proto42.getDestroyable = function getDestroyable(bucket) {
+      return bucket.engine;
     };
 
-    _proto45.getDestructor = function getDestructor(bucket) {
-      var engine = bucket.engine,
-          environment = bucket.environment,
-          controller = bucket.controller;
-
-      if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        return {
-          destroy: function destroy() {
-            environment.extra.debugRenderTree.willDestroy(controller);
-            environment.extra.debugRenderTree.willDestroy(bucket);
-            engine.destroy();
-          }
-        };
-      } else {
-        return engine;
-      }
-    };
-
-    _proto45.didRenderLayout = function didRenderLayout(bucket, bounds) {
+    _proto42.didRenderLayout = function didRenderLayout(bucket, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.environment.extra.debugRenderTree.didRender(bucket.controller, bounds);
         bucket.environment.extra.debugRenderTree.didRender(bucket, bounds);
       }
     };
 
-    _proto45.update = function update(bucket) {
+    _proto42.update = function update(bucket) {
       var controller = bucket.controller,
           environment = bucket.environment,
           modelRef = bucket.modelRef;
@@ -11328,7 +11230,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto45.didUpdateLayout = function didUpdateLayout(bucket, bounds) {
+    _proto42.didUpdateLayout = function didUpdateLayout(bucket, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         bucket.environment.extra.debugRenderTree.didRender(bucket.controller, bounds);
         bucket.environment.extra.debugRenderTree.didRender(bucket, bounds);
@@ -11372,28 +11274,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
     if (args.named.has('model')) {
       (true && !(args.named.length === 1) && (0, _debug.assert)('[BUG] this should already be checked by the macro', args.named.length === 1));
-      var named = args.named.capture();
-      var tag = named.tag; // TODO delete me after EMBER_ROUTING_MODEL_ARG has shipped
-
-      if (true
-      /* DEBUG */
-      && MODEL_ARG_NAME !== 'model') {
-        (true && !(named['_map'] === null) && (0, _debug.assert)('[BUG] named._map is not null', named['_map'] === null));
-        named.names = [MODEL_ARG_NAME];
-      }
-
-      captured = {
-        tag: tag,
-        positional: _runtime2.EMPTY_ARGS.positional,
-        named: named,
-        length: 1,
-        value: function value() {
-          return {
-            named: this.named.value(),
-            positional: this.positional.value()
-          };
-        }
-      };
+      captured = (0, _runtime2.createCapturedArgs)(args.named.capture(), _runtime2.EMPTY_POSITIONAL);
     }
 
     return new DynamicEngineReference(nameRef, env, captured);
@@ -11447,12 +11328,15 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this.args = args;
       this._lastName = null;
       this._lastDef = null;
-      this.tag = nameRef.tag;
     }
 
-    var _proto46 = DynamicEngineReference.prototype;
+    var _proto43 = DynamicEngineReference.prototype;
 
-    _proto46.value = function value() {
+    _proto43.isConst = function isConst() {
+      return false;
+    };
+
+    _proto43.value = function value() {
       var env = this.env,
           nameRef = this.nameRef,
           args = this.args;
@@ -11480,7 +11364,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto46.get = function get() {
+    _proto43.get = function get() {
       return _runtime2.UNDEFINED_REFERENCE;
     };
 
@@ -11497,17 +11381,22 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this.tag = (0, _validator.createTag)();
     }
 
-    var _proto47 = RootOutletReference.prototype;
+    var _proto44 = RootOutletReference.prototype;
 
-    _proto47.get = function get(key) {
-      return new PathReference(this, key);
+    _proto44.get = function get(key) {
+      return new OutletPathReference(this, key);
     };
 
-    _proto47.value = function value() {
+    _proto44.isConst = function isConst() {
+      return false;
+    };
+
+    _proto44.value = function value() {
+      (0, _validator.consumeTag)(this.tag);
       return this.outletState;
     };
 
-    _proto47.update = function update(state) {
+    _proto44.update = function update(state) {
       this.outletState.outlets.main = state;
       (0, _validator.dirtyTag)(this.tag);
     };
@@ -11523,19 +11412,22 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     function OutletReference(parentStateRef, outletNameRef) {
       this.parentStateRef = parentStateRef;
       this.outletNameRef = outletNameRef;
-      this.tag = (0, _validator.combine)([parentStateRef.tag, outletNameRef.tag]);
     }
 
-    var _proto48 = OutletReference.prototype;
+    var _proto45 = OutletReference.prototype;
 
-    _proto48.value = function value() {
+    _proto45.isConst = function isConst() {
+      return false;
+    };
+
+    _proto45.value = function value() {
       var outletState = this.parentStateRef.value();
       var outlets = outletState === undefined ? undefined : outletState.outlets;
       return outlets === undefined ? undefined : outlets[this.outletNameRef.value()];
     };
 
-    _proto48.get = function get(key) {
-      return new PathReference(this, key);
+    _proto45.get = function get(key) {
+      return new OutletPathReference(this, key);
     };
 
     return OutletReference;
@@ -11546,25 +11438,28 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
    */
 
 
-  var PathReference = /*#__PURE__*/function () {
-    function PathReference(parent, key) {
+  var OutletPathReference = /*#__PURE__*/function () {
+    function OutletPathReference(parent, key) {
       this.parent = parent;
       this.key = key;
-      this.tag = parent.tag;
     }
 
-    var _proto49 = PathReference.prototype;
+    var _proto46 = OutletPathReference.prototype;
 
-    _proto49.get = function get(key) {
-      return new PathReference(this, key);
+    _proto46.isConst = function isConst() {
+      return false;
     };
 
-    _proto49.value = function value() {
+    _proto46.get = function get(key) {
+      return new OutletPathReference(this, key);
+    };
+
+    _proto46.value = function value() {
       var parent = this.parent.value();
       return parent && parent[this.key];
     };
 
-    return PathReference;
+    return OutletPathReference;
   }();
   /**
     The `{{outlet}}` helper lets you specify where a child route will render in
@@ -11625,24 +11520,34 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       nameRef = args.positional.at(0);
     }
 
-    return new OutletComponentReference(new OutletReference(scope.outletState, nameRef), vm.env);
+    return new OutletComponentReference(new OutletReference(scope.outletState, nameRef));
   }
 
-  var OutletModelReference = /*#__PURE__*/function (_RootReference4) {
-    (0, _emberBabel.inheritsLoose)(OutletModelReference, _RootReference4);
+  var OutletModelReference = /*#__PURE__*/function (_RootReference2) {
+    (0, _emberBabel.inheritsLoose)(OutletModelReference, _RootReference2);
 
-    function OutletModelReference(parent, env) {
-      var _this14;
+    function OutletModelReference(parent) {
+      var _this15;
 
-      _this14 = _RootReference4.call(this, env) || this;
-      _this14.parent = parent;
-      _this14.tag = parent.tag;
-      return _this14;
+      _this15 = _RootReference2.call(this) || this;
+      _this15.parent = parent;
+
+      if (true
+      /* DEBUG */
+      ) {
+        _this15.debugLabel = '@model';
+      }
+
+      return _this15;
     }
 
-    var _proto50 = OutletModelReference.prototype;
+    var _proto47 = OutletModelReference.prototype;
 
-    _proto50.value = function value() {
+    _proto47.isConst = function isConst() {
+      return false;
+    };
+
+    _proto47.compute = function compute() {
       var state = this.parent.value();
 
       if (state === undefined) {
@@ -11661,25 +11566,20 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     return OutletModelReference;
   }(_reference.RootReference);
 
-  if (true
-  /* DEBUG */
-  ) {
-    OutletModelReference.prototype['debugLogName'] = '@model';
-  }
-
   var OutletComponentReference = /*#__PURE__*/function () {
-    function OutletComponentReference(outletRef, env) {
+    function OutletComponentReference(outletRef) {
       this.outletRef = outletRef;
-      this.env = env;
       this.definition = null;
-      this.lastState = null; // The router always dirties the root state.
-
-      this.tag = outletRef.tag;
+      this.lastState = null;
     }
 
-    var _proto51 = OutletComponentReference.prototype;
+    var _proto48 = OutletComponentReference.prototype;
 
-    _proto51.value = function value() {
+    _proto48.isConst = function isConst() {
+      return false;
+    };
+
+    _proto48.value = function value() {
       var state = stateFor(this.outletRef);
 
       if (validate(state, this.lastState)) {
@@ -11690,58 +11590,25 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       var definition = null;
 
       if (state !== null) {
-        var args = makeArgs(this.outletRef, this.env);
+        var args = makeArgs(this.outletRef);
         definition = (0, _runtime2.curry)(new OutletComponentDefinition(state), args);
       }
 
       return this.definition = definition;
     };
 
-    _proto51.get = function get(_key) {
+    _proto48.get = function get(_key) {
       return _runtime2.UNDEFINED_REFERENCE;
     };
 
     return OutletComponentReference;
   }();
 
-  function makeArgs(outletRef, env) {
-    var tag = outletRef.tag;
-    var modelRef = new OutletModelReference(outletRef, env);
-    var map = (0, _util.dict)();
-    map.model = modelRef; // TODO: the functionailty to create a proper CapturedArgument should be
-    // exported by glimmer, or that it should provide an overload for `curry`
-    // that takes `PreparedArguments`
-
-    return {
-      tag: tag,
-      positional: _runtime2.EMPTY_ARGS.positional,
-      named: {
-        tag: tag,
-        map: map,
-        names: ['model'],
-        references: [modelRef],
-        length: 1,
-        has: function has(key) {
-          return key === 'model';
-        },
-        get: function get(key) {
-          return key === 'model' ? modelRef : _runtime2.UNDEFINED_REFERENCE;
-        },
-        value: function value() {
-          var model = modelRef.value();
-          return {
-            model: model
-          };
-        }
-      },
-      length: 1,
-      value: function value() {
-        return {
-          named: this.named.value(),
-          positional: this.positional.value()
-        };
-      }
-    };
+  function makeArgs(outletRef) {
+    var modelRef = new OutletModelReference(outletRef);
+    var named = (0, _util.dict)();
+    named.model = modelRef;
+    return (0, _runtime2.createCapturedArgs)(named, _runtime2.EMPTY_POSITIONAL);
   }
 
   function stateFor(ref) {
@@ -11969,17 +11836,17 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     unless: inlineUnless,
     '-hash': hash,
     '-each-in': eachIn,
-    '-input-type': inputTypeHelper$1,
     '-normalize-class': normalizeClassHelper,
     '-track-array': trackArray,
     '-get-dynamic-var': _runtime2.getDynamicVar,
     '-mount': mountHelper,
     '-outlet': outletHelper,
-    '-assert-implicit-component-helper-argument': componentAssertionHelper
+    '-assert-implicit-component-helper-argument': componentAssertionHelper,
+    '-in-el-null': inElementNullCheckHelper
   };
 
   var RuntimeResolver = /*#__PURE__*/function () {
-    function RuntimeResolver(isInteractive) {
+    function RuntimeResolver(owner, isInteractive) {
       this.handles = [undefined];
       this.objToHandle = new WeakMap();
       this.builtInHelpers = BUILTINS_HELPERS;
@@ -11993,7 +11860,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           state: null
         },
         on: {
-          manager: new OnModifierManager(isInteractive),
+          manager: new OnModifierManager(owner, isInteractive),
           state: null
         }
       };
@@ -12006,9 +11873,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
      */
 
 
-    var _proto52 = RuntimeResolver.prototype;
+    var _proto49 = RuntimeResolver.prototype;
 
-    _proto52.lookupComponent = function lookupComponent(name, meta) {
+    _proto49.lookupComponent = function lookupComponent(name, meta) {
       var handle = this.lookupComponentHandle(name, meta);
 
       if (handle === null) {
@@ -12019,7 +11886,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return this.resolve(handle);
     };
 
-    _proto52.lookupComponentHandle = function lookupComponentHandle(name, meta) {
+    _proto49.lookupComponentHandle = function lookupComponentHandle(name, meta) {
       var nextHandle = this.handles.length;
       var handle = this.handle(this._lookupComponentDefinition(name, meta));
       (true && !(!(name === 'text-area' && handle === null)) && (0, _debug.assert)('Could not find component `<TextArea />` (did you mean `<Textarea />`?)', !(name === 'text-area' && handle === null)));
@@ -12035,7 +11902,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
      */
     ;
 
-    _proto52.resolve = function resolve(handle) {
+    _proto49.resolve = function resolve(handle) {
       return this.handles[handle];
     } // End IRuntimeResolver
 
@@ -12044,7 +11911,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
      */
     ;
 
-    _proto52.lookupHelper = function lookupHelper(name, meta) {
+    _proto49.lookupHelper = function lookupHelper(name, meta) {
       var nextHandle = this.handles.length;
 
       var helper$$1 = this._lookupHelper(name, meta);
@@ -12066,7 +11933,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
      */
     ;
 
-    _proto52.lookupModifier = function lookupModifier(name, meta) {
+    _proto49.lookupModifier = function lookupModifier(name, meta) {
       return this.handle(this._lookupModifier(name, meta));
     }
     /**
@@ -12074,7 +11941,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
      */
     ;
 
-    _proto52.lookupPartial = function lookupPartial(name, meta) {
+    _proto49.lookupPartial = function lookupPartial(name, meta) {
       if (_deprecatedFeatures.PARTIALS) {
         var partial = this._lookupPartial(name, meta);
 
@@ -12086,11 +11953,11 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
     // make it optional within Glimmer-VM
     ;
 
-    _proto52.compilable = function compilable() {} // end CompileTimeLookup
+    _proto49.compilable = function compilable() {} // end CompileTimeLookup
     // needed for lazy compile time lookup
     ;
 
-    _proto52.handle = function handle(obj) {
+    _proto49.handle = function handle(obj) {
       if (obj === undefined || obj === null) {
         return null;
       }
@@ -12105,7 +11972,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return handle;
     };
 
-    _proto52._lookupHelper = function _lookupHelper(_name, meta) {
+    _proto49._lookupHelper = function _lookupHelper(_name, meta) {
       (true && !(!(this.builtInHelpers[_name] && meta.owner.hasRegistration("helper:" + _name))) && (0, _debug.assert)("You attempted to overwrite the built-in helper \"" + _name + "\" which is not allowed. Please rename the helper.", !(this.builtInHelpers[_name] && meta.owner.hasRegistration("helper:" + _name))));
       var helper$$1 = this.builtInHelpers[_name];
 
@@ -12128,11 +11995,12 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
         var helper$$1 = factory.create();
 
         if (isClassHelper(helper$$1)) {
-          vm.associateDestroyable({
-            destroy: function destroy() {
-              helper$$1.destroy();
-            }
-          });
+          var helperDestroyable = {}; // Do this so that `destroy` gets called correctly
+
+          (0, _runtime2.registerDestructor)(helperDestroyable, function () {
+            return helper$$1.destroy();
+          }, true);
+          vm.associateDestroyable(helperDestroyable);
         } else if (true
         /* DEBUG */
         ) {
@@ -12144,18 +12012,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           helper$$1.compute = helper$$1.compute.bind(null);
         }
 
-        return new EmberHelperRootReference(helper$$1, args.capture(), vm.env);
+        return new EmberHelperRootReference(helper$$1, args.capture());
       };
     };
 
-    _proto52._lookupPartial = function _lookupPartial(name, meta) {
+    _proto49._lookupPartial = function _lookupPartial(name, meta) {
       var owner = meta.owner;
       var templateFactory$$1 = lookupPartial(name, owner);
       var template = templateFactory$$1(owner);
       return new _opcodeCompiler.PartialDefinitionImpl(name, template);
     };
 
-    _proto52._lookupModifier = function _lookupModifier(name, meta) {
+    _proto49._lookupModifier = function _lookupModifier(name, meta) {
       var builtin = this.builtInModifiers[name];
 
       if (builtin === undefined) {
@@ -12172,7 +12040,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return builtin;
     };
 
-    _proto52._parseNameForNamespace = function _parseNameForNamespace(_name) {
+    _proto49._parseNameForNamespace = function _parseNameForNamespace(_name) {
       var name = _name;
       var namespace = undefined;
 
@@ -12189,7 +12057,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       };
     };
 
-    _proto52._lookupComponentDefinition = function _lookupComponentDefinition(_name, meta) {
+    _proto49._lookupComponentDefinition = function _lookupComponentDefinition(_name, meta) {
       var name = _name;
       var namespace = undefined;
       var owner = meta.owner;
@@ -12352,19 +12220,19 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this.outletState = outletState;
     }
 
-    var _proto53 = DynamicScope.prototype;
+    var _proto50 = DynamicScope.prototype;
 
-    _proto53.child = function child() {
+    _proto50.child = function child() {
       return new DynamicScope(this.view, this.outletState);
     };
 
-    _proto53.get = function get(key) {
+    _proto50.get = function get(key) {
       // tslint:disable-next-line:max-line-length
       (true && !(key === 'outletState') && (0, _debug.assert)("Using `-get-dynamic-scope` is only supported for `outletState` (you used `" + key + "`).", key === 'outletState'));
       return this.outletState;
     };
 
-    _proto53.set = function set(key, value) {
+    _proto50.set = function set(key, value) {
       // tslint:disable-next-line:max-line-length
       (true && !(key === 'outletState') && (0, _debug.assert)("Using `-with-dynamic-scope` is only supported for `outletState` (you used `" + key + "`).", key === 'outletState'));
       this.outletState = value;
@@ -12376,7 +12244,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
 
   var RootState = /*#__PURE__*/function () {
     function RootState(root, runtime, context, template, self, parentElement, dynamicScope, builder) {
-      var _this15 = this;
+      var _this16 = this;
 
       this.root = root;
       this.runtime = runtime;
@@ -12392,15 +12260,9 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           element: parentElement,
           nextSibling: null
         }), (0, _util.unwrapHandle)(handle), dynamicScope);
-        var iteratorResult;
+        var result = _this16.result = iterator.sync(); // override .render function after initial render
 
-        do {
-          iteratorResult = iterator.next();
-        } while (!iteratorResult.done);
-
-        var result = _this15.result = iteratorResult.value; // override .render function after initial render
-
-        _this15.render = function () {
+        _this16.render = function () {
           return result.rerender({
             alwaysRevalidate: false
           });
@@ -12408,13 +12270,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       };
     }
 
-    var _proto54 = RootState.prototype;
+    var _proto51 = RootState.prototype;
 
-    _proto54.isFor = function isFor(possibleRoot) {
+    _proto51.isFor = function isFor(possibleRoot) {
       return this.root === possibleRoot;
     };
 
-    _proto54.destroy = function destroy() {
+    _proto51.destroy = function destroy() {
       var result = this.result,
           env = this.runtime.env;
       this.destroyed = true;
@@ -12423,7 +12285,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this.result = undefined;
       this.render = undefined;
 
-      if (result) {
+      if (result !== undefined) {
         /*
          Handles these scenarios:
                 * When roots are removed during standard rendering process, a transaction exists already
@@ -12433,7 +12295,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
          * When roots are being destroyed during `Renderer#destroy`, no transaction exists
                 */
         (0, _runtime2.inTransaction)(env, function () {
-          return result.destroy();
+          return (0, _runtime2.destroy)(result);
         });
       }
     };
@@ -12547,7 +12409,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this._removedRoots = [];
       this._builder = builder; // resolver is exposed for tests
 
-      var runtimeResolver = this._runtimeResolver = new RuntimeResolver(env.isInteractive);
+      var runtimeResolver = this._runtimeResolver = new RuntimeResolver(owner, env.isInteractive);
       var compileTimeResolver = new CompileTimeResolver(runtimeResolver);
       var context = this._context = (0, _opcodeCompiler.JitContext)(compileTimeResolver);
       populateMacros(context.macros);
@@ -12558,44 +12420,44 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }, runtimeEnvironmentDelegate, context, runtimeResolver);
     }
 
-    var _proto55 = Renderer.prototype;
+    var _proto52 = Renderer.prototype;
 
     // renderer HOOKS
-    _proto55.appendOutletView = function appendOutletView(view, target) {
+    _proto52.appendOutletView = function appendOutletView(view, target) {
       var definition = createRootOutlet(view);
 
       this._appendDefinition(view, (0, _runtime2.curry)(definition), target);
     };
 
-    _proto55.appendTo = function appendTo(view, target) {
+    _proto52.appendTo = function appendTo(view, target) {
       var definition = new RootComponentDefinition(view);
 
       this._appendDefinition(view, (0, _runtime2.curry)(definition), target);
     };
 
-    _proto55._appendDefinition = function _appendDefinition(root, definition, target) {
-      var self = new UnboundRootReference(definition, this._runtime.env);
+    _proto52._appendDefinition = function _appendDefinition(root, definition, target) {
+      var self = new UnboundRootReference(definition);
       var dynamicScope = new DynamicScope(null, _runtime2.UNDEFINED_REFERENCE);
       var rootState = new RootState(root, this._runtime, this._context, this._rootTemplate, self, target, dynamicScope, this._builder);
 
       this._renderRoot(rootState);
     };
 
-    _proto55.rerender = function rerender() {
+    _proto52.rerender = function rerender() {
       this._scheduleRevalidate();
     };
 
-    _proto55.register = function register(view) {
+    _proto52.register = function register(view) {
       var id = (0, _views.getViewId)(view);
       (true && !(!this._viewRegistry[id]) && (0, _debug.assert)('Attempted to register a view with an id already in use: ' + id, !this._viewRegistry[id]));
       this._viewRegistry[id] = view;
     };
 
-    _proto55.unregister = function unregister(view) {
+    _proto52.unregister = function unregister(view) {
       delete this._viewRegistry[(0, _views.getViewId)(view)];
     };
 
-    _proto55.remove = function remove(view) {
+    _proto52.remove = function remove(view) {
       view._transitionTo('destroying');
 
       this.cleanupRootFor(view);
@@ -12605,7 +12467,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto55.cleanupRootFor = function cleanupRootFor(view) {
+    _proto52.cleanupRootFor = function cleanupRootFor(view) {
       // no need to cleanup roots if we have already been destroyed
       if (this._destroyed) {
         return;
@@ -12626,7 +12488,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto55.destroy = function destroy() {
+    _proto52.destroy = function destroy() {
       if (this._destroyed) {
         return;
       }
@@ -12636,7 +12498,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this._clearAllRoots();
     };
 
-    _proto55.getBounds = function getBounds(view) {
+    _proto52.getBounds = function getBounds(view) {
       var bounds = view[BOUNDS];
       (true && !(Boolean(bounds)) && (0, _debug.assert)('object passed to getBounds must have the BOUNDS symbol as a property', Boolean(bounds)));
       var parentElement = bounds.parentElement();
@@ -12649,11 +12511,11 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       };
     };
 
-    _proto55.createElement = function createElement(tagName) {
+    _proto52.createElement = function createElement(tagName) {
       return this._runtime.env.getAppendOperations().createElement(tagName);
     };
 
-    _proto55._renderRoot = function _renderRoot(root) {
+    _proto52._renderRoot = function _renderRoot(root) {
       var roots = this._roots;
       roots.push(root);
 
@@ -12664,8 +12526,8 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       this._renderRootsTransaction();
     };
 
-    _proto55._renderRoots = function _renderRoots() {
-      var _this16 = this;
+    _proto52._renderRoots = function _renderRoots() {
+      var _this17 = this;
 
       var roots = this._roots,
           runtime = this._runtime,
@@ -12694,19 +12556,10 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
               continue;
             }
 
-            if (true
-            /* DEBUG */
-            ) {
-              // run in an autotracking transaction to prevent backflow errors.
-              // we use `bind` here to avoid creating a closure (and requiring a
-              // hoisted variable).
-              (0, _validator.runInAutotrackingTransaction)(root.render.bind(root));
-            } else {
-              root.render();
-            }
+            root.render();
           }
 
-          _this16._lastRevision = (0, _validator.valueForTag)(_validator.CURRENT_TAG);
+          _this17._lastRevision = (0, _validator.valueForTag)(_validator.CURRENT_TAG);
         });
       } while (roots.length > initialRootsLength); // remove any roots that were destroyed during this transaction
 
@@ -12722,7 +12575,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto55._renderRootsTransaction = function _renderRootsTransaction() {
+    _proto52._renderRootsTransaction = function _renderRootsTransaction() {
       if (this._inRenderTransaction) {
         // currently rendering roots, a new root was added and will
         // be processed by the existing _renderRoots invocation
@@ -12747,7 +12600,7 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto55._clearAllRoots = function _clearAllRoots() {
+    _proto52._clearAllRoots = function _clearAllRoots() {
       var roots = this._roots;
 
       for (var i = 0; i < roots.length; i++) {
@@ -12764,15 +12617,15 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto55._scheduleRevalidate = function _scheduleRevalidate() {
+    _proto52._scheduleRevalidate = function _scheduleRevalidate() {
       _runloop.backburner.scheduleOnce('render', this, this._revalidate);
     };
 
-    _proto55._isValid = function _isValid() {
+    _proto52._isValid = function _isValid() {
       return this._destroyed || this._roots.length === 0 || (0, _validator.validateTag)(_validator.CURRENT_TAG, this._lastRevision);
     };
 
-    _proto55._revalidate = function _revalidate() {
+    _proto52._revalidate = function _revalidate() {
       if (this._isValid()) {
         return;
       }
@@ -12798,19 +12651,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _Renderer.apply(this, arguments) || this;
     }
 
-    InertRenderer.create = function create(_ref32) {
-      var owner = _ref32[_owner.OWNER],
-          document = _ref32.document,
-          env = _ref32.env,
-          rootTemplate = _ref32.rootTemplate,
-          _viewRegistry = _ref32._viewRegistry,
-          builder = _ref32.builder;
-      return new this(owner, document, env, rootTemplate, _viewRegistry, false, builder);
+    InertRenderer.create = function create(props) {
+      var document = props.document,
+          env = props.env,
+          rootTemplate = props.rootTemplate,
+          _viewRegistry = props._viewRegistry,
+          builder = props.builder;
+      return new this((0, _owner.getOwner)(props), document, env, rootTemplate, _viewRegistry, false, builder);
     };
 
-    var _proto56 = InertRenderer.prototype;
+    var _proto53 = InertRenderer.prototype;
 
-    _proto56.getElement = function getElement(_view) {
+    _proto53.getElement = function getElement(_view) {
       throw new Error('Accessing `this.element` is not allowed in non-interactive environments (such as FastBoot).');
     };
 
@@ -12826,19 +12678,18 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _Renderer2.apply(this, arguments) || this;
     }
 
-    InteractiveRenderer.create = function create(_ref33) {
-      var owner = _ref33[_owner.OWNER],
-          document = _ref33.document,
-          env = _ref33.env,
-          rootTemplate = _ref33.rootTemplate,
-          _viewRegistry = _ref33._viewRegistry,
-          builder = _ref33.builder;
-      return new this(owner, document, env, rootTemplate, _viewRegistry, true, builder);
+    InteractiveRenderer.create = function create(props) {
+      var document = props.document,
+          env = props.env,
+          rootTemplate = props.rootTemplate,
+          _viewRegistry = props._viewRegistry,
+          builder = props.builder;
+      return new this((0, _owner.getOwner)(props), document, env, rootTemplate, _viewRegistry, true, builder);
     };
 
-    var _proto57 = InteractiveRenderer.prototype;
+    var _proto54 = InteractiveRenderer.prototype;
 
-    _proto57.getElement = function getElement(view) {
+    _proto54.getElement = function getElement(view) {
       return (0, _views.getViewElement)(view);
     };
 
@@ -12857,13 +12708,13 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
   }
 
   function getTemplate(name) {
-    if (TEMPLATES$1.hasOwnProperty(name)) {
+    if (Object.prototype.hasOwnProperty.call(TEMPLATES$1, name)) {
       return TEMPLATES$1[name];
     }
   }
 
   function hasTemplate(name) {
-    return TEMPLATES$1.hasOwnProperty(name);
+    return Object.prototype.hasOwnProperty.call(TEMPLATES$1, name);
   }
 
   function setTemplate(name, template) {
@@ -12894,15 +12745,17 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       return _InternalManager.apply(this, arguments) || this;
     }
 
-    var _proto58 = InputComponentManager.prototype;
+    var _proto55 = InputComponentManager.prototype;
 
-    _proto58.getCapabilities = function getCapabilities() {
+    _proto55.getCapabilities = function getCapabilities() {
       return CAPABILITIES$4;
     };
 
-    _proto58.prepareArgs = function prepareArgs(_state, args) {
+    _proto55.prepareArgs = function prepareArgs(_state, args) {
       (true && !(args.positional.length === 0) && (0, _debug.assert)('The `<Input />` component does not take any positional arguments', args.positional.length === 0));
-      var __ARGS__ = args.named.capture().map;
+
+      var __ARGS__ = args.named.capture();
+
       return {
         positional: EMPTY_POSITIONAL_ARGS$1,
         named: {
@@ -12912,10 +12765,10 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       };
     };
 
-    _proto58.create = function create(env, _ref34, args, _dynamicScope, caller) {
+    _proto55.create = function create(env, _ref34, args, _dynamicScope, caller) {
       var ComponentClass = _ref34.ComponentClass,
           layout = _ref34.layout;
-      (true && !((0, _validator.isConst)(caller)) && (0, _debug.assert)('caller must be const', (0, _validator.isConst)(caller)));
+      (true && !(caller.isConst()) && (0, _debug.assert)('caller must be const', caller.isConst()));
       var type = args.named.get('type');
       var instance = ComponentClass.create({
         caller: caller.value(),
@@ -12935,34 +12788,30 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
           instance: instance,
           template: layout
         });
+        (0, _runtime2.registerDestructor)(instance, function () {
+          return env.extra.debugRenderTree.willDestroy(state);
+        });
       }
 
       return state;
     };
 
-    _proto58.getSelf = function getSelf(_ref35) {
-      var env = _ref35.env,
-          instance = _ref35.instance;
-      return new _reference.ComponentRootReference(instance, env);
+    _proto55.getDebugName = function getDebugName() {
+      return 'input';
     };
 
-    _proto58.getTag = function getTag() {
-      if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        // returning a const tag skips the update hook (VM BUG?)
-        return (0, _validator.createTag)();
-      } else {
-        // an outlet has no hooks
-        return _validator.CONSTANT_TAG;
-      }
+    _proto55.getSelf = function getSelf(_ref35) {
+      var instance = _ref35.instance;
+      return new _reference.ComponentRootReference(instance);
     };
 
-    _proto58.didRenderLayout = function didRenderLayout(state, bounds) {
+    _proto55.didRenderLayout = function didRenderLayout(state, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         state.env.extra.debugRenderTree.didRender(state, bounds);
       }
     };
 
-    _proto58.update = function update(state) {
+    _proto55.update = function update(state) {
       (0, _metal.set)(state.instance, 'type', state.type.value());
 
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
@@ -12970,23 +12819,14 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       }
     };
 
-    _proto58.didUpdateLayout = function didUpdateLayout(state, bounds) {
+    _proto55.didUpdateLayout = function didUpdateLayout(state, bounds) {
       if (_environment2.ENV._DEBUG_RENDER_TREE) {
         state.env.extra.debugRenderTree.didRender(state, bounds);
       }
     };
 
-    _proto58.getDestructor = function getDestructor(state) {
-      if (_environment2.ENV._DEBUG_RENDER_TREE) {
-        return {
-          destroy: function destroy() {
-            state.env.extra.debugRenderTree.willDestroy(state);
-            state.instance.destroy();
-          }
-        };
-      } else {
-        return state.instance;
-      }
+    _proto55.getDestroyable = function getDestroyable(state) {
+      return state.instance;
     };
 
     return InputComponentManager;
@@ -13247,14 +13087,14 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       var _environment = options._environment,
           renderer = options.renderer,
           templateFactory$$1 = options.template;
-      var owner = options[_owner.OWNER];
+      var owner = (0, _owner.getOwner)(options);
       var template = templateFactory$$1(owner);
       return new OutletView(_environment, renderer, owner, template);
     };
 
-    var _proto59 = OutletView.prototype;
+    var _proto56 = OutletView.prototype;
 
-    _proto59.appendTo = function appendTo(selector) {
+    _proto56.appendTo = function appendTo(selector) {
       var target;
 
       if (this._environment.hasDOM) {
@@ -13266,15 +13106,15 @@ define("@ember/-internals/glimmer/index", ["exports", "ember-babel", "@ember/pol
       (0, _runloop.schedule)('render', this.renderer, 'appendOutletView', this, target);
     };
 
-    _proto59.rerender = function rerender() {
+    _proto56.rerender = function rerender() {
       /**/
     };
 
-    _proto59.setOutletState = function setOutletState(state) {
+    _proto56.setOutletState = function setOutletState(state) {
       this.ref.update(state);
     };
 
-    _proto59.destroy = function destroy() {
+    _proto56.destroy = function destroy() {
       /**/
     };
 
@@ -13496,7 +13336,7 @@ define("@ember/-internals/meta/index", ["exports", "@ember/-internals/meta/lib/m
     }
   });
 });
-define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-internals/utils", "@ember/debug"], function (_exports, _emberBabel, _utils, _debug) {
+define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-internals/utils", "@ember/debug", "@glimmer/runtime"], function (_exports, _emberBabel, _utils, _debug, _runtime) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -13543,6 +13383,7 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
   var currentListenerVersion = 1;
 
   var Meta = /*#__PURE__*/function () {
+    // DEBUG
     function Meta(obj) {
       this._listenersVersion = 1;
       this._inheritedEnd = -1;
@@ -13552,17 +13393,18 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
       /* DEBUG */
       ) {
         counters.metaInstantiated++;
-        this._values = undefined;
       }
 
       this._parent = undefined;
       this._descriptors = undefined;
-      this._mixins = undefined; // initial value for all flags right now is false
+      this._mixins = undefined;
+      this._lazyChains = undefined;
+      this._values = undefined;
+      this._tags = undefined;
+      this._revisions = undefined; // initial value for all flags right now is false
       // see FLAGS const for detailed list of flags used
 
-      this._flags = 0
-      /* NONE */
-      ; // used only internally
+      this._isInit = false; // used only internally
 
       this.source = obj;
       this.proto = obj.constructor === undefined ? undefined : obj.constructor.prototype;
@@ -13571,80 +13413,52 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
 
     var _proto = Meta.prototype;
 
+    // These methods are here to prevent errors in legacy compat with some addons
+    // that used them as intimate API
+    _proto.setSourceDestroying = function setSourceDestroying() {
+      (true && !(false) && (0, _debug.deprecate)('setSourceDestroying is deprecated, use the destroy() API to destroy the object directly instead', false, {
+        id: 'meta-destruction-apis',
+        until: '3.25.0'
+      }));
+    };
+
+    _proto.setSourceDestroyed = function setSourceDestroyed() {
+      (true && !(false) && (0, _debug.deprecate)('setSourceDestroyed is deprecated, use the destroy() API to destroy the object directly instead', false, {
+        id: 'meta-destruction-apis',
+        until: '3.25.0'
+      }));
+    };
+
+    _proto.isSourceDestroying = function isSourceDestroying() {
+      (true && !(false) && (0, _debug.deprecate)('isSourceDestroying is deprecated, use the isDestroying() API to check the object destruction state directly instead', false, {
+        id: 'meta-destruction-apis',
+        until: '3.25.0'
+      }));
+      return (0, _runtime.isDestroying)(this.source);
+    };
+
+    _proto.isSourceDestroyed = function isSourceDestroyed() {
+      (true && !(false) && (0, _debug.deprecate)('isSourceDestroyed is deprecated, use the isDestroyed() API to check the object destruction state directly instead', false, {
+        id: 'meta-destruction-apis',
+        until: '3.25.0'
+      }));
+      return (0, _runtime.isDestroyed)(this.source);
+    };
+
     _proto.setInitializing = function setInitializing() {
-      this._flags |= 8
-      /* INITIALIZING */
-      ;
+      this._isInit = true;
     };
 
     _proto.unsetInitializing = function unsetInitializing() {
-      this._flags ^= 8
-      /* INITIALIZING */
-      ;
+      this._isInit = false;
     };
 
     _proto.isInitializing = function isInitializing() {
-      return this._hasFlag(8
-      /* INITIALIZING */
-      );
+      return this._isInit;
     };
 
     _proto.isPrototypeMeta = function isPrototypeMeta(obj) {
       return this.proto === this.source && this.source === obj;
-    };
-
-    _proto.destroy = function destroy() {
-      if (true
-      /* DEBUG */
-      ) {
-        counters.deleteCalls++;
-      }
-
-      if (this.isMetaDestroyed()) {
-        return;
-      }
-
-      this.setMetaDestroyed();
-    };
-
-    _proto.isSourceDestroying = function isSourceDestroying() {
-      return this._hasFlag(1
-      /* SOURCE_DESTROYING */
-      );
-    };
-
-    _proto.setSourceDestroying = function setSourceDestroying() {
-      this._flags |= 1
-      /* SOURCE_DESTROYING */
-      ;
-    };
-
-    _proto.isSourceDestroyed = function isSourceDestroyed() {
-      return this._hasFlag(2
-      /* SOURCE_DESTROYED */
-      );
-    };
-
-    _proto.setSourceDestroyed = function setSourceDestroyed() {
-      this._flags |= 2
-      /* SOURCE_DESTROYED */
-      ;
-    };
-
-    _proto.isMetaDestroyed = function isMetaDestroyed() {
-      return this._hasFlag(4
-      /* META_DESTROYED */
-      );
-    };
-
-    _proto.setMetaDestroyed = function setMetaDestroyed() {
-      this._flags |= 4
-      /* META_DESTROYED */
-      ;
-    };
-
-    _proto._hasFlag = function _hasFlag(flag) {
-      return (this._flags & flag) === flag;
     };
 
     _proto._getOrCreateOwnMap = function _getOrCreateOwnMap(key) {
@@ -13689,6 +13503,28 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
       return false;
     };
 
+    _proto.valueFor = function valueFor(key) {
+      var values = this._values;
+      return values !== undefined ? values[key] : undefined;
+    };
+
+    _proto.setValueFor = function setValueFor(key, value) {
+      var values = this._getOrCreateOwnMap('_values');
+
+      values[key] = value;
+    };
+
+    _proto.revisionFor = function revisionFor(key) {
+      var revisions = this._revisions;
+      return revisions !== undefined ? revisions[key] : undefined;
+    };
+
+    _proto.setRevisionFor = function setRevisionFor(key, revision) {
+      var revisions = this._getOrCreateOwnMap('_revisions');
+
+      revisions[key] = revision;
+    };
+
     _proto.writableLazyChainsFor = function writableLazyChainsFor(key) {
       if (true
       /* DEBUG */
@@ -13698,11 +13534,13 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
 
       var lazyChains = this._getOrCreateOwnMap('_lazyChains');
 
-      if (!(key in lazyChains)) {
-        lazyChains[key] = Object.create(null);
+      var chains = lazyChains[key];
+
+      if (chains === undefined) {
+        chains = lazyChains[key] = [];
       }
 
-      return lazyChains[key];
+      return chains;
     };
 
     _proto.readableLazyChainsFor = function readableLazyChainsFor(key) {
@@ -13722,7 +13560,7 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
     };
 
     _proto.addMixin = function addMixin(mixin) {
-      (true && !(!this.isMetaDestroyed()) && (0, _debug.assert)(this.isMetaDestroyed() ? "Cannot add mixins of `" + (0, _utils.toString)(mixin) + "` on `" + (0, _utils.toString)(this.source) + "` call addMixin after it has been destroyed." : '', !this.isMetaDestroyed()));
+      (true && !(!(0, _runtime.isDestroyed)(this.source)) && (0, _debug.assert)((0, _runtime.isDestroyed)(this.source) ? "Cannot add mixins of `" + (0, _utils.toString)(mixin) + "` on `" + (0, _utils.toString)(this.source) + "` call addMixin after it has been destroyed." : '', !(0, _runtime.isDestroyed)(this.source)));
 
       var set = this._getOrCreateOwnSet('_mixins');
 
@@ -13756,7 +13594,7 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
     };
 
     _proto.writeDescriptors = function writeDescriptors(subkey, value) {
-      (true && !(!this.isMetaDestroyed()) && (0, _debug.assert)(this.isMetaDestroyed() ? "Cannot update descriptors for `" + subkey + "` on `" + (0, _utils.toString)(this.source) + "` after it has been destroyed." : '', !this.isMetaDestroyed()));
+      (true && !(!(0, _runtime.isDestroyed)(this.source)) && (0, _debug.assert)((0, _runtime.isDestroyed)(this.source) ? "Cannot update descriptors for `" + subkey + "` on `" + (0, _utils.toString)(this.source) + "` after it has been destroyed." : '', !(0, _runtime.isDestroyed)(this.source)));
       var map = this._descriptors || (this._descriptors = new Map());
       map.set(subkey, value);
     };
@@ -14185,22 +14023,22 @@ define("@ember/-internals/meta/lib/meta", ["exports", "ember-babel", "@ember/-in
     return -1;
   }
 });
-define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-internals/meta", "@ember/-internals/utils", "@ember/debug", "@ember/-internals/environment", "@ember/runloop", "@glimmer/validator", "@ember/polyfills", "@ember/error", "ember/version", "@ember/-internals/meta/lib/meta", "@ember/deprecated-features", "@ember/-internals/owner"], function (_exports, _emberBabel, _meta2, _utils, _debug, _environment, _runloop, _validator, _polyfills, _error, _version, _meta3, _deprecatedFeatures, _owner) {
+define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-internals/meta", "@ember/-internals/utils", "@ember/debug", "@ember/-internals/environment", "@ember/runloop", "@glimmer/runtime", "@glimmer/validator", "@ember/polyfills", "@ember/error", "ember/version", "@ember/deprecated-features", "@ember/-internals/owner"], function (_exports, _emberBabel, _meta2, _utils, _debug, _environment, _runloop, _runtime, _validator, _polyfills, _error, _version, _deprecatedFeatures, _owner) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
     value: true
   });
   _exports.computed = computed;
+  _exports.autoComputed = autoComputed;
   _exports.isComputed = isComputed;
-  _exports.getCacheFor = getCacheFor;
   _exports.getCachedValueFor = getCachedValueFor;
-  _exports.peekCacheFor = peekCacheFor;
   _exports.alias = alias;
   _exports.deprecateProperty = deprecateProperty;
   _exports._getPath = _getPath;
-  _exports.get = _get2;
+  _exports.get = _get3;
   _exports.getWithDefault = getWithDefault;
+  _exports._getProp = _getProp;
   _exports.set = _set2;
   _exports.trySet = trySet;
   _exports.objectAt = objectAt;
@@ -14232,11 +14070,9 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   _exports.descriptorForProperty = descriptorForProperty;
   _exports.isClassicDecorator = isClassicDecorator;
   _exports.setClassicDecorator = setClassicDecorator;
-  _exports.getChainTagsForKey = getChainTagsForKey;
   _exports.getProperties = getProperties;
   _exports.setProperties = setProperties;
   _exports.expandProperties = expandProperties;
-  _exports.destroy = destroy;
   _exports.addObserver = addObserver;
   _exports.activateObserver = activateObserver;
   _exports.removeObserver = removeObserver;
@@ -14258,70 +14094,26 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   _exports.removeNamespace = removeNamespace;
   _exports.isNamespaceSearchDisabled = isSearchDisabled;
   _exports.setNamespaceSearchDisabled = setSearchDisabled;
+  Object.defineProperty(_exports, "createCache", {
+    enumerable: true,
+    get: function get() {
+      return _validator.createCache;
+    }
+  });
+  Object.defineProperty(_exports, "getValue", {
+    enumerable: true,
+    get: function get() {
+      return _validator.getValue;
+    }
+  });
+  Object.defineProperty(_exports, "isConst", {
+    enumerable: true,
+    get: function get() {
+      return _validator.isConst;
+    }
+  });
   _exports.NAMESPACES_BY_ID = _exports.NAMESPACES = _exports.CUSTOM_TAG_FOR = _exports.DEBUG_INJECTION_FUNCTIONS = _exports.aliasMethod = _exports.Mixin = _exports.SYNC_OBSERVERS = _exports.ASYNC_OBSERVERS = _exports.Libraries = _exports.libraries = _exports.PROPERTY_DID_CHANGE = _exports.PROXY_CONTENT = _exports.ComputedProperty = _exports._globalsComputed = void 0;
-  var COMPUTED_PROPERTY_CACHED_VALUES = new WeakMap();
-  var COMPUTED_PROPERTY_LAST_REVISION = new WeakMap();
 
-  function getCacheFor(obj) {
-    var cache = COMPUTED_PROPERTY_CACHED_VALUES.get(obj);
-
-    if (cache === undefined) {
-      cache = new Map();
-      COMPUTED_PROPERTY_CACHED_VALUES.set(obj, cache);
-    }
-
-    return cache;
-  }
-  /**
-    Returns the cached value for a property, if one exists.
-    This can be useful for peeking at the value of a computed
-    property that is generated lazily, without accidentally causing
-    it to be created.
-  
-    @method cacheFor
-    @static
-    @for @ember/object/internals
-    @param {Object} obj the object whose property you want to check
-    @param {String} key the name of the property whose cached value you want
-      to return
-    @return {Object} the cached value
-    @public
-  */
-
-
-  function getCachedValueFor(obj, key) {
-    var cache = COMPUTED_PROPERTY_CACHED_VALUES.get(obj);
-
-    if (cache !== undefined) {
-      return cache.get(key);
-    }
-  }
-
-  function setLastRevisionFor(obj, key, revision) {
-    var cache = COMPUTED_PROPERTY_LAST_REVISION.get(obj);
-
-    if (cache === undefined) {
-      cache = new Map();
-      COMPUTED_PROPERTY_LAST_REVISION.set(obj, cache);
-    }
-
-    cache.set(key, revision);
-  }
-
-  function getLastRevisionFor(obj, key) {
-    var cache = COMPUTED_PROPERTY_LAST_REVISION.get(obj);
-
-    if (cache === undefined) {
-      return 0;
-    } else {
-      var revision = cache.get(key);
-      return revision === undefined ? 0 : revision;
-    }
-  }
-
-  function peekCacheFor(obj) {
-    return COMPUTED_PROPERTY_CACHED_VALUES.get(obj);
-  }
   /**
   @module @ember/object
   */
@@ -14357,8 +14149,6 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     @param {Boolean} once A flag whether a function should only be called once
     @public
   */
-
-
   function addListener(obj, eventName, target, method, once, sync) {
     if (sync === void 0) {
       sync = true;
@@ -14449,7 +14239,9 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
         target = obj;
       }
 
-      if ('string' === typeof method) {
+      var type = typeof method;
+
+      if (type === 'string' || type === 'symbol') {
         method = target[method];
       }
 
@@ -14598,6 +14390,9 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
     if (!observerMap.has(target)) {
       observerMap.set(target, new Map());
+      (0, _runtime.registerDestructor)(target, function () {
+        return destroyObservers(target);
+      }, true);
     }
 
     return observerMap.get(target);
@@ -14616,7 +14411,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       var _eventName$split = eventName.split(':'),
           path = _eventName$split[0];
 
-      var tag = (0, _validator.combine)(getChainTagsForKey(target, path));
+      var tag = getChainTagsForKey(target, path, (0, _validator.tagMetaFor)(target), (0, _meta2.peekMeta)(target));
       activeObservers.set(eventName, {
         count: 1,
         path: path,
@@ -14687,14 +14482,14 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   function revalidateObservers(target) {
     if (ASYNC_OBSERVERS.has(target)) {
       ASYNC_OBSERVERS.get(target).forEach(function (observer) {
-        observer.tag = (0, _validator.combine)(getChainTagsForKey(target, observer.path));
+        observer.tag = getChainTagsForKey(target, observer.path, (0, _validator.tagMetaFor)(target), (0, _meta2.peekMeta)(target));
         observer.lastRevision = (0, _validator.valueForTag)(observer.tag);
       });
     }
 
     if (SYNC_OBSERVERS.has(target)) {
       SYNC_OBSERVERS.get(target).forEach(function (observer) {
-        observer.tag = (0, _validator.combine)(getChainTagsForKey(target, observer.path));
+        observer.tag = getChainTagsForKey(target, observer.path, (0, _validator.tagMetaFor)(target), (0, _meta2.peekMeta)(target));
         observer.lastRevision = (0, _validator.valueForTag)(observer.tag);
       });
     }
@@ -14715,20 +14510,14 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
     lastKnownRevision = currentRevision;
     ASYNC_OBSERVERS.forEach(function (activeObservers, target) {
-      var meta$$1 = (0, _meta2.peekMeta)(target); // if observer target is destroyed remove observers
-
-      if (meta$$1 && (meta$$1.isSourceDestroying() || meta$$1.isMetaDestroyed())) {
-        ASYNC_OBSERVERS.delete(target);
-        return;
-      }
-
+      var meta$$1 = (0, _meta2.peekMeta)(target);
       activeObservers.forEach(function (observer, eventName) {
         if (!(0, _validator.validateTag)(observer.tag, observer.lastRevision)) {
           var sendObserver = function sendObserver() {
             try {
               sendEvent(target, eventName, [target, observer.path], undefined, meta$$1);
             } finally {
-              observer.tag = (0, _validator.combine)(getChainTagsForKey(target, observer.path));
+              observer.tag = getChainTagsForKey(target, observer.path, (0, _validator.tagMetaFor)(target), (0, _meta2.peekMeta)(target));
               observer.lastRevision = (0, _validator.valueForTag)(observer.tag);
             }
           };
@@ -14749,19 +14538,13 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     // a global revision.
     SYNC_OBSERVERS.forEach(function (activeObservers, target) {
       var meta$$1 = (0, _meta2.peekMeta)(target);
-
-      if (meta$$1 && (meta$$1.isSourceDestroying() || meta$$1.isMetaDestroyed())) {
-        SYNC_OBSERVERS.delete(target);
-        return;
-      }
-
       activeObservers.forEach(function (observer, eventName) {
         if (!observer.suspended && !(0, _validator.validateTag)(observer.tag, observer.lastRevision)) {
           try {
             observer.suspended = true;
             sendEvent(target, eventName, [target, observer.path], undefined, meta$$1);
           } finally {
-            observer.tag = (0, _validator.combine)(getChainTagsForKey(target, observer.path));
+            observer.tag = getChainTagsForKey(target, observer.path, (0, _validator.tagMetaFor)(target), (0, _meta2.peekMeta)(target));
             observer.lastRevision = (0, _validator.valueForTag)(observer.tag);
             observer.suspended = false;
           }
@@ -14787,56 +14570,28 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   function destroyObservers(target) {
     if (SYNC_OBSERVERS.size > 0) SYNC_OBSERVERS.delete(target);
     if (ASYNC_OBSERVERS.size > 0) ASYNC_OBSERVERS.delete(target);
-  } // Setup tracking environment
+  }
 
-
-  (0, _validator.setPropertyDidChange)(function () {
-    return _runloop.backburner.ensureInstance();
-  });
-
-  if (true
-  /* DEBUG */
-  ) {
-    (0, _validator.setAutotrackingTransactionEnv)({
-      assert: function assert(message) {
-        (true && !(false) && (0, _debug.assert)(message, false));
-      },
-      deprecate: function deprecate(message) {
-        (true && !(false) && (0, _debug.deprecate)(message, false, {
-          id: 'autotracking.mutation-after-consumption',
-          until: '4.0.0'
-        }));
-      },
-      debugMessage: function debugMessage(obj, keyName) {
-        var dirtyString = keyName ? "`" + keyName + "` on `" + (0, _utils.getDebugName)(obj) + "`" : "`" + (0, _utils.getDebugName)(obj) + "`";
-        return "You attempted to update " + dirtyString + ", but it had already been used previously in the same computation.  Attempting to update a value after using it in a computation can cause logical errors, infinite revalidation bugs, and performance issues, and is not supported.";
-      }
-    });
-  } /////////
-
-
-  var CUSTOM_TAG_FOR = (0, _utils.symbol)('CUSTOM_TAG_FOR'); // This is exported for `@tracked`, but should otherwise be avoided. Use `tagForObject`.
+  var CUSTOM_TAG_FOR = (0, _utils.enumerableSymbol)('CUSTOM_TAG_FOR'); // This is exported for `@tracked`, but should otherwise be avoided. Use `tagForObject`.
 
   _exports.CUSTOM_TAG_FOR = CUSTOM_TAG_FOR;
   var SELF_TAG = (0, _utils.symbol)('SELF_TAG');
 
-  function tagForProperty(obj, propertyKey) {
-    if (!(0, _utils.isObject)(obj)) {
-      return _validator.CONSTANT_TAG;
+  function tagForProperty(obj, propertyKey, addMandatorySetter, meta$$1) {
+    if (addMandatorySetter === void 0) {
+      addMandatorySetter = false;
     }
 
     if (typeof obj[CUSTOM_TAG_FOR] === 'function') {
-      return obj[CUSTOM_TAG_FOR](propertyKey);
+      return obj[CUSTOM_TAG_FOR](propertyKey, addMandatorySetter);
     }
 
-    var tag = (0, _validator.tagFor)(obj, propertyKey);
+    var tag = (0, _validator.tagFor)(obj, propertyKey, meta$$1);
 
     if (true
     /* DEBUG */
-    ) {
-      (0, _utils.setupMandatorySetter)(tag, obj, propertyKey); // TODO: Replace this with something more first class for tracking tags in DEBUG
-
-      tag._propertyKey = propertyKey;
+    && addMandatorySetter) {
+      (0, _utils.setupMandatorySetter)(tag, obj, propertyKey);
     }
 
     return tag;
@@ -14847,8 +14602,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       if (true
       /* DEBUG */
       ) {
-        var meta$$1 = (0, _meta2.meta)(obj);
-        (true && !(!meta$$1.isMetaDestroyed()) && (0, _debug.assert)(meta$$1.isMetaDestroyed() ? "Cannot create a new tag for `" + (0, _utils.toString)(meta$$1.source) + "` after it has been destroyed." : '', !meta$$1.isMetaDestroyed()));
+        (true && !(!(0, _runtime.isDestroyed)(obj)) && (0, _debug.assert)((0, _runtime.isDestroyed)(obj) ? "Cannot create a new tag for `" + (0, _utils.toString)(obj) + "` after it has been destroyed." : '', !(0, _runtime.isDestroyed)(obj)));
       }
 
       return (0, _validator.tagFor)(obj, SELF_TAG);
@@ -14867,7 +14621,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
    */
 
 
-  var PROPERTY_DID_CHANGE = (0, _utils.symbol)('PROPERTY_DID_CHANGE');
+  var PROPERTY_DID_CHANGE = (0, _utils.enumerableSymbol)('PROPERTY_DID_CHANGE');
   _exports.PROPERTY_DID_CHANGE = PROPERTY_DID_CHANGE;
   var deferred = 0;
   /**
@@ -15014,9 +14768,8 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     }
 
     sendEvent(array, '@array:change', [array, startIdx, removeAmt, addAmt]);
-    var cache = peekCacheFor(array);
 
-    if (cache !== undefined) {
+    if (meta$$1 !== null) {
       var length = array.length;
       var addedAmount = addAmt === -1 ? 0 : addAmt;
       var removedAmount = removeAmt === -1 ? 0 : removeAmt;
@@ -15024,11 +14777,11 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       var previousLength = length - delta;
       var normalStartIdx = startIdx < 0 ? previousLength + startIdx : startIdx;
 
-      if (cache.has('firstObject') && normalStartIdx === 0) {
+      if (meta$$1.revisionFor('firstObject') !== undefined && normalStartIdx === 0) {
         notifyPropertyChange(array, 'firstObject', meta$$1);
       }
 
-      if (cache.has('lastObject')) {
+      if (meta$$1.revisionFor('lastObject') !== undefined) {
         var previousLastIndex = previousLength - 1;
         var lastAffectedIndex = normalStartIdx + removedAmount;
 
@@ -15105,110 +14858,51 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     return arrayObserversHelper(array, target, opts, removeListener, true);
   }
 
-  var DECORATOR_DESCRIPTOR_MAP = new WeakMap();
-  /**
-    Returns the CP descriptor associated with `obj` and `keyName`, if any.
-  
-    @method descriptorForProperty
-    @param {Object} obj the object to check
-    @param {String} keyName the key to check
-    @return {Descriptor}
-    @private
-  */
+  var CHAIN_PASS_THROUGH = new _polyfills._WeakSet();
 
-  function descriptorForProperty(obj, keyName, _meta) {
-    (true && !(obj !== null) && (0, _debug.assert)('Cannot call `descriptorForProperty` on null', obj !== null));
-    (true && !(obj !== undefined) && (0, _debug.assert)('Cannot call `descriptorForProperty` on undefined', obj !== undefined));
-    (true && !(typeof obj === 'object' || typeof obj === 'function') && (0, _debug.assert)("Cannot call `descriptorForProperty` on " + typeof obj, typeof obj === 'object' || typeof obj === 'function'));
-    var meta$$1 = _meta === undefined ? (0, _meta2.peekMeta)(obj) : _meta;
-
-    if (meta$$1 !== null) {
-      return meta$$1.peekDescriptors(keyName);
-    }
-  }
-
-  function descriptorForDecorator(dec) {
-    return DECORATOR_DESCRIPTOR_MAP.get(dec);
-  }
-  /**
-    Check whether a value is a decorator
-  
-    @method isClassicDecorator
-    @param {any} possibleDesc the value to check
-    @return {boolean}
-    @private
-  */
-
-
-  function isClassicDecorator(dec) {
-    return dec !== null && dec !== undefined && DECORATOR_DESCRIPTOR_MAP.has(dec);
-  }
-  /**
-    Set a value as a decorator
-  
-    @method setClassicDecorator
-    @param {function} decorator the value to mark as a decorator
-    @private
-  */
-
-
-  function setClassicDecorator(dec, value) {
-    if (value === void 0) {
-      value = true;
-    }
-
-    DECORATOR_DESCRIPTOR_MAP.set(dec, value);
-  }
-
-  function finishLazyChains(obj, key, value) {
-    var meta$$1 = (0, _meta2.peekMeta)(obj);
-    var lazyTags = meta$$1 !== null ? meta$$1.readableLazyChainsFor(key) : undefined;
+  function finishLazyChains(meta$$1, key, value) {
+    var lazyTags = meta$$1.readableLazyChainsFor(key);
 
     if (lazyTags === undefined) {
       return;
     }
 
-    if (value === null || typeof value !== 'object' && typeof value !== 'function') {
-      for (var path in lazyTags) {
-        delete lazyTags[path];
+    if ((0, _utils.isObject)(value)) {
+      for (var i = 0; i < lazyTags.length; i++) {
+        var _lazyTags$i = lazyTags[i],
+            tag = _lazyTags$i[0],
+            deps = _lazyTags$i[1];
+        (0, _validator.updateTag)(tag, getChainTagsForKey(value, deps, (0, _validator.tagMetaFor)(value), (0, _meta2.peekMeta)(value)));
       }
-
-      return;
     }
 
-    for (var _path in lazyTags) {
-      var tag = lazyTags[_path];
-      (0, _validator.updateTag)(tag, (0, _validator.combine)(getChainTagsForKey(value, _path)));
-      delete lazyTags[_path];
-    }
+    lazyTags.length = 0;
   }
 
-  function getChainTagsForKeys(obj, keys) {
-    var chainTags = [];
+  function getChainTagsForKeys(obj, keys, tagMeta, meta$$1) {
+    var tags = [];
 
     for (var i = 0; i < keys.length; i++) {
-      chainTags.push.apply(chainTags, getChainTagsForKey(obj, keys[i]));
+      getChainTags(tags, obj, keys[i], tagMeta, meta$$1);
     }
 
-    return chainTags;
+    return (0, _validator.combine)(tags);
   }
 
-  function getChainTagsForKey(obj, path) {
-    var chainTags = [];
+  function getChainTagsForKey(obj, key, tagMeta, meta$$1) {
+    return (0, _validator.combine)(getChainTags([], obj, key, tagMeta, meta$$1));
+  }
+
+  function getChainTags(chainTags, obj, path, tagMeta, meta$$1) {
     var current = obj;
+    var currentTagMeta = tagMeta;
+    var currentMeta = meta$$1;
     var pathLength = path.length;
     var segmentEnd = -1; // prevent closures
 
     var segment, descriptor; // eslint-disable-next-line no-constant-condition
 
     while (true) {
-      var currentType = typeof current;
-
-      if (current === null || currentType !== 'object' && currentType !== 'function') {
-        // we've hit the end of the chain for now, break out
-        break;
-      }
-
       var lastSegmentEnd = segmentEnd + 1;
       segmentEnd = path.indexOf('.', lastSegmentEnd);
 
@@ -15252,37 +14946,30 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
           if (item) {
             (true && !(typeof item === 'object') && (0, _debug.assert)("When using @each to observe the array `" + current.toString() + "`, the items in the array must be objects", typeof item === 'object'));
-            chainTags.push(tagForProperty(item, segment));
+            chainTags.push(tagForProperty(item, segment, true));
           }
         } // Push the tag for the array length itself
 
 
-        chainTags.push(tagForProperty(current, '[]'));
+        chainTags.push(tagForProperty(current, '[]', true, currentTagMeta));
         break;
-      } // TODO: Assert that current[segment] isn't an undecorated, non-MANDATORY_SETTER/dependentKeyCompat getter
+      }
 
-
-      var propertyTag = tagForProperty(current, segment);
-      descriptor = descriptorForProperty(current, segment);
-      chainTags.push(propertyTag); // If the key was an alias, we should always get the next value in order to
-      // bootstrap the alias. This is because aliases, unlike other CPs, should
-      // always be in sync with the aliased value.
-
-      if (descriptor !== undefined && typeof descriptor.altKey === 'string') {
-        current = current[segment]; // We still need to break if we're at the end of the path.
-
-        if (segmentEnd === pathLength) {
-          break;
-        } // Otherwise, continue to process the next segment
-
-
-        continue;
-      } // If we're at the end of the path, processing the last segment, and it's
+      var propertyTag = tagForProperty(current, segment, true, currentTagMeta);
+      descriptor = currentMeta !== null ? currentMeta.peekDescriptors(segment) : undefined;
+      chainTags.push(propertyTag); // If we're at the end of the path, processing the last segment, and it's
       // not an alias, we should _not_ get the last value, since we already have
       // its tag. There's no reason to access it and do more work.
 
-
       if (segmentEnd === pathLength) {
+        // If the key was an alias, we should always get the next value in order to
+        // bootstrap the alias. This is because aliases, unlike other CPs, should
+        // always be in sync with the aliased value.
+        if (CHAIN_PASS_THROUGH.has(descriptor)) {
+          // tslint:disable-next-line: no-unused-expression
+          current[segment];
+        }
+
         break;
       }
 
@@ -15294,37 +14981,37 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
         } else {
           current = current[segment];
         }
+      } else if (CHAIN_PASS_THROUGH.has(descriptor)) {
+        current = current[segment];
       } else {
         // If the descriptor is defined, then its a normal CP (not an alias, which
         // would have been handled earlier). We get the last revision to check if
         // the CP is still valid, and if so we use the cached value. If not, then
         // we create a lazy chain lookup, and the next time the CP is calculated,
         // it will update that lazy chain.
-        var lastRevision = getLastRevisionFor(current, segment);
+        var instanceMeta = currentMeta.source === current ? currentMeta : (0, _meta2.meta)(current);
+        var lastRevision = instanceMeta.revisionFor(segment);
 
-        if ((0, _validator.validateTag)(propertyTag, lastRevision)) {
-          current = peekCacheFor(current).get(segment);
+        if (lastRevision !== undefined && (0, _validator.validateTag)(propertyTag, lastRevision)) {
+          current = instanceMeta.valueFor(segment);
         } else {
-          var lazyChains = (0, _meta2.meta)(current).writableLazyChainsFor(segment);
+          // use metaFor here to ensure we have the meta for the instance
+          var lazyChains = instanceMeta.writableLazyChainsFor(segment);
           var rest = path.substr(segmentEnd + 1);
-          var placeholderTag = lazyChains[rest];
-
-          if (placeholderTag === undefined) {
-            placeholderTag = lazyChains[rest] = (0, _validator.createUpdatableTag)();
-          }
-
+          var placeholderTag = (0, _validator.createUpdatableTag)();
+          lazyChains.push([placeholderTag, rest]);
           chainTags.push(placeholderTag);
           break;
         }
       }
-    }
 
-    if (true
-    /* DEBUG */
-    ) {
-      chainTags.forEach(function (t) {
-        return _validator.ALLOW_CYCLES.set(t, true);
-      });
+      if (!(0, _utils.isObject)(current)) {
+        // we've hit the end of the chain for now, break out
+        break;
+      }
+
+      currentTagMeta = (0, _validator.tagMetaFor)(current);
+      currentMeta = (0, _meta2.peekMeta)(current);
     }
 
     return chainTags;
@@ -15338,8 +15025,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       args.length === 3 && ( // Make sure the target is a class or object (prototype)
       typeof maybeTarget === 'function' || typeof maybeTarget === 'object' && maybeTarget !== null) && // Make sure the key is a string
       typeof maybeKey === 'string' && ( // Make sure the descriptor is the right shape
-      typeof maybeDesc === 'object' && maybeDesc !== null && 'enumerable' in maybeDesc && 'configurable' in maybeDesc || // TS compatibility
-      maybeDesc === undefined)
+      typeof maybeDesc === 'object' && maybeDesc !== null || maybeDesc === undefined)
     );
   }
 
@@ -15388,19 +15074,14 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   }
 
   function DESCRIPTOR_SETTER_FUNCTION(name, descriptor) {
-    var func = function CPSETTER_FUNCTION(value) {
+    return function CPSETTER_FUNCTION(value) {
       return descriptor.set(this, name, value);
     };
-
-    CP_SETTER_FUNCS.add(func);
-    return func;
   }
 
-  var CP_SETTER_FUNCS = new _polyfills._WeakSet();
-
   function makeComputedDecorator(desc, DecoratorClass) {
-    var decorator = function COMPUTED_DECORATOR(target, key, propertyDesc, maybeMeta, isClassicDecorator$$1) {
-      (true && !(isClassicDecorator$$1 || !propertyDesc || !propertyDesc.get || propertyDesc.get.toString().indexOf('CPGETTER_FUNCTION') === -1) && (0, _debug.assert)("Only one computed property decorator can be applied to a class field or accessor, but '" + key + "' was decorated twice. You may have added the decorator to both a getter and setter, which is unnecessary.", isClassicDecorator$$1 || !propertyDesc || !propertyDesc.get || propertyDesc.get.toString().indexOf('CPGETTER_FUNCTION') === -1));
+    var decorator = function COMPUTED_DECORATOR(target, key, propertyDesc, maybeMeta, isClassicDecorator) {
+      (true && !(isClassicDecorator || !propertyDesc || !propertyDesc.get || propertyDesc.get.toString().indexOf('CPGETTER_FUNCTION') === -1) && (0, _debug.assert)("Only one computed property decorator can be applied to a class field or accessor, but '" + key + "' was decorated twice. You may have added the decorator to both a getter and setter, which is unnecessary.", isClassicDecorator || !propertyDesc || !propertyDesc.get || propertyDesc.get.toString().indexOf('CPGETTER_FUNCTION') === -1));
       var meta$$1 = arguments.length === 3 ? (0, _meta2.meta)(target) : maybeMeta;
       desc.setup(target, key, propertyDesc, meta$$1);
       var computedDesc = {
@@ -15415,6 +15096,62 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     setClassicDecorator(decorator, desc);
     Object.setPrototypeOf(decorator, DecoratorClass.prototype);
     return decorator;
+  } /////////////
+
+
+  var DECORATOR_DESCRIPTOR_MAP = new WeakMap();
+  /**
+    Returns the CP descriptor associated with `obj` and `keyName`, if any.
+  
+    @method descriptorForProperty
+    @param {Object} obj the object to check
+    @param {String} keyName the key to check
+    @return {Descriptor}
+    @private
+  */
+
+  function descriptorForProperty(obj, keyName, _meta) {
+    (true && !(obj !== null) && (0, _debug.assert)('Cannot call `descriptorForProperty` on null', obj !== null));
+    (true && !(obj !== undefined) && (0, _debug.assert)('Cannot call `descriptorForProperty` on undefined', obj !== undefined));
+    (true && !(typeof obj === 'object' || typeof obj === 'function') && (0, _debug.assert)("Cannot call `descriptorForProperty` on " + typeof obj, typeof obj === 'object' || typeof obj === 'function'));
+    var meta$$1 = _meta === undefined ? (0, _meta2.peekMeta)(obj) : _meta;
+
+    if (meta$$1 !== null) {
+      return meta$$1.peekDescriptors(keyName);
+    }
+  }
+
+  function descriptorForDecorator(dec) {
+    return DECORATOR_DESCRIPTOR_MAP.get(dec);
+  }
+  /**
+    Check whether a value is a decorator
+  
+    @method isClassicDecorator
+    @param {any} possibleDesc the value to check
+    @return {boolean}
+    @private
+  */
+
+
+  function isClassicDecorator(dec) {
+    return typeof dec === 'function' && DECORATOR_DESCRIPTOR_MAP.has(dec);
+  }
+  /**
+    Set a value as a decorator
+  
+    @method setClassicDecorator
+    @param {function} decorator the value to mark as a decorator
+    @private
+  */
+
+
+  function setClassicDecorator(dec, value) {
+    if (value === void 0) {
+      value = true;
+    }
+
+    DECORATOR_DESCRIPTOR_MAP.set(dec, value);
   }
   /**
   @module @ember/object
@@ -15541,67 +15278,21 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   */
 
 
-  function defineProperty(obj, keyName, desc, data, meta$$1) {
-    if (meta$$1 === undefined) {
-      meta$$1 = (0, _meta2.meta)(obj);
-    }
-
+  function defineProperty(obj, keyName, desc, data, _meta) {
+    var meta$$1 = _meta === undefined ? (0, _meta2.meta)(obj) : _meta;
     var previousDesc = descriptorForProperty(obj, keyName, meta$$1);
     var wasDescriptor = previousDesc !== undefined;
 
     if (wasDescriptor) {
       previousDesc.teardown(obj, keyName, meta$$1);
-    } // used to track if the the property being defined be enumerable
-
-
-    var enumerable = true; // Ember.NativeArray is a normal Ember.Mixin that we mix into `Array.prototype` when prototype extensions are enabled
-    // mutating a native object prototype like this should _not_ result in enumerable properties being added (or we have significant
-    // issues with things like deep equality checks from test frameworks, or things like jQuery.extend(true, [], [])).
-    //
-    // this is a hack, and we should stop mutating the array prototype by default 😫
-
-    if (obj === Array.prototype) {
-      enumerable = false;
     }
 
-    var value;
-
     if (isClassicDecorator(desc)) {
-      var propertyDesc;
-
-      if (true
-      /* DEBUG */
-      ) {
-        propertyDesc = desc(obj, keyName, undefined, meta$$1, true);
-      } else {
-        propertyDesc = desc(obj, keyName, undefined, meta$$1);
-      }
-
-      Object.defineProperty(obj, keyName, propertyDesc); // pass the decorator function forward for backwards compat
-
-      value = desc;
-    } else if (desc === undefined || desc === null) {
-      value = data;
-
-      if (wasDescriptor || enumerable === false) {
-        Object.defineProperty(obj, keyName, {
-          configurable: true,
-          enumerable: enumerable,
-          writable: true,
-          value: value
-        });
-      } else {
-        if (true
-        /* DEBUG */
-        ) {
-          (0, _utils.setWithMandatorySetter)(obj, keyName, data);
-        } else {
-          obj[keyName] = data;
-        }
-      }
+      defineDecorator(obj, keyName, desc, meta$$1);
+    } else if (desc === null || desc === undefined) {
+      defineValue(obj, keyName, data, wasDescriptor, true);
     } else {
-      value = desc; // fallback to ES5
-
+      // fallback to ES5
       Object.defineProperty(obj, keyName, desc);
     } // if key is being watched, override chains that
     // were initialized with the prototype
@@ -15609,13 +15300,48 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
     if (!meta$$1.isPrototypeMeta(obj)) {
       revalidateObservers(obj);
-    } // The `value` passed to the `didDefineProperty` hook is
-    // either the descriptor or data, whichever was passed.
-
-
-    if (typeof obj.didDefineProperty === 'function') {
-      obj.didDefineProperty(obj, keyName, value);
     }
+  }
+
+  function defineDecorator(obj, keyName, desc, meta$$1) {
+    var propertyDesc;
+
+    if (true
+    /* DEBUG */
+    ) {
+      propertyDesc = desc(obj, keyName, undefined, meta$$1, true);
+    } else {
+      propertyDesc = desc(obj, keyName, undefined, meta$$1);
+    }
+
+    Object.defineProperty(obj, keyName, propertyDesc); // pass the decorator function forward for backwards compat
+
+    return desc;
+  }
+
+  function defineValue(obj, keyName, value, wasDescriptor, enumerable) {
+    if (enumerable === void 0) {
+      enumerable = true;
+    }
+
+    if (wasDescriptor === true || enumerable === false) {
+      Object.defineProperty(obj, keyName, {
+        configurable: true,
+        enumerable: enumerable,
+        writable: true,
+        value: value
+      });
+    } else {
+      if (true
+      /* DEBUG */
+      ) {
+        (0, _utils.setWithMandatorySetter)(obj, keyName, value);
+      } else {
+        obj[keyName] = value;
+      }
+    }
+
+    return value;
   }
 
   var firstDotIndexCache = new _utils.Cache(1000, function (key) {
@@ -15687,20 +15413,19 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   */
 
 
-  function _get2(obj, keyName) {
+  function _get3(obj, keyName) {
     (true && !(arguments.length === 2) && (0, _debug.assert)("Get must be called with two arguments; an object and a property key", arguments.length === 2));
     (true && !(obj !== undefined && obj !== null) && (0, _debug.assert)("Cannot call get with '" + keyName + "' on an undefined object.", obj !== undefined && obj !== null));
     (true && !(typeof keyName === 'string' || typeof keyName === 'number' && !isNaN(keyName)) && (0, _debug.assert)("The key provided to get must be a string or number, you passed " + keyName, typeof keyName === 'string' || typeof keyName === 'number' && !isNaN(keyName)));
     (true && !(typeof keyName !== 'string' || keyName.lastIndexOf('this.', 0) !== 0) && (0, _debug.assert)("'this' in paths is not supported", typeof keyName !== 'string' || keyName.lastIndexOf('this.', 0) !== 0));
+    return isPath(keyName) ? _getPath(obj, keyName) : _getProp(obj, keyName);
+  }
+
+  function _getProp(obj, keyName) {
     var type = typeof obj;
     var isObject$$1 = type === 'object';
     var isFunction = type === 'function';
     var isObjectLike = isObject$$1 || isFunction;
-
-    if (isPath(keyName)) {
-      return isObjectLike ? _getPath(obj, keyName) : undefined;
-    }
-
     var value;
 
     if (isObjectLike) {
@@ -15711,37 +15436,30 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       } else {
         value = obj[keyName];
       }
-    } else {
-      value = obj[keyName];
-    }
 
-    if (value === undefined) {
-      if (isObject$$1 && !(keyName in obj) && typeof obj.unknownProperty === 'function') {
+      if (value === undefined && isObject$$1 && !(keyName in obj) && typeof obj.unknownProperty === 'function') {
         if (true
         /* DEBUG */
         ) {
-          (0, _validator.deprecateMutationsInAutotrackingTransaction)(function () {
+          (0, _validator.deprecateMutationsInTrackingTransaction)(function () {
             value = obj.unknownProperty(keyName);
           });
         } else {
           value = obj.unknownProperty(keyName);
         }
       }
-    }
 
-    if (isObjectLike && (0, _validator.isTracking)()) {
-      (0, _validator.consumeTag)(tagForProperty(obj, keyName)); // Add the tag of the returned value if it is an array, since arrays
-      // should always cause updates if they are consumed and then changed
+      if ((0, _validator.isTracking)()) {
+        (0, _validator.consumeTag)((0, _validator.tagFor)(obj, keyName));
 
-      if (Array.isArray(value) || (0, _utils.isEmberArray)(value)) {
-        (0, _validator.consumeTag)(tagForProperty(value, '[]'));
-      } // Add the value of the content if the value is a proxy. This is because
-      // content changes the truthiness/falsiness of the proxy.
-
-
-      if ((0, _utils.isProxy)(value)) {
-        (0, _validator.consumeTag)(tagForProperty(value, 'content'));
+        if (Array.isArray(value) || (0, _utils.isEmberArray)(value)) {
+          // Add the tag of the returned value if it is an array, since arrays
+          // should always cause updates if they are consumed and then changed
+          (0, _validator.consumeTag)((0, _validator.tagFor)(value, '[]'));
+        }
       }
+    } else {
+      value = obj[keyName];
     }
 
     return value;
@@ -15756,7 +15474,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
         return undefined;
       }
 
-      obj = _get2(obj, parts[i]);
+      obj = _getProp(obj, parts[i]);
     }
 
     return obj;
@@ -15778,11 +15496,18 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     @param {Object} defaultValue The value to return if the property value is undefined
     @return {Object} The property value or the defaultValue.
     @public
+    @deprecated
   */
 
 
   function getWithDefault(root, key, defaultValue) {
-    var value = _get2(root, key);
+    (true && !(false) && (0, _debug.deprecate)('Using getWithDefault has been deprecated. Instead, consider using Ember get and explicitly checking for undefined.', false, {
+      id: 'ember-metal.get-with-default',
+      until: '4.0.0',
+      url: 'https://deprecations.emberjs.com/v3.x#toc_ember-metal-get-with-default'
+    }));
+
+    var value = _get3(root, key);
 
     if (value === undefined) {
       return defaultValue;
@@ -15790,6 +15515,45 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
     return value;
   }
+
+  _getProp('foo', 'a');
+
+  _getProp('foo', 1);
+
+  _getProp({}, 'a');
+
+  _getProp({}, 1);
+
+  _getProp({
+    unkonwnProperty: function unkonwnProperty() {}
+  }, 'a');
+
+  _getProp({
+    unkonwnProperty: function unkonwnProperty() {}
+  }, 1);
+
+  _get3({}, 'foo');
+
+  _get3({}, 'foo.bar');
+
+  var fakeProxy = {};
+  (0, _utils.setProxy)(fakeProxy);
+  (0, _validator.track)(function () {
+    return _getProp({}, 'a');
+  });
+  (0, _validator.track)(function () {
+    return _getProp({}, 1);
+  });
+  (0, _validator.track)(function () {
+    return _getProp({
+      a: []
+    }, 'a');
+  });
+  (0, _validator.track)(function () {
+    return _getProp({
+      a: fakeProxy
+    }, 'a');
+  });
   /**
    @module @ember/object
   */
@@ -15817,7 +15581,6 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     @public
   */
 
-
   function _set2(obj, keyName, value, tolerant) {
     (true && !(arguments.length === 3 || arguments.length === 4) && (0, _debug.assert)("Set must be called with three or four arguments; an object, a property key, a value and tolerant true/false", arguments.length === 3 || arguments.length === 4));
     (true && !(obj && typeof obj === 'object' || typeof obj === 'function') && (0, _debug.assert)("Cannot call set with '" + keyName + "' on an undefined object.", obj && typeof obj === 'object' || typeof obj === 'function'));
@@ -15833,11 +15596,10 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       return setPath(obj, keyName, value, tolerant);
     }
 
-    var descriptor = (0, _utils.lookupDescriptor)(obj, keyName);
-    var setter = descriptor === null ? undefined : descriptor.set;
+    var descriptor = descriptorForProperty(obj, keyName);
 
-    if (setter !== undefined && CP_SETTER_FUNCS.has(setter)) {
-      obj[keyName] = value;
+    if (descriptor !== undefined) {
+      descriptor.set(obj, keyName, value);
       return value;
     }
 
@@ -16037,7 +15799,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
         set(this, 'lastName', lastName);
       }
   
-      @fullNameMacro fullName;
+      @fullNameMacro('firstName', 'lastName') fullName;
     });
   
     let person = new Person();
@@ -16170,27 +15932,301 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       (true && !(!propertyDesc || !propertyDesc.initializer) && (0, _debug.assert)("@computed can only be used on empty fields. " + keyName + " has an initial value (e.g. `" + keyName + " = someValue`)", !propertyDesc || !propertyDesc.initializer));
       (true && !(!(this._hasConfig && propertyDesc && (typeof propertyDesc.get === 'function' || typeof propertyDesc.set === 'function'))) && (0, _debug.assert)("Attempted to apply a computed property that already has a getter/setter to a " + keyName + ", but it is a method or an accessor. If you passed @computed a function or getter/setter (e.g. `@computed({ get() { ... } })`), then it must be applied to a field", !(this._hasConfig && propertyDesc && (typeof propertyDesc.get === 'function' || typeof propertyDesc.set === 'function'))));
 
+      if (true
+      /* DEBUG */
+      ) {
+        _validator.ALLOW_CYCLES.set((0, _validator.tagFor)(obj, keyName), true);
+      }
+
       if (this._hasConfig === false) {
         (true && !(propertyDesc && (typeof propertyDesc.get === 'function' || typeof propertyDesc.set === 'function')) && (0, _debug.assert)("Attempted to use @computed on " + keyName + ", but it did not have a getter or a setter. You must either pass a get a function or getter/setter to @computed directly (e.g. `@computed({ get() { ... } })`) or apply @computed directly to a getter/setter", propertyDesc && (typeof propertyDesc.get === 'function' || typeof propertyDesc.set === 'function')));
-        var _get = propertyDesc.get,
+        var _get2 = propertyDesc.get,
             set$$1 = propertyDesc.set;
 
-        if (_get !== undefined) {
-          this._getter = _get;
+        if (_get2 !== undefined) {
+          this._getter = _get2;
         }
 
         if (set$$1 !== undefined) {
           this._setter = function setterWrapper(_key, value) {
             var ret = set$$1.call(this, value);
 
-            if (_get !== undefined) {
-              return typeof ret === 'undefined' ? _get.call(this) : ret;
+            if (_get2 !== undefined) {
+              return typeof ret === 'undefined' ? _get2.call(this) : ret;
             }
 
             return ret;
           };
         }
       }
+    };
+
+    _proto2._property = function _property() {
+      var args = [];
+
+      function addArg(property) {
+        (true && (0, _debug.warn)("Dependent keys containing @each only work one level deep. " + ("You used the key \"" + property + "\" which is invalid. ") + "Please create an intermediary computed property.", DEEP_EACH_REGEX.test(property) === false, {
+          id: 'ember-metal.computed-deep-each'
+        }));
+        args.push(property);
+      }
+
+      for (var i = 0; i < arguments.length; i++) {
+        expandProperties(i < 0 || arguments.length <= i ? undefined : arguments[i], addArg);
+      }
+
+      this._dependentKeys = args;
+    };
+
+    _proto2.get = function get(obj, keyName) {
+      if (this._volatile) {
+        return this._getter.call(obj, keyName);
+      }
+
+      var meta$$1 = (0, _meta2.meta)(obj);
+      var tagMeta = (0, _validator.tagMetaFor)(obj);
+      var propertyTag = (0, _validator.tagFor)(obj, keyName, tagMeta);
+      var ret;
+      var revision = meta$$1.revisionFor(keyName);
+
+      if (revision !== undefined && (0, _validator.validateTag)(propertyTag, revision)) {
+        ret = meta$$1.valueFor(keyName);
+      } else {
+        // For backwards compatibility, we only throw if the CP has any dependencies. CPs without dependencies
+        // should be allowed, even after the object has been destroyed, which is why we check _dependentKeys.
+        (true && !(this._dependentKeys === undefined || !(0, _runtime.isDestroyed)(obj)) && (0, _debug.assert)("Attempted to access the computed " + obj + "." + keyName + " on a destroyed object, which is not allowed", this._dependentKeys === undefined || !(0, _runtime.isDestroyed)(obj)));
+        var _getter = this._getter,
+            _dependentKeys = this._dependentKeys; // Create a tracker that absorbs any trackable actions inside the CP
+
+        (0, _validator.untrack)(function () {
+          ret = _getter.call(obj, keyName);
+        });
+
+        if (_dependentKeys !== undefined) {
+          (0, _validator.updateTag)(propertyTag, getChainTagsForKeys(obj, _dependentKeys, tagMeta, meta$$1));
+        }
+
+        meta$$1.setValueFor(keyName, ret);
+        meta$$1.setRevisionFor(keyName, (0, _validator.valueForTag)(propertyTag));
+        finishLazyChains(meta$$1, keyName, ret);
+      }
+
+      (0, _validator.consumeTag)(propertyTag); // Add the tag of the returned value if it is an array, since arrays
+      // should always cause updates if they are consumed and then changed
+
+      if (Array.isArray(ret)) {
+        (0, _validator.consumeTag)((0, _validator.tagFor)(ret, '[]'));
+      }
+
+      return ret;
+    };
+
+    _proto2.set = function set(obj, keyName, value) {
+      if (this._readOnly) {
+        this._throwReadOnlyError(obj, keyName);
+      }
+
+      if (!this._setter) {
+        return this.clobberSet(obj, keyName, value);
+      }
+
+      if (this._volatile) {
+        return this.volatileSet(obj, keyName, value);
+      }
+
+      var meta$$1 = (0, _meta2.meta)(obj); // ensure two way binding works when the component has defined a computed
+      // property with both a setter and dependent keys, in that scenario without
+      // the sync observer added below the caller's value will never be updated
+      //
+      // See GH#18147 / GH#19028 for details.
+
+      if ( // ensure that we only run this once, while the component is being instantiated
+      meta$$1.isInitializing() && this._dependentKeys !== undefined && this._dependentKeys.length > 0 && // These two properties are set on Ember.Component
+      typeof obj[PROPERTY_DID_CHANGE] === 'function' && obj.isComponent) {
+        addObserver(obj, keyName, function () {
+          obj[PROPERTY_DID_CHANGE](keyName);
+        }, undefined, true);
+      }
+
+      var ret;
+
+      try {
+        beginPropertyChanges();
+        ret = this._set(obj, keyName, value, meta$$1);
+        finishLazyChains(meta$$1, keyName, ret);
+        var tagMeta = (0, _validator.tagMetaFor)(obj);
+        var propertyTag = (0, _validator.tagFor)(obj, keyName, tagMeta);
+        var _dependentKeys = this._dependentKeys;
+
+        if (_dependentKeys !== undefined) {
+          (0, _validator.updateTag)(propertyTag, getChainTagsForKeys(obj, _dependentKeys, tagMeta, meta$$1));
+        }
+
+        meta$$1.setRevisionFor(keyName, (0, _validator.valueForTag)(propertyTag));
+      } finally {
+        endPropertyChanges();
+      }
+
+      return ret;
+    };
+
+    _proto2._throwReadOnlyError = function _throwReadOnlyError(obj, keyName) {
+      throw new _error.default("Cannot set read-only property \"" + keyName + "\" on object: " + (0, _utils.inspect)(obj));
+    };
+
+    _proto2.clobberSet = function clobberSet(obj, keyName, value) {
+      (true && !(false) && (0, _debug.deprecate)("The " + (0, _utils.toString)(obj) + "#" + keyName + " computed property was just overridden. This removes the computed property and replaces it with a plain value, and has been deprecated. If you want this behavior, consider defining a setter which does it manually.", false, {
+        id: 'computed-property.override',
+        until: '4.0.0',
+        url: 'https://emberjs.com/deprecations/v3.x#toc_computed-property-override'
+      }));
+      var cachedValue = (0, _meta2.meta)(obj).valueFor(keyName);
+      defineProperty(obj, keyName, null, cachedValue);
+
+      _set2(obj, keyName, value);
+
+      return value;
+    };
+
+    _proto2.volatileSet = function volatileSet(obj, keyName, value) {
+      return this._setter.call(obj, keyName, value);
+    };
+
+    _proto2._set = function _set(obj, keyName, value, meta$$1) {
+      var hadCachedValue = meta$$1.revisionFor(keyName) !== undefined;
+      var cachedValue = meta$$1.valueFor(keyName);
+      var ret;
+      var _setter = this._setter;
+      setObserverSuspended(obj, keyName, true);
+
+      try {
+        ret = _setter.call(obj, keyName, value, cachedValue);
+      } finally {
+        setObserverSuspended(obj, keyName, false);
+      } // allows setter to return the same value that is cached already
+
+
+      if (hadCachedValue && cachedValue === ret) {
+        return ret;
+      }
+
+      meta$$1.setValueFor(keyName, ret);
+      notifyPropertyChange(obj, keyName, meta$$1, value);
+      return ret;
+    }
+    /* called before property is overridden */
+    ;
+
+    _proto2.teardown = function teardown(obj, keyName, meta$$1) {
+      if (!this._volatile) {
+        if (meta$$1.revisionFor(keyName) !== undefined) {
+          meta$$1.setRevisionFor(keyName, undefined);
+          meta$$1.setValueFor(keyName, undefined);
+        }
+      }
+
+      _ComputedDescriptor.prototype.teardown.call(this, obj, keyName, meta$$1);
+    };
+
+    return ComputedProperty;
+  }(ComputedDescriptor);
+
+  _exports.ComputedProperty = ComputedProperty;
+
+  var AutoComputedProperty = /*#__PURE__*/function (_ComputedProperty) {
+    (0, _emberBabel.inheritsLoose)(AutoComputedProperty, _ComputedProperty);
+
+    function AutoComputedProperty() {
+      return _ComputedProperty.apply(this, arguments) || this;
+    }
+
+    var _proto3 = AutoComputedProperty.prototype;
+
+    _proto3.get = function get(obj, keyName) {
+      if (this._volatile) {
+        return this._getter.call(obj, keyName);
+      }
+
+      var meta$$1 = (0, _meta2.meta)(obj);
+      var tagMeta = (0, _validator.tagMetaFor)(obj);
+      var propertyTag = (0, _validator.tagFor)(obj, keyName, tagMeta);
+      var ret;
+      var revision = meta$$1.revisionFor(keyName);
+
+      if (revision !== undefined && (0, _validator.validateTag)(propertyTag, revision)) {
+        ret = meta$$1.valueFor(keyName);
+      } else {
+        (true && !(!(0, _runtime.isDestroyed)(obj)) && (0, _debug.assert)("Attempted to access the computed " + obj + "." + keyName + " on a destroyed object, which is not allowed", !(0, _runtime.isDestroyed)(obj)));
+        var _getter = this._getter; // Create a tracker that absorbs any trackable actions inside the CP
+
+        var tag = (0, _validator.track)(function () {
+          ret = _getter.call(obj, keyName);
+        });
+        (0, _validator.updateTag)(propertyTag, tag);
+        meta$$1.setValueFor(keyName, ret);
+        meta$$1.setRevisionFor(keyName, (0, _validator.valueForTag)(propertyTag));
+        finishLazyChains(meta$$1, keyName, ret);
+      }
+
+      (0, _validator.consumeTag)(propertyTag); // Add the tag of the returned value if it is an array, since arrays
+      // should always cause updates if they are consumed and then changed
+
+      if (Array.isArray(ret)) {
+        (0, _validator.consumeTag)((0, _validator.tagFor)(ret, '[]', tagMeta));
+      }
+
+      return ret;
+    };
+
+    return AutoComputedProperty;
+  }(ComputedProperty); // TODO: This class can be svelted once `meta` has been deprecated
+
+
+  var ComputedDecoratorImpl = /*#__PURE__*/function (_Function) {
+    (0, _emberBabel.inheritsLoose)(ComputedDecoratorImpl, _Function);
+
+    function ComputedDecoratorImpl() {
+      return _Function.apply(this, arguments) || this;
+    }
+
+    var _proto4 = ComputedDecoratorImpl.prototype;
+
+    /**
+      Call on a computed property to set it into read-only mode. When in this
+      mode the computed property will throw an error when set.
+         Example:
+         ```javascript
+      import { computed, set } from '@ember/object';
+         class Person {
+        @computed().readOnly()
+        get guid() {
+          return 'guid-guid-guid';
+        }
+      }
+         let person = new Person();
+      set(person, 'guid', 'new-guid'); // will throw an exception
+      ```
+         Classic Class Example:
+         ```javascript
+      import EmberObject, { computed } from '@ember/object';
+         let Person = EmberObject.extend({
+        guid: computed(function() {
+          return 'guid-guid-guid';
+        }).readOnly()
+      });
+         let person = Person.create();
+      person.set('guid', 'new-guid'); // will throw an exception
+      ```
+         @method readOnly
+      @return {ComputedProperty} this
+      @chainable
+      @public
+    */
+    _proto4.readOnly = function readOnly() {
+      var desc = descriptorForDecorator(this);
+      (true && !(!(desc._setter && desc._setter !== desc._getter)) && (0, _debug.assert)('Computed properties that define a setter using the new syntax cannot be read-only', !(desc._setter && desc._setter !== desc._getter)));
+      desc._readOnly = true;
+      return this;
     }
     /**
       Call on a computed property to set it into non-cached mode. When in this
@@ -16228,50 +16264,14 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     */
     ;
 
-    _proto2.volatile = function volatile() {
+    _proto4.volatile = function volatile() {
       (true && !(false) && (0, _debug.deprecate)('Setting a computed property as volatile has been deprecated. Instead, consider using a native getter with native class syntax.', false, {
         id: 'computed-property.volatile',
         until: '4.0.0',
         url: 'https://emberjs.com/deprecations/v3.x#toc_computed-property-volatile'
       }));
-      this._volatile = true;
-    }
-    /**
-      Call on a computed property to set it into read-only mode. When in this
-      mode the computed property will throw an error when set.
-         Example:
-         ```javascript
-      import { computed, set } from '@ember/object';
-         class Person {
-        @computed().readOnly()
-        get guid() {
-          return 'guid-guid-guid';
-        }
-      }
-         let person = new Person();
-      set(person, 'guid', 'new-guid'); // will throw an exception
-      ```
-         Classic Class Example:
-         ```javascript
-      import EmberObject, { computed } from '@ember/object';
-         let Person = EmberObject.extend({
-        guid: computed(function() {
-          return 'guid-guid-guid';
-        }).readOnly()
-      });
-         let person = Person.create();
-      person.set('guid', 'new-guid'); // will throw an exception
-      ```
-         @method readOnly
-      @return {ComputedProperty} this
-      @chainable
-      @public
-    */
-    ;
-
-    _proto2.readOnly = function readOnly() {
-      this._readOnly = true;
-      (true && !(!(this._readOnly && this._setter && this._setter !== this._getter)) && (0, _debug.assert)('Computed properties that define a setter using the new syntax cannot be read-only', !(this._readOnly && this._setter && this._setter !== this._getter)));
+      descriptorForDecorator(this)._volatile = true;
+      return this;
     }
     /**
       Sets the dependent keys on this computed property. Pass any number of
@@ -16319,31 +16319,18 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     */
     ;
 
-    _proto2.property = function property() {
+    _proto4.property = function property() {
+      var _descriptorForDecorat;
+
       (true && !(false) && (0, _debug.deprecate)('Setting dependency keys using the `.property()` modifier has been deprecated. Pass the dependency keys directly to computed as arguments instead. If you are using `.property()` on a computed property macro, consider refactoring your macro to receive additional dependent keys in its initial declaration.', false, {
         id: 'computed-property.property',
         until: '4.0.0',
         url: 'https://emberjs.com/deprecations/v3.x#toc_computed-property-property'
       }));
 
-      this._property.apply(this, arguments);
-    };
+      (_descriptorForDecorat = descriptorForDecorator(this))._property.apply(_descriptorForDecorat, arguments);
 
-    _proto2._property = function _property() {
-      var args = [];
-
-      function addArg(property) {
-        (true && (0, _debug.warn)("Dependent keys containing @each only work one level deep. " + ("You used the key \"" + property + "\" which is invalid. ") + "Please create an intermediary computed property.", DEEP_EACH_REGEX.test(property) === false, {
-          id: 'ember-metal.computed-deep-each'
-        }));
-        args.push(property);
-      }
-
-      for (var i = 0; i < arguments.length; i++) {
-        expandProperties(i < 0 || arguments.length <= i ? undefined : arguments[i], addArg);
-      }
-
-      this._dependentKeys = args;
+      return this;
     }
     /**
       In some cases, you may want to annotate computed properties with additional
@@ -16385,191 +16372,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     */
     ;
 
-    _proto2.get = function get(obj, keyName) {
-      var _this3 = this;
-
-      if (this._volatile) {
-        return this._getter.call(obj, keyName);
-      }
-
-      var cache = getCacheFor(obj);
-      var propertyTag = tagForProperty(obj, keyName);
-      var ret;
-
-      if (cache.has(keyName) && (0, _validator.validateTag)(propertyTag, getLastRevisionFor(obj, keyName))) {
-        ret = cache.get(keyName);
-      } else {
-        // For backwards compatibility, we only throw if the CP has any dependencies. CPs without dependencies
-        // should be allowed, even after the object has been destroyed, which is why we check _dependentKeys.
-        (true && !(this._dependentKeys === undefined || !(0, _meta2.meta)(obj).isMetaDestroyed()) && (0, _debug.assert)("Attempted to access the computed " + obj + "." + keyName + " on a destroyed object, which is not allowed", this._dependentKeys === undefined || !(0, _meta2.meta)(obj).isMetaDestroyed()));
-        var upstreamTag = undefined;
-
-        if (this._auto === true) {
-          upstreamTag = (0, _validator.track)(function () {
-            ret = _this3._getter.call(obj, keyName);
-          });
-        } else {
-          // Create a tracker that absorbs any trackable actions inside the CP
-          (0, _validator.untrack)(function () {
-            ret = _this3._getter.call(obj, keyName);
-          });
-        }
-
-        if (this._dependentKeys !== undefined) {
-          var tag = (0, _validator.combine)(getChainTagsForKeys(obj, this._dependentKeys));
-          upstreamTag = upstreamTag === undefined ? tag : (0, _validator.combine)([upstreamTag, tag]);
-        }
-
-        if (upstreamTag !== undefined) {
-          (0, _validator.updateTag)(propertyTag, upstreamTag);
-        }
-
-        setLastRevisionFor(obj, keyName, (0, _validator.valueForTag)(propertyTag));
-        cache.set(keyName, ret);
-        finishLazyChains(obj, keyName, ret);
-      }
-
-      (0, _validator.consumeTag)(propertyTag); // Add the tag of the returned value if it is an array, since arrays
-      // should always cause updates if they are consumed and then changed
-
-      if (Array.isArray(ret) || (0, _utils.isEmberArray)(ret)) {
-        (0, _validator.consumeTag)(tagForProperty(ret, '[]'));
-      }
-
-      return ret;
-    };
-
-    _proto2.set = function set(obj, keyName, value) {
-      if (this._readOnly) {
-        this._throwReadOnlyError(obj, keyName);
-      }
-
-      if (!this._setter) {
-        return this.clobberSet(obj, keyName, value);
-      }
-
-      if (this._volatile) {
-        return this.volatileSet(obj, keyName, value);
-      }
-
-      var ret;
-
-      try {
-        beginPropertyChanges();
-        ret = this._set(obj, keyName, value);
-        finishLazyChains(obj, keyName, ret);
-        var propertyTag = tagForProperty(obj, keyName);
-
-        if (this._dependentKeys !== undefined) {
-          (0, _validator.updateTag)(propertyTag, (0, _validator.combine)(getChainTagsForKeys(obj, this._dependentKeys)));
-        }
-
-        setLastRevisionFor(obj, keyName, (0, _validator.valueForTag)(propertyTag));
-      } finally {
-        endPropertyChanges();
-      }
-
-      return ret;
-    };
-
-    _proto2._throwReadOnlyError = function _throwReadOnlyError(obj, keyName) {
-      throw new _error.default("Cannot set read-only property \"" + keyName + "\" on object: " + (0, _utils.inspect)(obj));
-    };
-
-    _proto2.clobberSet = function clobberSet(obj, keyName, value) {
-      (true && !(false) && (0, _debug.deprecate)("The " + (0, _utils.toString)(obj) + "#" + keyName + " computed property was just overridden. This removes the computed property and replaces it with a plain value, and has been deprecated. If you want this behavior, consider defining a setter which does it manually.", false, {
-        id: 'computed-property.override',
-        until: '4.0.0',
-        url: 'https://emberjs.com/deprecations/v3.x#toc_computed-property-override'
-      }));
-      var cachedValue = getCachedValueFor(obj, keyName);
-      defineProperty(obj, keyName, null, cachedValue);
-
-      _set2(obj, keyName, value);
-
-      return value;
-    };
-
-    _proto2.volatileSet = function volatileSet(obj, keyName, value) {
-      return this._setter.call(obj, keyName, value);
-    };
-
-    _proto2._set = function _set(obj, keyName, value) {
-      var cache = getCacheFor(obj);
-      var hadCachedValue = cache.has(keyName);
-      var cachedValue = cache.get(keyName);
-      var ret;
-      setObserverSuspended(obj, keyName, true);
-
-      try {
-        ret = this._setter.call(obj, keyName, value, cachedValue);
-      } finally {
-        setObserverSuspended(obj, keyName, false);
-      } // allows setter to return the same value that is cached already
-
-
-      if (hadCachedValue && cachedValue === ret) {
-        return ret;
-      }
-
-      var meta$$1 = (0, _meta2.meta)(obj);
-      cache.set(keyName, ret);
-      notifyPropertyChange(obj, keyName, meta$$1, value);
-      return ret;
-    }
-    /* called before property is overridden */
-    ;
-
-    _proto2.teardown = function teardown(obj, keyName, meta$$1) {
-      if (!this._volatile) {
-        var cache = peekCacheFor(obj);
-
-        if (cache !== undefined) {
-          cache.delete(keyName);
-        }
-      }
-
-      _ComputedDescriptor.prototype.teardown.call(this, obj, keyName, meta$$1);
-    };
-
-    _proto2.auto = function auto() {
-      this._auto = true;
-    };
-
-    return ComputedProperty;
-  }(ComputedDescriptor); // TODO: This class can be svelted once `meta` has been deprecated
-
-
-  _exports.ComputedProperty = ComputedProperty;
-
-  var ComputedDecoratorImpl = /*#__PURE__*/function (_Function) {
-    (0, _emberBabel.inheritsLoose)(ComputedDecoratorImpl, _Function);
-
-    function ComputedDecoratorImpl() {
-      return _Function.apply(this, arguments) || this;
-    }
-
-    var _proto3 = ComputedDecoratorImpl.prototype;
-
-    _proto3.readOnly = function readOnly() {
-      descriptorForDecorator(this).readOnly();
-      return this;
-    };
-
-    _proto3.volatile = function volatile() {
-      descriptorForDecorator(this).volatile();
-      return this;
-    };
-
-    _proto3.property = function property() {
-      var _descriptorForDecorat;
-
-      (_descriptorForDecorat = descriptorForDecorator(this)).property.apply(_descriptorForDecorat, arguments);
-
-      return this;
-    };
-
-    _proto3.meta = function meta(meta$$1) {
+    _proto4.meta = function meta(meta$$1) {
       var prop = descriptorForDecorator(this);
 
       if (arguments.length === 0) {
@@ -16611,6 +16414,14 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
     return makeComputedDecorator(new ComputedProperty(args), ComputedDecoratorImpl);
   }
+
+  function autoComputed() {
+    for (var _len3 = arguments.length, config = new Array(_len3), _key4 = 0; _key4 < _len3; _key4++) {
+      config[_key4] = arguments[_key4];
+    }
+
+    return makeComputedDecorator(new AutoComputedProperty(config), ComputedDecoratorImpl);
+  }
   /**
     Allows checking if a given property on an object is a computed property. For the most part,
     this doesn't matter (you would normally just access the property directly and use its value),
@@ -16634,6 +16445,14 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
   _exports._globalsComputed = _globalsComputed;
 
+  function getCachedValueFor(obj, key) {
+    var meta$$1 = (0, _meta2.peekMeta)(obj);
+
+    if (meta$$1) {
+      return meta$$1.valueFor(key);
+    }
+  }
+
   function alias(altKey) {
     (true && !(!isElementDescriptor(Array.prototype.slice.call(arguments))) && (0, _debug.assert)('You attempted to use @alias as a decorator directly, but it requires a `altKey` parameter', !isElementDescriptor(Array.prototype.slice.call(arguments))));
     return makeComputedDecorator(new AliasedProperty(altKey), AliasDecoratorImpl);
@@ -16647,19 +16466,19 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       return _Function2.apply(this, arguments) || this;
     }
 
-    var _proto4 = AliasDecoratorImpl.prototype;
+    var _proto5 = AliasDecoratorImpl.prototype;
 
-    _proto4.readOnly = function readOnly() {
+    _proto5.readOnly = function readOnly() {
       descriptorForDecorator(this).readOnly();
       return this;
     };
 
-    _proto4.oneWay = function oneWay() {
+    _proto5.oneWay = function oneWay() {
       descriptorForDecorator(this).oneWay();
       return this;
     };
 
-    _proto4.meta = function meta(meta$$1) {
+    _proto5.meta = function meta(meta$$1) {
       var prop = descriptorForDecorator(this);
 
       if (arguments.length === 0) {
@@ -16676,56 +16495,56 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     (0, _emberBabel.inheritsLoose)(AliasedProperty, _ComputedDescriptor2);
 
     function AliasedProperty(altKey) {
-      var _this4;
+      var _this3;
 
-      _this4 = _ComputedDescriptor2.call(this) || this;
-      _this4.altKey = altKey;
-      return _this4;
+      _this3 = _ComputedDescriptor2.call(this) || this;
+      _this3.altKey = altKey;
+      return _this3;
     }
 
-    var _proto5 = AliasedProperty.prototype;
+    var _proto6 = AliasedProperty.prototype;
 
-    _proto5.setup = function setup(obj, keyName, propertyDesc, meta$$1) {
+    _proto6.setup = function setup(obj, keyName, propertyDesc, meta$$1) {
       (true && !(this.altKey !== keyName) && (0, _debug.assert)("Setting alias '" + keyName + "' on self", this.altKey !== keyName));
 
       _ComputedDescriptor2.prototype.setup.call(this, obj, keyName, propertyDesc, meta$$1);
+
+      CHAIN_PASS_THROUGH.add(this);
     };
 
-    _proto5.teardown = function teardown(obj, keyName, meta$$1) {
-      _ComputedDescriptor2.prototype.teardown.call(this, obj, keyName, meta$$1);
-    };
-
-    _proto5.get = function get(obj, keyName) {
-      var _this5 = this;
+    _proto6.get = function get(obj, keyName) {
+      var _this4 = this;
 
       var ret;
-      var propertyTag = tagForProperty(obj, keyName); // We don't use the tag since CPs are not automatic, we just want to avoid
+      var meta$$1 = (0, _meta2.meta)(obj);
+      var tagMeta = (0, _validator.tagMetaFor)(obj);
+      var propertyTag = (0, _validator.tagFor)(obj, keyName, tagMeta); // We don't use the tag since CPs are not automatic, we just want to avoid
       // anything tracking while we get the altKey
 
       (0, _validator.untrack)(function () {
-        ret = _get2(obj, _this5.altKey);
+        ret = _get3(obj, _this4.altKey);
       });
-      var lastRevision = getLastRevisionFor(obj, keyName);
+      var lastRevision = meta$$1.revisionFor(keyName);
 
-      if (!(0, _validator.validateTag)(propertyTag, lastRevision)) {
-        (0, _validator.updateTag)(propertyTag, (0, _validator.combine)(getChainTagsForKey(obj, this.altKey)));
-        setLastRevisionFor(obj, keyName, (0, _validator.valueForTag)(propertyTag));
-        finishLazyChains(obj, keyName, ret);
+      if (lastRevision === undefined || !(0, _validator.validateTag)(propertyTag, lastRevision)) {
+        (0, _validator.updateTag)(propertyTag, getChainTagsForKey(obj, this.altKey, tagMeta, meta$$1));
+        meta$$1.setRevisionFor(keyName, (0, _validator.valueForTag)(propertyTag));
+        finishLazyChains(meta$$1, keyName, ret);
       }
 
       (0, _validator.consumeTag)(propertyTag);
       return ret;
     };
 
-    _proto5.set = function set(obj, _keyName, value) {
+    _proto6.set = function set(obj, _keyName, value) {
       return _set2(obj, this.altKey, value);
     };
 
-    _proto5.readOnly = function readOnly() {
+    _proto6.readOnly = function readOnly() {
       this.set = AliasedProperty_readOnlySet;
     };
 
-    _proto5.oneWay = function oneWay() {
+    _proto6.oneWay = function oneWay() {
       this.set = AliasedProperty_oneWaySet;
     };
 
@@ -16774,7 +16593,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       get: function get() {
         _deprecate();
 
-        return _get2(this, newKey);
+        return _get3(this, newKey);
       }
     });
   }
@@ -16879,7 +16698,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     var objectType = typeof obj;
 
     if (objectType === 'object') {
-      var size = _get2(obj, 'size');
+      var size = _get3(obj, 'size');
 
       if (typeof size === 'number') {
         return !size;
@@ -16891,7 +16710,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     }
 
     if (objectType === 'object') {
-      var length = _get2(obj, 'length');
+      var length = _get3(obj, 'length');
 
       if (typeof length === 'number') {
         return !length;
@@ -16996,9 +16815,9 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       this._coreLibIndex = 0;
     }
 
-    var _proto6 = Libraries.prototype;
+    var _proto7 = Libraries.prototype;
 
-    _proto6._getLibraryByName = function _getLibraryByName(name) {
+    _proto7._getLibraryByName = function _getLibraryByName(name) {
       var libs = this._registry;
       var count = libs.length;
 
@@ -17011,7 +16830,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       return undefined;
     };
 
-    _proto6.register = function register(name, version, isCoreLibrary) {
+    _proto7.register = function register(name, version, isCoreLibrary) {
       var index = this._registry.length;
 
       if (!this._getLibraryByName(name)) {
@@ -17030,11 +16849,11 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       }
     };
 
-    _proto6.registerCoreLibrary = function registerCoreLibrary(name, version) {
+    _proto7.registerCoreLibrary = function registerCoreLibrary(name, version) {
       this.register(name, version, true);
     };
 
-    _proto6.deRegister = function deRegister(name) {
+    _proto7.deRegister = function deRegister(name) {
       var lib = this._getLibraryByName(name);
 
       var index;
@@ -17057,7 +16876,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     Libraries.prototype.logVersions = function () {
       var libs = this._registry;
       var nameLengths = libs.map(function (item) {
-        return _get2(item, 'name.length');
+        return _get3(item, 'name.length');
       });
       var maxNameLength = Math.max.apply(null, nameLengths);
       (0, _debug.debug)('-------------------------------');
@@ -17119,7 +16938,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     }
 
     for (; i < propertyNames.length; i++) {
-      ret[propertyNames[i]] = _get2(obj, propertyNames[i]);
+      ret[propertyNames[i]] = _get3(obj, propertyNames[i]);
     }
 
     return ret;
@@ -17170,38 +16989,6 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       }
     });
     return properties;
-  }
-  /**
-    Enqueues finalization on an object so that it can be garbage collected.
-    Multiple calls will have no effect.
-  
-    @method destroy
-    @for Ember
-    @param {Object} obj the object to destroy
-    @return {boolean} true if the object went from not destroying to destroying.
-    @private
-  */
-
-
-  function destroy(obj) {
-    (true && !(obj !== null) && (0, _debug.assert)('Cannot call `destroy` on null', obj !== null));
-    (true && !(obj !== undefined) && (0, _debug.assert)('Cannot call `destroy` on undefined', obj !== undefined));
-    (true && !(typeof obj === 'object' || typeof obj === 'function') && (0, _debug.assert)("Cannot call `destroy` on " + typeof obj, typeof obj === 'object' || typeof obj === 'function'));
-    var m = (0, _meta3.peekMeta)(obj);
-
-    if (m === null || m.isSourceDestroying()) {
-      return false;
-    }
-
-    m.setSourceDestroying();
-    destroyObservers(obj);
-    (0, _runloop.schedule)('destroy', m, finalize);
-    return true;
-  }
-
-  function finalize() {
-    this.setSourceDestroyed();
-    this.destroy();
   } // move into its own package
   // it is needed by Mixin for classToString
   // maybe move it into environment
@@ -17411,53 +17198,23 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   var a_concat = Array.prototype.concat;
   var isArray = Array.isArray;
 
-  function isMethod(obj) {
-    return 'function' === typeof obj && obj.isMethod !== false && obj !== Boolean && obj !== Object && obj !== Number && obj !== Array && obj !== Date && obj !== String;
-  }
-
-  function isAccessor(desc) {
-    return typeof desc.get === 'function' || typeof desc.set === 'function';
-  }
-
   function extractAccessors(properties) {
     if (properties !== undefined) {
-      var descriptors = (0, _utils.getOwnPropertyDescriptors)(properties);
-      var keys = Object.keys(descriptors);
-      var hasAccessors = keys.some(function (key) {
-        return isAccessor(descriptors[key]);
-      });
+      var keys = Object.keys(properties);
 
-      if (hasAccessors) {
-        var extracted = {};
-        keys.forEach(function (key) {
-          var descriptor = descriptors[key];
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var desc = Object.getOwnPropertyDescriptor(properties, key);
 
-          if (isAccessor(descriptor)) {
-            extracted[key] = nativeDescDecorator(descriptor);
-          } else {
-            extracted[key] = properties[key];
-          }
-        });
-        return extracted;
+        if (desc.get !== undefined || desc.set !== undefined) {
+          Object.defineProperty(properties, key, {
+            value: nativeDescDecorator(desc)
+          });
+        }
       }
     }
 
     return properties;
-  }
-
-  var CONTINUE = {};
-
-  function mixinProperties(mixinsMeta, mixin) {
-    if (mixin instanceof Mixin) {
-      if (mixinsMeta.hasMixin(mixin)) {
-        return CONTINUE;
-      }
-
-      mixinsMeta.addMixin(mixin);
-      return mixin.properties;
-    } else {
-      return mixin; // apply anonymous mixin properties
-    }
   }
 
   function concatenatedMixinProperties(concatProp, props, values, base) {
@@ -17471,76 +17228,79 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     return concats;
   }
 
-  function giveDecoratorSuper(meta$$1, key, decorator, values, descs, base) {
-    var property = descriptorForDecorator(decorator);
-    var superProperty;
-
-    if (!(property instanceof ComputedProperty) || property._getter === undefined) {
-      return decorator;
-    } // Computed properties override methods, and do not call super to them
-
-
-    if (values[key] === undefined) {
-      // Find the original descriptor in a parent mixin
-      superProperty = descriptorForDecorator(descs[key]);
-    } // If we didn't find the original descriptor in a parent mixin, find
-    // it on the original object.
-
-
-    if (!superProperty) {
-      superProperty = descriptorForProperty(base, key, meta$$1);
-    }
-
-    if (superProperty === undefined || !(superProperty instanceof ComputedProperty)) {
+  function giveDecoratorSuper(key, decorator, property, descs) {
+    if (property === true) {
       return decorator;
     }
 
-    var get = (0, _utils.wrap)(property._getter, superProperty._getter);
+    var originalGetter = property._getter;
+
+    if (originalGetter === undefined) {
+      return decorator;
+    }
+
+    var superDesc = descs[key]; // Check to see if the super property is a decorator first, if so load its descriptor
+
+    var superProperty = typeof superDesc === 'function' ? descriptorForDecorator(superDesc) : superDesc;
+
+    if (superProperty === undefined || superProperty === true) {
+      return decorator;
+    }
+
+    var superGetter = superProperty._getter;
+
+    if (superGetter === undefined) {
+      return decorator;
+    }
+
+    var get = (0, _utils.wrap)(originalGetter, superGetter);
     var set;
+    var originalSetter = property._setter;
+    var superSetter = superProperty._setter;
 
-    if (superProperty._setter) {
-      if (property._setter) {
-        set = (0, _utils.wrap)(property._setter, superProperty._setter);
+    if (superSetter !== undefined) {
+      if (originalSetter !== undefined) {
+        set = (0, _utils.wrap)(originalSetter, superSetter);
       } else {
         // If the super property has a setter, we default to using it no matter what.
         // This is clearly very broken and weird, but it's what was here so we have
         // to keep it until the next major at least.
         //
         // TODO: Add a deprecation here.
-        set = superProperty._setter;
+        set = superSetter;
       }
     } else {
-      set = property._setter;
+      set = originalSetter;
     } // only create a new CP if we must
 
 
-    if (get !== property._getter || set !== property._setter) {
+    if (get !== originalGetter || set !== originalSetter) {
       // Since multiple mixins may inherit from the same parent, we need
       // to clone the computed property so that other mixins do not receive
       // the wrapped version.
-      var newProperty = Object.create(property);
-      newProperty._getter = get;
-      newProperty._setter = set;
+      var dependentKeys = property._dependentKeys || [];
+      var newProperty = new ComputedProperty([].concat(dependentKeys, [{
+        get: get,
+        set: set
+      }]));
+      newProperty._readOnly = property._readOnly;
+      newProperty._volatile = property._volatile;
+      newProperty._meta = property._meta;
+      newProperty.enumerable = property.enumerable;
       return makeComputedDecorator(newProperty, ComputedProperty);
     }
 
     return decorator;
   }
 
-  function giveMethodSuper(obj, key, method, values, descs) {
+  function giveMethodSuper(key, method, values, descs) {
     // Methods overwrite computed properties, and do not call super to them.
     if (descs[key] !== undefined) {
       return method;
     } // Find the original method in a parent mixin
 
 
-    var superMethod = values[key]; // If we didn't find the original value in a parent mixin, find it in
-    // the original object
-
-    if (superMethod === undefined && descriptorForProperty(obj, key) === undefined) {
-      superMethod = obj[key];
-    } // Only wrap the new method if the original method was a function
-
+    var superMethod = values[key]; // Only wrap the new method if the original method was a function
 
     if (typeof superMethod === 'function') {
       return (0, _utils.wrap)(method, superMethod);
@@ -17549,8 +17309,8 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     return method;
   }
 
-  function applyConcatenatedProperties(obj, key, value, values) {
-    var baseValue = values[key] || obj[key];
+  function applyConcatenatedProperties(key, value, values) {
+    var baseValue = values[key];
     var ret = (0, _utils.makeArray)(baseValue).concat((0, _utils.makeArray)(value));
 
     if (true
@@ -17567,8 +17327,8 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     return ret;
   }
 
-  function applyMergedProperties(obj, key, value, values) {
-    var baseValue = values[key] || obj[key];
+  function applyMergedProperties(key, value, values) {
+    var baseValue = values[key];
     (true && !(!isArray(value)) && (0, _debug.assert)("You passed in `" + JSON.stringify(value) + "` as the value for `" + key + "` but `" + key + "` cannot be an Array", !isArray(value)));
 
     if (!baseValue) {
@@ -17577,18 +17337,15 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
     var newBase = (0, _polyfills.assign)({}, baseValue);
     var hasFunction = false;
+    var props = Object.keys(value);
 
-    for (var prop in value) {
-      if (!value.hasOwnProperty(prop)) {
-        continue;
-      }
-
+    for (var i = 0; i < props.length; i++) {
+      var prop = props[i];
       var propValue = value[prop];
 
-      if (isMethod(propValue)) {
-        // TODO: support for Computed Properties, etc?
+      if (typeof propValue === 'function') {
         hasFunction = true;
-        newBase[prop] = giveMethodSuper(obj, prop, propValue, baseValue, {});
+        newBase[prop] = giveMethodSuper(prop, propValue, baseValue, {});
       } else {
         newBase[prop] = propValue;
       }
@@ -17601,71 +17358,100 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     return newBase;
   }
 
-  function addNormalizedProperty(base, key, value, meta$$1, descs, values, concats, mergings) {
-    if (isClassicDecorator(value)) {
-      // Wrap descriptor function to implement _super() if needed
-      descs[key] = giveDecoratorSuper(meta$$1, key, value, values, descs, base);
-      values[key] = undefined;
-    } else {
-      if (concats && concats.indexOf(key) >= 0 || key === 'concatenatedProperties' || key === 'mergedProperties') {
-        value = applyConcatenatedProperties(base, key, value, values);
-      } else if (mergings && mergings.indexOf(key) > -1) {
-        value = applyMergedProperties(base, key, value, values);
-      } else if (isMethod(value)) {
-        value = giveMethodSuper(base, key, value, values, descs);
-      }
-
-      descs[key] = undefined;
-      values[key] = value;
-    }
-  }
-
-  function mergeMixins(mixins, meta$$1, descs, values, base, keys) {
-    var currentMixin, props, key, concats, mergings;
-
-    function removeKeys(keyName) {
-      delete descs[keyName];
-      delete values[keyName];
-    }
+  function mergeMixins(mixins, meta$$1, descs, values, base, keys, keysWithSuper) {
+    var currentMixin;
 
     for (var i = 0; i < mixins.length; i++) {
       currentMixin = mixins[i];
       (true && !(typeof currentMixin === 'object' && currentMixin !== null && Object.prototype.toString.call(currentMixin) !== '[object Array]') && (0, _debug.assert)("Expected hash or Mixin instance, got " + Object.prototype.toString.call(currentMixin), typeof currentMixin === 'object' && currentMixin !== null && Object.prototype.toString.call(currentMixin) !== '[object Array]'));
-      props = mixinProperties(meta$$1, currentMixin);
 
-      if (props === CONTINUE) {
-        continue;
-      }
-
-      if (props) {
-        // remove willMergeMixin after 3.4 as it was used for _actions
-        if (base.willMergeMixin) {
-          base.willMergeMixin(props);
+      if (MIXINS.has(currentMixin)) {
+        if (meta$$1.hasMixin(currentMixin)) {
+          continue;
         }
 
-        concats = concatenatedMixinProperties('concatenatedProperties', props, values, base);
-        mergings = concatenatedMixinProperties('mergedProperties', props, values, base);
+        meta$$1.addMixin(currentMixin);
+        var _currentMixin = currentMixin,
+            properties = _currentMixin.properties,
+            _mixins = _currentMixin.mixins;
 
-        for (key in props) {
-          if (!props.hasOwnProperty(key)) {
-            continue;
+        if (properties !== undefined) {
+          mergeProps(meta$$1, properties, descs, values, base, keys, keysWithSuper);
+        } else if (_mixins !== undefined) {
+          mergeMixins(_mixins, meta$$1, descs, values, base, keys, keysWithSuper);
+
+          if (currentMixin._without !== undefined) {
+            currentMixin._without.forEach(function (keyName) {
+              // deleting the key means we won't process the value
+              var index = keys.indexOf(keyName);
+
+              if (index !== -1) {
+                keys.splice(index, 1);
+              }
+            });
           }
-
-          keys.push(key);
-          addNormalizedProperty(base, key, props[key], meta$$1, descs, values, concats, mergings);
-        } // manually copy toString() because some JS engines do not enumerate it
-
-
-        if (props.hasOwnProperty('toString')) {
-          base.toString = props.toString;
         }
-      } else if (currentMixin.mixins) {
-        mergeMixins(currentMixin.mixins, meta$$1, descs, values, base, keys);
+      } else {
+        mergeProps(meta$$1, currentMixin, descs, values, base, keys, keysWithSuper);
+      }
+    }
+  }
 
-        if (currentMixin._without) {
-          currentMixin._without.forEach(removeKeys);
+  function mergeProps(meta$$1, props, descs, values, base, keys, keysWithSuper) {
+    var concats = concatenatedMixinProperties('concatenatedProperties', props, values, base);
+    var mergings = concatenatedMixinProperties('mergedProperties', props, values, base);
+    var propKeys = Object.keys(props);
+
+    for (var i = 0; i < propKeys.length; i++) {
+      var key = propKeys[i];
+      var value = props[key];
+      if (value === undefined) continue;
+
+      if (keys.indexOf(key) === -1) {
+        keys.push(key);
+        var desc = meta$$1.peekDescriptors(key);
+
+        if (desc === undefined) {
+          // The superclass did not have a CP, which means it may have
+          // observers or listeners on that property.
+          var prev = values[key] = base[key];
+
+          if (typeof prev === 'function') {
+            updateObserversAndListeners(base, key, prev, false);
+          }
+        } else {
+          descs[key] = desc; // The super desc will be overwritten on descs, so save off the fact that
+          // there was a super so we know to Object.defineProperty when writing
+          // the value
+
+          keysWithSuper.push(key);
+          desc.teardown(base, key, meta$$1);
         }
       }
+
+      var isFunction = typeof value === 'function';
+
+      if (isFunction) {
+        var _desc2 = descriptorForDecorator(value);
+
+        if (_desc2 !== undefined) {
+          // Wrap descriptor function to implement _super() if needed
+          descs[key] = giveDecoratorSuper(key, value, _desc2, descs);
+          values[key] = undefined;
+          continue;
+        }
+      }
+
+      if (concats && concats.indexOf(key) >= 0 || key === 'concatenatedProperties' || key === 'mergedProperties') {
+        value = applyConcatenatedProperties(key, value, values);
+      } else if (mergings && mergings.indexOf(key) > -1) {
+        value = applyMergedProperties(key, value, values);
+      } else if (isFunction) {
+        value = giveMethodSuper(key, value, values, descs);
+      }
+
+      values[key] = value;
+      descs[key] = undefined;
     }
   }
 
@@ -17695,8 +17481,10 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   }
 
   function updateObserversAndListeners(obj, key, fn, add) {
-    var observers = (0, _utils.getObservers)(fn);
-    var listeners = (0, _utils.getListeners)(fn);
+    var meta$$1 = (0, _utils.observerListenerMetaFor)(fn);
+    if (meta$$1 === undefined) return;
+    var observers = meta$$1.observers,
+        listeners = meta$$1.listeners;
 
     if (observers !== undefined) {
       var updateObserver = add ? addObserver : removeObserver;
@@ -17715,22 +17503,16 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     }
   }
 
-  function replaceObserversAndListeners(obj, key, prev, next) {
-    if (typeof prev === 'function') {
-      updateObserversAndListeners(obj, key, prev, false);
+  function applyMixin(obj, mixins, _hideKeys) {
+    if (_hideKeys === void 0) {
+      _hideKeys = false;
     }
 
-    if (typeof next === 'function') {
-      updateObserversAndListeners(obj, key, next, true);
-    }
-  }
-
-  function applyMixin(obj, mixins) {
-    var descs = {};
-    var values = {};
+    var descs = Object.create(null);
+    var values = Object.create(null);
     var meta$$1 = (0, _meta2.meta)(obj);
     var keys = [];
-    var key, value, desc;
+    var keysWithSuper = [];
     obj._super = _utils.ROOT; // Go through all mixins and hashes passed in, and:
     //
     // * Handle concatenated properties
@@ -17739,37 +17521,34 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     // * Set up computed property descriptors
     // * Copying `toString` in broken browsers
 
-    mergeMixins(mixins, meta$$1, descs, values, obj, keys);
+    mergeMixins(mixins, meta$$1, descs, values, obj, keys, keysWithSuper);
 
     for (var i = 0; i < keys.length; i++) {
-      key = keys[i];
-
-      if (key === 'constructor' || !values.hasOwnProperty(key)) {
-        continue;
-      }
-
-      desc = descs[key];
-      value = values[key];
+      var key = keys[i];
+      var value = values[key];
+      var desc = descs[key];
 
       if (_deprecatedFeatures.ALIAS_METHOD) {
-        while (value && value instanceof AliasImpl) {
+        while (value !== undefined && isAlias(value)) {
           var followed = followMethodAlias(obj, value, descs, values);
           desc = followed.desc;
           value = followed.value;
         }
       }
 
-      if (desc === undefined && value === undefined) {
-        continue;
-      }
+      if (value !== undefined) {
+        if (typeof value === 'function') {
+          updateObserversAndListeners(obj, key, value, true);
+        }
 
-      if (descriptorForProperty(obj, key) !== undefined) {
-        replaceObserversAndListeners(obj, key, null, value);
-      } else {
-        replaceObserversAndListeners(obj, key, obj[key], value);
+        defineValue(obj, key, value, keysWithSuper.indexOf(key) !== -1, !_hideKeys);
+      } else if (desc !== undefined) {
+        defineDecorator(obj, key, desc, meta$$1);
       }
+    }
 
-      defineProperty(obj, key, desc, value, meta$$1);
+    if (!meta$$1.isPrototypeMeta(obj)) {
+      revalidateObservers(obj);
     }
 
     return obj;
@@ -17784,13 +17563,15 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
 
   function mixin(obj) {
-    for (var _len3 = arguments.length, args = new Array(_len3 > 1 ? _len3 - 1 : 0), _key4 = 1; _key4 < _len3; _key4++) {
-      args[_key4 - 1] = arguments[_key4];
+    for (var _len4 = arguments.length, args = new Array(_len4 > 1 ? _len4 - 1 : 0), _key5 = 1; _key5 < _len4; _key5++) {
+      args[_key5 - 1] = arguments[_key5];
     }
 
     applyMixin(obj, args);
     return obj;
   }
+
+  var MIXINS = new _polyfills._WeakSet();
   /**
     The `Mixin` class allows you to create mixins, whose properties can be
     added to other classes. For instance,
@@ -17874,9 +17655,9 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     @public
   */
 
-
   var Mixin = /*#__PURE__*/function () {
     function Mixin(mixins, properties) {
+      MIXINS.add(this);
       this.properties = extractAccessors(properties);
       this.mixins = buildMixinsArray(mixins);
       this.ownerConstructor = undefined;
@@ -17905,12 +17686,11 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
 
 
     Mixin.create = function create() {
-      // ES6TODO: this relies on a global state?
       setUnprocessedMixins();
       var M = this;
 
-      for (var _len4 = arguments.length, args = new Array(_len4), _key5 = 0; _key5 < _len4; _key5++) {
-        args[_key5] = arguments[_key5];
+      for (var _len5 = arguments.length, args = new Array(_len5), _key6 = 0; _key6 < _len5; _key6++) {
+        args[_key6] = arguments[_key6];
       }
 
       return new M(args, undefined);
@@ -17941,11 +17721,11 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     */
     ;
 
-    var _proto7 = Mixin.prototype;
+    var _proto8 = Mixin.prototype;
 
-    _proto7.reopen = function reopen() {
-      for (var _len5 = arguments.length, args = new Array(_len5), _key6 = 0; _key6 < _len5; _key6++) {
-        args[_key6] = arguments[_key6];
+    _proto8.reopen = function reopen() {
+      for (var _len6 = arguments.length, args = new Array(_len6), _key7 = 0; _key7 < _len6; _key7++) {
+        args[_key7] = arguments[_key7];
       }
 
       if (args.length === 0) {
@@ -17971,11 +17751,20 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     */
     ;
 
-    _proto7.apply = function apply(obj) {
-      return applyMixin(obj, [this]);
+    _proto8.apply = function apply(obj, _hideKeys) {
+      if (_hideKeys === void 0) {
+        _hideKeys = false;
+      }
+
+      // Ember.NativeArray is a normal Ember.Mixin that we mix into `Array.prototype` when prototype extensions are enabled
+      // mutating a native object prototype like this should _not_ result in enumerable properties being added (or we have significant
+      // issues with things like deep equality checks from test frameworks, or things like jQuery.extend(true, [], [])).
+      //
+      // _hideKeys disables enumerablity when applying the mixin. This is a hack, and we should stop mutating the array prototype by default 😫
+      return applyMixin(obj, [this], _hideKeys);
     };
 
-    _proto7.applyPartial = function applyPartial(obj) {
+    _proto8.applyPartial = function applyPartial(obj) {
       return applyMixin(obj, [this]);
     }
     /**
@@ -17986,12 +17775,12 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     */
     ;
 
-    _proto7.detect = function detect(obj) {
+    _proto8.detect = function detect(obj) {
       if (typeof obj !== 'object' || obj === null) {
         return false;
       }
 
-      if (obj instanceof Mixin) {
+      if (MIXINS.has(obj)) {
         return _detect(obj, this);
       }
 
@@ -18004,22 +17793,22 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
       return meta$$1.hasMixin(this);
     };
 
-    _proto7.without = function without() {
+    _proto8.without = function without() {
       var ret = new Mixin([this]);
 
-      for (var _len6 = arguments.length, args = new Array(_len6), _key7 = 0; _key7 < _len6; _key7++) {
-        args[_key7] = arguments[_key7];
+      for (var _len7 = arguments.length, args = new Array(_len7), _key8 = 0; _key8 < _len7; _key8++) {
+        args[_key8] = arguments[_key8];
       }
 
       ret._without = args;
       return ret;
     };
 
-    _proto7.keys = function keys() {
+    _proto8.keys = function keys() {
       return _keys(this);
     };
 
-    _proto7.toString = function toString() {
+    _proto8.toString = function toString() {
       return '(unknown mixin)';
     };
 
@@ -18039,7 +17828,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
         var x = mixins[i];
         (true && !(typeof x === 'object' && x !== null && Object.prototype.toString.call(x) !== '[object Array]') && (0, _debug.assert)("Expected hash or Mixin instance, got " + Object.prototype.toString.call(x), typeof x === 'object' && x !== null && Object.prototype.toString.call(x) !== '[object Array]'));
 
-        if (x instanceof Mixin) {
+        if (MIXINS.has(x)) {
           m[i] = x;
         } else {
           m[i] = new Mixin(undefined, x);
@@ -18115,10 +17904,18 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   }
 
   var AliasImpl;
+  var isAlias;
 
   if (_deprecatedFeatures.ALIAS_METHOD) {
+    var ALIASES = new _polyfills._WeakSet();
+
+    isAlias = function isAlias(alias) {
+      return ALIASES.has(alias);
+    };
+
     AliasImpl = function AliasImpl(methodName) {
       this.methodName = methodName;
+      ALIASES.add(this);
     };
   }
   /**
@@ -18168,8 +17965,8 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   }
 
   function observer() {
-    for (var _len7 = arguments.length, args = new Array(_len7), _key8 = 0; _key8 < _len7; _key8++) {
-      args[_key8] = arguments[_key8];
+    for (var _len8 = arguments.length, args = new Array(_len8), _key9 = 0; _key9 < _len8; _key9++) {
+      args[_key9] = arguments[_key9];
     }
 
     var funcOrDef = args.pop();
@@ -18195,12 +17992,10 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
     (true && !(typeof sync === 'boolean') && (0, _debug.assert)('observer called without sync', typeof sync === 'boolean'));
     var paths = [];
 
-    var addWatchedProperty = function addWatchedProperty(path) {
-      return paths.push(path);
-    };
-
     for (var i = 0; i < dependentKeys.length; ++i) {
-      expandProperties(dependentKeys[i], addWatchedProperty);
+      expandProperties(dependentKeys[i], function (path) {
+        return paths.push(path);
+      });
     }
 
     (0, _utils.setObservers)(func, {
@@ -18222,8 +18017,8 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   function inject(type) {
     (true && !(typeof type === 'string') && (0, _debug.assert)('a string type must be provided to inject', typeof type === 'string'));
 
-    for (var _len8 = arguments.length, args = new Array(_len8 > 1 ? _len8 - 1 : 0), _key9 = 1; _key9 < _len8; _key9++) {
-      args[_key9 - 1] = arguments[_key9];
+    for (var _len9 = arguments.length, args = new Array(_len9 > 1 ? _len9 - 1 : 0), _key10 = 1; _key10 < _len9; _key10++) {
+      args[_key10 - 1] = arguments[_key10];
     }
 
     var calledAsDecorator = isElementDescriptor(args);
@@ -18267,8 +18062,8 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   }
 
   function tracked() {
-    for (var _len9 = arguments.length, args = new Array(_len9), _key10 = 0; _key10 < _len9; _key10++) {
-      args[_key10] = arguments[_key10];
+    for (var _len10 = arguments.length, args = new Array(_len10), _key11 = 0; _key11 < _len10; _key11++) {
+      args[_key11] = arguments[_key11];
     }
 
     (true && !(!(isElementDescriptor(args.slice(0, 3)) && args.length === 5 && args[4] === true)) && (0, _debug.assert)("@tracked can only be used directly as a native decorator. If you're using tracked in classic classes, add parenthesis to call it like a function: tracked()", !(isElementDescriptor(args.slice(0, 3)) && args.length === 5 && args[4] === true)));
@@ -18314,7 +18109,7 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
   }
 
   function descriptorForField(_ref) {
-    var _target = _ref[0],
+    var target = _ref[0],
         key = _ref[1],
         desc = _ref[2];
     (true && !(!desc || !desc.value && !desc.get && !desc.set) && (0, _debug.assert)("You attempted to use @tracked on " + key + ", but that element is not a class field. @tracked is only usable on class fields. Native getters and setters will autotrack add any tracked fields they encounter, so there is no need mark getters and setters with @tracked.", !desc || !desc.value && !desc.get && !desc.set));
@@ -18323,27 +18118,180 @@ define("@ember/-internals/metal/index", ["exports", "ember-babel", "@ember/-inte
         getter = _trackedData.getter,
         setter = _trackedData.setter;
 
-    return {
+    function get() {
+      var value = getter(this); // Add the tag of the returned value if it is an array, since arrays
+      // should always cause updates if they are consumed and then changed
+
+      if (Array.isArray(value) || (0, _utils.isEmberArray)(value)) {
+        (0, _validator.consumeTag)((0, _validator.tagFor)(value, '[]'));
+      }
+
+      return value;
+    }
+
+    function set(newValue) {
+      setter(this, newValue);
+      (0, _validator.dirtyTagFor)(this, SELF_TAG);
+    }
+
+    var newDesc = {
       enumerable: true,
       configurable: true,
-      get: function get() {
-        var value = getter(this); // Add the tag of the returned value if it is an array, since arrays
-        // should always cause updates if they are consumed and then changed
-
-        if (Array.isArray(value) || (0, _utils.isEmberArray)(value)) {
-          (0, _validator.consumeTag)(tagForProperty(value, '[]'));
-        }
-
-        return value;
-      },
-      set: function set(newValue) {
-        setter(this, newValue);
-        (0, _validator.dirtyTagFor)(this, SELF_TAG);
-      }
+      isTracked: true,
+      get: get,
+      set: set
     };
+    (0, _meta2.meta)(target).writeDescriptors(key, new TrackedDescriptor(get, set));
+    return newDesc;
   }
+
+  var TrackedDescriptor = /*#__PURE__*/function () {
+    function TrackedDescriptor(_get, _set) {
+      this._get = _get;
+      this._set = _set;
+      CHAIN_PASS_THROUGH.add(this);
+    }
+
+    var _proto9 = TrackedDescriptor.prototype;
+
+    _proto9.get = function get(obj) {
+      return this._get.call(obj);
+    };
+
+    _proto9.set = function set(obj, _key, value) {
+      this._set.call(obj, value);
+    };
+
+    return TrackedDescriptor;
+  }();
+  /**
+    Ember uses caching based on trackable values to avoid updating large portions
+    of the application. This caching is exposed via a cache primitive that can be
+    used to cache a specific computation, so that it will not update and will
+    return the cached value until a tracked value used in its computation has
+    updated.
+  
+    @module @glimmer/tracking/primitives/cache
+    @category EMBER_CACHE_API
+    @public
+  */
+
+  /**
+    Receives a function, and returns a wrapped version of it that memoizes based on
+    _autotracking_. The function will only rerun whenever any tracked values used
+    within it have changed. Otherwise, it will return the previous value.
+  
+    ```js
+    import { tracked } from '@glimmer/tracking';
+    import { createCache, getValue } from '@glimmer/tracking/primitives/cache';
+  
+    class State {
+      @tracked value;
+    }
+  
+    let state = new State();
+    let computeCount = 0;
+  
+    let counter = createCache(() => {
+      // consume the state. Now, `counter` will
+      // only rerun if `state.value` changes.
+      state.value;
+  
+      return ++computeCount;
+    });
+  
+    getValue(counter); // 1
+  
+    // returns the same value because no tracked state has changed
+    getValue(counter); // 1
+  
+    state.value = 'foo';
+  
+    // reruns because a tracked value used in the function has changed,
+    // incermenting the counter
+    getValue(counter); // 2
+    ```
+  
+    @method createCache
+    @category EMBER_CACHE_API
+    @static
+    @for @glimmer/tracking/primitives/cache
+    @public
+  */
+
+  /**
+    Gets the value of a cache created with `createCache`.
+  
+    ```js
+    import { tracked } from '@glimmer/tracking';
+    import { createCache, getValue } from '@glimmer/tracking/primitives/cache';
+  
+    let computeCount = 0;
+  
+    let counter = createCache(() => {
+      return ++computeCount;
+    });
+  
+    getValue(counter); // 1
+    ```
+  
+    @method getValue
+    @category EMBER_CACHE_API
+    @static
+    @for @glimmer/tracking/primitives/cache
+    @public
+  */
+
+  /**
+    Can be used to check if a memoized function is _constant_. If no tracked state
+    was used while running a memoized function, it will never rerun, because nothing
+    can invalidate its result. `isConst` can be used to determine if a memoized
+    function is constant or not, in order to optimize code surrounding that
+    function.
+  
+    ```js
+    import { tracked } from '@glimmer/tracking';
+    import { createCache, getValue, isConst } from '@glimmer/tracking/primitives/cache';
+  
+    class State {
+      @tracked value;
+    }
+  
+    let state = new State();
+    let computeCount = 0;
+  
+    let counter = createCache(() => {
+      // consume the state
+      state.value;
+  
+      return computeCount++;
+    });
+  
+    let constCounter = createCache(() => {
+      return computeCount++;
+    });
+  
+    getValue(counter);
+    getValue(constCounter);
+  
+    isConst(counter); // false
+    isConst(constCounter); // true
+    ```
+  
+    If called on a cache that hasn't been accessed yet, it will throw an
+    error. This is because there's no way to know if the function will be constant
+    or not yet, and so this helps prevent missing an optimization opportunity on
+    accident.
+  
+    @method isConst
+    @category EMBER_CACHE_API
+    @static
+    @for @glimmer/tracking/primitives/cache
+    @public
+  */
+
 });
-define("@ember/-internals/owner/index", ["exports", "@ember/-internals/utils"], function (_exports, _utils) {
+define("@ember/-internals/owner/index", ["exports", "@ember/-internals/utils", "@ember/debug"], function (_exports, _utils, _debug) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -18351,11 +18299,13 @@ define("@ember/-internals/owner/index", ["exports", "@ember/-internals/utils"], 
   });
   _exports.getOwner = getOwner;
   _exports.setOwner = setOwner;
-  _exports.OWNER = void 0;
+  _exports.OWNER = _exports.LEGACY_OWNER = void 0;
 
   /**
   @module @ember/application
   */
+  var LEGACY_OWNER = (0, _utils.enumerableSymbol)('LEGACY_OWNER');
+  _exports.LEGACY_OWNER = LEGACY_OWNER;
   var OWNER = (0, _utils.symbol)('OWNER');
   /**
     Framework objects in an Ember application (components, services, routes, etc.)
@@ -18405,7 +18355,17 @@ define("@ember/-internals/owner/index", ["exports", "@ember/-internals/utils"], 
   _exports.OWNER = OWNER;
 
   function getOwner(object) {
-    return object[OWNER];
+    var owner = object[OWNER];
+
+    if (owner === undefined) {
+      owner = object[LEGACY_OWNER];
+      (true && !(owner === undefined) && (0, _debug.deprecate)("You accessed the owner using `getOwner` on an object, but it was not set on that object with `setOwner`. You must use `setOwner` to set the owner on all objects. You cannot use Object.assign().", owner === undefined, {
+        id: 'owner.legacy-owner-injection',
+        until: '3.25.0'
+      }));
+    }
+
+    return owner;
   }
   /**
     `setOwner` forces a new owner on a given object instance. This is primarily
@@ -18423,6 +18383,7 @@ define("@ember/-internals/owner/index", ["exports", "@ember/-internals/utils"], 
 
   function setOwner(object, owner) {
     object[OWNER] = owner;
+    object[LEGACY_OWNER] = owner;
   }
 });
 define("@ember/-internals/routing/index", ["exports", "@ember/-internals/routing/lib/ext/controller", "@ember/-internals/routing/lib/location/api", "@ember/-internals/routing/lib/location/none_location", "@ember/-internals/routing/lib/location/hash_location", "@ember/-internals/routing/lib/location/history_location", "@ember/-internals/routing/lib/location/auto_location", "@ember/-internals/routing/lib/system/generate_controller", "@ember/-internals/routing/lib/system/controller_for", "@ember/-internals/routing/lib/system/dsl", "@ember/-internals/routing/lib/system/router", "@ember/-internals/routing/lib/system/route", "@ember/-internals/routing/lib/system/query_params", "@ember/-internals/routing/lib/services/routing", "@ember/-internals/routing/lib/services/router", "@ember/-internals/routing/lib/system/cache"], function (_exports, _controller, _api, _none_location, _hash_location, _history_location, _auto_location, _generate_controller, _controller_for, _dsl, _router, _route, _query_params, _routing, _router2, _cache) {
@@ -19404,7 +19365,7 @@ define("@ember/-internals/routing/lib/location/history_location", ["exports", "e
       var base = document.querySelector('base');
       var baseURL = '';
 
-      if (base) {
+      if (base !== null && base.hasAttribute('href')) {
         baseURL = base.getAttribute('href');
       }
 
@@ -19854,7 +19815,7 @@ define("@ember/-internals/routing/lib/location/util", ["exports"], function (_ex
     location.replace(getOrigin(location) + path);
   }
 });
-define("@ember/-internals/routing/lib/services/router", ["exports", "ember-babel", "@ember/-internals/runtime", "@ember/debug", "@ember/object/computed", "@ember/service", "@ember/-internals/routing/lib/utils"], function (_exports, _emberBabel, _runtime, _debug, _computed, _service, _utils) {
+define("@ember/-internals/routing/lib/services/router", ["exports", "ember-babel", "@ember/-internals/runtime", "@ember/debug", "@ember/object/computed", "@ember/polyfills", "@ember/service", "@glimmer/validator", "@ember/-internals/routing/lib/utils"], function (_exports, _emberBabel, _runtime, _debug, _computed, _polyfills, _service, _validator, _utils) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -20169,7 +20130,18 @@ define("@ember/-internals/routing/lib/services/router", ["exports", "ember-babel
           models = _extractRouteArgs2.models,
           queryParams = _extractRouteArgs2.queryParams;
 
-      var routerMicrolib = this._router._routerMicrolib; // UNSAFE: casting `routeName as string` here encodes the existing
+      var routerMicrolib = this._router._routerMicrolib; // When using isActive() in a getter, we want to entagle with the auto-tracking system
+      // for example,
+      // in
+      // get isBarActive() {
+      //   return isActive('foo.bar');
+      // }
+      //
+      // you'd expect isBarActive to be dirtied when the route changes.
+      //
+      // https://github.com/emberjs/ember.js/issues/19004
+
+      (0, _validator.consumeTag)((0, _validator.tagFor)(this._router, 'currentURL')); // UNSAFE: casting `routeName as string` here encodes the existing
       // assumption but may be wrong: `extractRouteArgs` correctly returns it as
       // `string | undefined`. There may be bugs if `isActiveIntent` does
       // not correctly account for `undefined` values for `routeName`. Spoilers:
@@ -20182,6 +20154,8 @@ define("@ember/-internals/routing/lib/services/router", ["exports", "ember-babel
       var hasQueryParams = Object.keys(queryParams).length > 0;
 
       if (hasQueryParams) {
+        queryParams = (0, _polyfills.assign)({}, queryParams);
+
         this._router._prepareQueryParams( // UNSAFE: casting `routeName as string` here encodes the existing
         // assumption but may be wrong: `extractRouteArgs` correctly returns it
         // as `string | undefined`. There may be bugs if `_prepareQueryParams`
@@ -21429,9 +21403,9 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
     */
     ;
 
-    _proto.exit = function exit() {
-      this.deactivate();
-      this.trigger('deactivate');
+    _proto.exit = function exit(transition) {
+      this.deactivate(transition);
+      this.trigger('deactivate', transition);
       this.teardownViews();
     }
     /**
@@ -21452,10 +21426,10 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
     */
     ;
 
-    _proto.enter = function enter() {
+    _proto.enter = function enter(transition) {
       ROUTE_CONNECTIONS.set(this, []);
-      this.activate();
-      this.trigger('activate');
+      this.activate(transition);
+      this.trigger('activate', transition);
     }
     /**
       The `willTransition` action is fired at the beginning of any
@@ -21634,22 +21608,24 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
       This hook is executed when the router completely exits this route. It is
       not executed when the model for the route changes.
          @method deactivate
+      @param {Transition} transition
       @since 1.0.0
       @public
     */
     ;
 
-    _proto.deactivate = function deactivate() {}
+    _proto.deactivate = function deactivate(_transition) {}
     /**
       This hook is executed when the router enters the route. It is not executed
       when the model for the route changes.
          @method activate
+      @param {Transition} transition
       @since 1.0.0
       @public
     */
     ;
 
-    _proto.activate = function activate() {}
+    _proto.activate = function activate(_transition) {}
     /**
       Transition the application into another route. The route may
       be either a single route or route path:
@@ -22378,7 +22354,7 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
       if (transition !== undefined && transition !== null) {
         var modelLookupName = route && route.routeName || name;
 
-        if (transition.resolvedModels.hasOwnProperty(modelLookupName)) {
+        if (Object.prototype.hasOwnProperty.call(transition.resolvedModels, modelLookupName)) {
           return transition.resolvedModels[modelLookupName];
         }
       }
@@ -22460,7 +22436,7 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
          ```app/routes/posts.js
       import Route from '@ember/routing/route';
          export default class PostsRoute extends Route {
-        renderTemplate(controller, model){
+        renderTemplate(controller, model) {
           this.render('posts', {    // the template to render, referenced by name
             into: 'application',    // the template to render into, referenced by name
             outlet: 'anOutletName', // the outlet inside `options.into` to render into.
@@ -22523,21 +22499,8 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
     */
     ;
 
-    _proto.render = function render(_name, options) {
-      var name;
-      var isDefaultRender = arguments.length === 0;
-
-      if (!isDefaultRender) {
-        if (typeof _name === 'object' && !options) {
-          name = this.templateName || this.routeName;
-          options = _name;
-        } else {
-          (true && !(!(0, _metal.isEmpty)(_name)) && (0, _debug.assert)('The name in the given arguments is undefined or empty string', !(0, _metal.isEmpty)(_name)));
-          name = _name;
-        }
-      }
-
-      var renderOptions = buildRenderOptions(this, isDefaultRender, name, options);
+    _proto.render = function render(name, options) {
+      var renderOptions = buildRenderOptions(this, name, options);
       ROUTE_CONNECTIONS.get(this).push(renderOptions);
       (0, _runloop.once)(this._router, '_setOutlets');
     }
@@ -22651,8 +22614,6 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
           (0, _runloop.once)(this._router, '_setOutlets');
         }
       }
-
-      ROUTE_CONNECTIONS.set(this, connections);
     };
 
     _proto.willDestroy = function willDestroy() {
@@ -22674,8 +22635,8 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
     }
     /**
       Allows you to produce custom metadata for the route.
-      The return value of this method will be attatched to
-      its corresponding RouteInfoWithAttributes obejct.
+      The return value of this method will be attached to
+      its corresponding RouteInfoWithAttributes object.
          Example
          ```app/routes/posts/index.js
       import Route from '@ember/routing/route';
@@ -22742,7 +22703,21 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
     return;
   }
 
-  function buildRenderOptions(route, isDefaultRender, _name, options) {
+  function buildRenderOptions(route, nameOrOptions, options) {
+    var isDefaultRender = !nameOrOptions && !options;
+
+    var _name;
+
+    if (!isDefaultRender) {
+      if (typeof nameOrOptions === 'object' && !options) {
+        _name = route.templateName || route.routeName;
+        options = nameOrOptions;
+      } else {
+        (true && !(!(0, _metal.isEmpty)(nameOrOptions)) && (0, _debug.assert)('The name in the given arguments is undefined or empty string', !(0, _metal.isEmpty)(nameOrOptions)));
+        _name = nameOrOptions;
+      }
+    }
+
     (true && !(isDefaultRender || !(options && 'outlet' in options && options.outlet === undefined)) && (0, _debug.assert)('You passed undefined as the outlet name.', isDefaultRender || !(options && 'outlet' in options && options.outlet === undefined)));
     var owner = (0, _owner.getOwner)(route);
     var name, templateName, into, outlet, model;
@@ -22879,7 +22854,7 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
     // into a new empty object to avoid mutating.
 
     for (var cqpName in controllerQP) {
-      if (!controllerQP.hasOwnProperty(cqpName)) {
+      if (!Object.prototype.hasOwnProperty.call(controllerQP, cqpName)) {
         continue;
       }
 
@@ -22893,7 +22868,7 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
 
 
     for (var rqpName in routeQP) {
-      if (!routeQP.hasOwnProperty(rqpName) || keysAlreadyMergedOrSkippable[rqpName]) {
+      if (!Object.prototype.hasOwnProperty.call(routeQP, rqpName) || keysAlreadyMergedOrSkippable[rqpName]) {
         continue;
       }
 
@@ -23145,7 +23120,7 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
       var propertyNames = [];
 
       for (var propName in combinedQueryParameterConfiguration) {
-        if (!combinedQueryParameterConfiguration.hasOwnProperty(propName)) {
+        if (!Object.prototype.hasOwnProperty.call(combinedQueryParameterConfiguration, propName)) {
           continue;
         } // to support the dubious feature of using unknownProperty
         // on queryParams configuration
@@ -23490,7 +23465,6 @@ define("@ember/-internals/routing/lib/system/route", ["exports", "@ember/polyfil
     });
   }
 
-  (0, _runtime.setFrameworkClass)(Route);
   var _default = Route;
   _exports.default = _default;
 });
@@ -23727,14 +23701,6 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
           }
         };
 
-        _proto2._triggerWillChangeContext = function _triggerWillChangeContext() {
-          return router;
-        };
-
-        _proto2._triggerWillLeave = function _triggerWillLeave() {
-          return router;
-        };
-
         _proto2.replaceURL = function replaceURL(url) {
           if (location.replaceURL) {
             var doReplaceURL = function doReplaceURL() {
@@ -23871,32 +23837,35 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
       }
 
       var routeInfos = this._routerMicrolib.currentRouteInfos;
-      var route;
-      var defaultParentState;
-      var liveRoutes = null;
 
       if (!routeInfos) {
         return;
       }
 
+      var defaultParentState;
+      var liveRoutes = null;
+
       for (var i = 0; i < routeInfos.length; i++) {
-        route = routeInfos[i].route;
+        var route = routeInfos[i].route;
 
         var connections = _route.ROUTE_CONNECTIONS.get(route);
 
         var ownState = void 0;
 
-        for (var j = 0; j < connections.length; j++) {
-          var appended = appendLiveRoute(liveRoutes, defaultParentState, connections[j]);
-          liveRoutes = appended.liveRoutes;
-
-          if (appended.ownState.render.name === route.routeName || appended.ownState.render.outlet === 'main') {
-            ownState = appended.ownState;
-          }
-        }
-
         if (connections.length === 0) {
           ownState = representEmptyRoute(liveRoutes, defaultParentState, route);
+        } else {
+          for (var j = 0; j < connections.length; j++) {
+            var appended = appendLiveRoute(liveRoutes, defaultParentState, connections[j]);
+            liveRoutes = appended.liveRoutes;
+            var _appended$ownState$re = appended.ownState.render,
+                name = _appended$ownState$re.name,
+                outlet = _appended$ownState$re.outlet;
+
+            if (name === route.routeName || outlet === 'main') {
+              ownState = appended.ownState;
+            }
+          }
         }
 
         defaultParentState = ownState;
@@ -24505,7 +24474,7 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
           qp = qpMeta.qps[j];
           presentProp = qp.prop in queryParams && qp.prop || qp.scopedPropertyName in queryParams && qp.scopedPropertyName || qp.urlKey in queryParams && qp.urlKey;
           (true && !(function () {
-            if (qp.urlKey === presentProp) {
+            if (qp.urlKey === presentProp || qp.scopedPropertyName === presentProp) {
               return true;
             }
 
@@ -24518,7 +24487,7 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
 
             return true;
           }()) && (0, _debug.assert)("You passed the `" + presentProp + "` query parameter during a transition into " + qp.route.routeName + ", please update to " + qp.urlKey, function () {
-            if (qp.urlKey === presentProp) {
+            if (qp.urlKey === presentProp || qp.scopedPropertyName === presentProp) {
               return true;
             }
 
@@ -25031,7 +25000,7 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
     var qpCache = router._queryParamsFor(routeInfos);
 
     for (var key in queryParams) {
-      if (!queryParams.hasOwnProperty(key)) {
+      if (!Object.prototype.hasOwnProperty.call(queryParams, key)) {
         continue;
       }
 
@@ -25066,12 +25035,12 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
   }
 
   function appendLiveRoute(liveRoutes, defaultParentState, renderOptions) {
-    var target;
-    var myState = {
+    var ownState = {
       render: renderOptions,
       outlets: Object.create(null),
       wasUsed: false
     };
+    var target;
 
     if (renderOptions.into) {
       target = findLiveRoute(liveRoutes, renderOptions.into);
@@ -25080,20 +25049,21 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
     }
 
     if (target) {
-      (0, _metal.set)(target.outlets, renderOptions.outlet, myState);
+      (0, _metal.set)(target.outlets, renderOptions.outlet, ownState);
     } else {
-      liveRoutes = myState;
+      liveRoutes = ownState;
     }
 
     return {
       liveRoutes: liveRoutes,
-      ownState: myState
+      ownState: ownState
     };
   }
 
-  function representEmptyRoute(liveRoutes, defaultParentState, route) {
+  function representEmptyRoute(liveRoutes, defaultParentState, _ref2) {
+    var routeName = _ref2.routeName;
     // the route didn't render anything
-    var alreadyAppended = findLiveRoute(liveRoutes, route.routeName);
+    var alreadyAppended = findLiveRoute(liveRoutes, routeName);
 
     if (alreadyAppended) {
       // But some other route has already rendered our default
@@ -25106,7 +25076,7 @@ define("@ember/-internals/routing/lib/system/router", ["exports", "ember-babel",
       // in the outlet hierarchy.
       defaultParentState.outlets.main = {
         render: {
-          name: route.routeName,
+          name: routeName,
           outlet: 'main'
         },
         outlets: {}
@@ -25435,7 +25405,7 @@ define("@ember/-internals/routing/lib/utils", ["exports", "@ember/-internals/met
     var possibleQueryParams = args[args.length - 1];
     var queryParams;
 
-    if (possibleQueryParams && possibleQueryParams.hasOwnProperty('queryParams')) {
+    if (possibleQueryParams && Object.prototype.hasOwnProperty.call(possibleQueryParams, 'queryParams')) {
       // SAFETY: this cast is safe because we have just checked whether
       // `possibleQueryParams` -- defined as the last item in args -- both exists
       // and has the property `queryParams`. If either of these invariants change,
@@ -25606,7 +25576,7 @@ define("@ember/-internals/routing/lib/utils", ["exports", "@ember/-internals/met
     }
 
     for (var key in desc) {
-      if (!desc.hasOwnProperty(key)) {
+      if (!Object.prototype.hasOwnProperty.call(desc, key)) {
         return;
       }
 
@@ -25666,7 +25636,7 @@ define("@ember/-internals/routing/lib/utils", ["exports", "@ember/-internals/met
     var bCount = 0;
 
     for (k in a) {
-      if (a.hasOwnProperty(k)) {
+      if (Object.prototype.hasOwnProperty.call(a, k)) {
         if (a[k] !== b[k]) {
           return false;
         }
@@ -25676,7 +25646,7 @@ define("@ember/-internals/routing/lib/utils", ["exports", "@ember/-internals/met
     }
 
     for (k in b) {
-      if (b.hasOwnProperty(k)) {
+      if (Object.prototype.hasOwnProperty.call(b, k)) {
         bCount++;
       }
     }
@@ -25802,12 +25772,6 @@ define("@ember/-internals/runtime/index", ["exports", "@ember/-internals/runtime
     enumerable: true,
     get: function get() {
       return _core_object.default;
-    }
-  });
-  Object.defineProperty(_exports, "setFrameworkClass", {
-    enumerable: true,
-    get: function get() {
-      return _core_object.setFrameworkClass;
     }
   });
   Object.defineProperty(_exports, "ActionHandler", {
@@ -26494,8 +26458,9 @@ define("@ember/-internals/runtime/lib/mixins/-proxy", ["exports", "@ember/-inter
     isTruthy: (0, _metal.computed)('content', function () {
       return Boolean((0, _metal.get)(this, 'content'));
     })
-  }, _Mixin$create[_metal.CUSTOM_TAG_FOR] = function (key) {
-    var tag = (0, _validator.tagFor)(this, key);
+  }, _Mixin$create[_metal.CUSTOM_TAG_FOR] = function (key, addMandatorySetter) {
+    var meta = (0, _validator.tagMetaFor)(this);
+    var tag = (0, _validator.tagFor)(this, key, meta);
 
     if (true
     /* DEBUG */
@@ -26507,13 +26472,20 @@ define("@ember/-internals/runtime/lib/mixins/-proxy", ["exports", "@ember/-inter
     if (key in this) {
       if (true
       /* DEBUG */
-      ) {
+      && addMandatorySetter) {
         (0, _utils.setupMandatorySetter)(tag, this, key);
       }
 
       return tag;
     } else {
-      return (0, _validator.combine)([tag].concat((0, _metal.getChainTagsForKey)(this, "content." + key)));
+      var tags = [tag, (0, _validator.tagFor)(this, 'content', meta)];
+      var content = contentFor(this);
+
+      if ((0, _utils.isObject)(content)) {
+        tags.push((0, _metal.tagForProperty)(content, key, addMandatorySetter));
+      }
+
+      return (0, _validator.combine)(tags);
     }
   }, _Mixin$create.unknownProperty = function unknownProperty(key) {
     var content = contentFor(this);
@@ -26747,7 +26719,7 @@ define("@ember/-internals/runtime/lib/mixins/array", ["exports", "@ember/-intern
   _exports.isArray = isArray;
   _exports.default = _exports.MutableArray = _exports.NativeArray = _exports.A = void 0;
 
-  var _Mixin$create, _NativeArray;
+  var _NativeArray;
 
   var EMPTY_ARRAY = Object.freeze([]);
 
@@ -26981,230 +26953,1162 @@ define("@ember/-internals/runtime/lib/mixins/array", ["exports", "@ember/-intern
   */
 
 
-  var ArrayMixin = _metal.Mixin.create(_enumerable.default, (_Mixin$create = {}, _Mixin$create[_utils.EMBER_ARRAY] = true, _Mixin$create.objectsAt = function objectsAt(indexes) {
-    var _this = this;
+  var ArrayMixin = _metal.Mixin.create(_enumerable.default, {
+    init: function init() {
+      this._super.apply(this, arguments);
 
-    return indexes.map(function (idx) {
-      return (0, _metal.objectAt)(_this, idx);
-    });
-  }, _Mixin$create['[]'] = nonEnumerableComputed({
-    get: function get() {
-      return this;
+      (0, _utils.setEmberArray)(this);
     },
-    set: function set(key, value) {
-      this.replace(0, this.length, value);
-      return this;
-    }
-  }), _Mixin$create.firstObject = nonEnumerableComputed(function () {
-    return (0, _metal.objectAt)(this, 0);
-  }).readOnly(), _Mixin$create.lastObject = nonEnumerableComputed(function () {
-    return (0, _metal.objectAt)(this, this.length - 1);
-  }).readOnly(), _Mixin$create.slice = function slice(beginIndex, endIndex) {
-    if (beginIndex === void 0) {
-      beginIndex = 0;
-    }
 
-    var ret = _A2();
+    /**
+      __Required.__ You must implement this method to apply this mixin.
+       Your array must support the `length` property. Your replace methods should
+      set this property whenever it changes.
+       @property {Number} length
+      @public
+    */
 
-    var length = this.length;
+    /**
+      Returns the object at the given `index`. If the given `index` is negative
+      or is greater or equal than the array length, returns `undefined`.
+       This is one of the primitives you must implement to support `EmberArray`.
+      If your object supports retrieving the value of an array item using `get()`
+      (i.e. `myArray.get(0)`), then you do not need to implement this method
+      yourself.
+       ```javascript
+      let arr = ['a', 'b', 'c', 'd'];
+       arr.objectAt(0);   // 'a'
+      arr.objectAt(3);   // 'd'
+      arr.objectAt(-1);  // undefined
+      arr.objectAt(4);   // undefined
+      arr.objectAt(5);   // undefined
+      ```
+       @method objectAt
+      @param {Number} idx The index of the item to return.
+      @return {*} item at index or undefined
+      @public
+    */
 
-    if (beginIndex < 0) {
-      beginIndex = length + beginIndex;
-    }
+    /**
+      This returns the objects at the specified indexes, using `objectAt`.
+       ```javascript
+      let arr = ['a', 'b', 'c', 'd'];
+       arr.objectsAt([0, 1, 2]);  // ['a', 'b', 'c']
+      arr.objectsAt([2, 3, 4]);  // ['c', 'd', undefined]
+      ```
+       @method objectsAt
+      @param {Array} indexes An array of indexes of items to return.
+      @return {Array}
+      @public
+     */
+    objectsAt: function objectsAt(indexes) {
+      var _this = this;
 
-    if (endIndex === undefined || endIndex > length) {
-      endIndex = length;
-    } else if (endIndex < 0) {
-      endIndex = length + endIndex;
-    }
+      return indexes.map(function (idx) {
+        return (0, _metal.objectAt)(_this, idx);
+      });
+    },
 
-    while (beginIndex < endIndex) {
-      ret[ret.length] = (0, _metal.objectAt)(this, beginIndex++);
-    }
-
-    return ret;
-  }, _Mixin$create.indexOf = function indexOf(object, startAt) {
-    return _indexOf(this, object, startAt, false);
-  }, _Mixin$create.lastIndexOf = function lastIndexOf(object, startAt) {
-    var len = this.length;
-
-    if (startAt === undefined || startAt >= len) {
-      startAt = len - 1;
-    }
-
-    if (startAt < 0) {
-      startAt += len;
-    }
-
-    for (var idx = startAt; idx >= 0; idx--) {
-      if ((0, _metal.objectAt)(this, idx) === object) {
-        return idx;
+    /**
+      This is the handler for the special array content property. If you get
+      this property, it will return this. If you set this property to a new
+      array, it will replace the current content.
+       ```javascript
+      let peopleToMoon = ['Armstrong', 'Aldrin'];
+       peopleToMoon.get('[]'); // ['Armstrong', 'Aldrin']
+       peopleToMoon.set('[]', ['Collins']); // ['Collins']
+      peopleToMoon.get('[]'); // ['Collins']
+      ```
+       @property []
+      @return this
+      @public
+    */
+    '[]': nonEnumerableComputed({
+      get: function get() {
+        return this;
+      },
+      set: function set(key, value) {
+        this.replace(0, this.length, value);
+        return this;
       }
-    }
+    }),
 
-    return -1;
-  }, _Mixin$create.addArrayObserver = function addArrayObserver(target, opts) {
-    return (0, _metal.addArrayObserver)(this, target, opts);
-  }, _Mixin$create.removeArrayObserver = function removeArrayObserver(target, opts) {
-    return (0, _metal.removeArrayObserver)(this, target, opts);
-  }, _Mixin$create.hasArrayObservers = (0, _metal.nativeDescDecorator)({
-    configurable: true,
-    enumerable: false,
-    get: function get() {
-      return (0, _metal.hasListeners)(this, '@array:change') || (0, _metal.hasListeners)(this, '@array:before');
-    }
-  }), _Mixin$create.arrayContentWillChange = function arrayContentWillChange(startIdx, removeAmt, addAmt) {
-    return (0, _metal.arrayContentWillChange)(this, startIdx, removeAmt, addAmt);
-  }, _Mixin$create.arrayContentDidChange = function arrayContentDidChange(startIdx, removeAmt, addAmt) {
-    return (0, _metal.arrayContentDidChange)(this, startIdx, removeAmt, addAmt);
-  }, _Mixin$create.forEach = function forEach(callback, target) {
-    if (target === void 0) {
-      target = null;
-    }
+    /**
+      The first object in the array, or `undefined` if the array is empty.
+       ```javascript
+      let vowels = ['a', 'e', 'i', 'o', 'u'];
+      vowels.firstObject; // 'a'
+       vowels.shiftObject();
+      vowels.firstObject; // 'e'
+       vowels.reverseObjects();
+      vowels.firstObject; // 'u'
+       vowels.clear();
+      vowels.firstObject; // undefined
+      ```
+       @property firstObject
+      @return {Object | undefined} The first object in the array
+      @public
+    */
+    firstObject: nonEnumerableComputed(function () {
+      return (0, _metal.objectAt)(this, 0);
+    }).readOnly(),
 
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`forEach` expects a function as first argument.', typeof callback === 'function'));
-    var length = this.length;
+    /**
+      The last object in the array, or `undefined` if the array is empty.
+       @property lastObject
+      @return {Object | undefined} The last object in the array
+      @public
+    */
+    lastObject: nonEnumerableComputed(function () {
+      return (0, _metal.objectAt)(this, this.length - 1);
+    }).readOnly(),
+    // Add any extra methods to EmberArray that are native to the built-in Array.
 
-    for (var index = 0; index < length; index++) {
-      var item = this.objectAt(index);
-      callback.call(target, item, index, this);
-    }
-
-    return this;
-  }, _Mixin$create.getEach = mapBy, _Mixin$create.setEach = function setEach(key, value) {
-    return this.forEach(function (item) {
-      return (0, _metal.set)(item, key, value);
-    });
-  }, _Mixin$create.map = function map(callback, target) {
-    if (target === void 0) {
-      target = null;
-    }
-
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`map` expects a function as first argument.', typeof callback === 'function'));
-
-    var ret = _A2();
-
-    this.forEach(function (x, idx, i) {
-      return ret[idx] = callback.call(target, x, idx, i);
-    });
-    return ret;
-  }, _Mixin$create.mapBy = mapBy, _Mixin$create.filter = function filter(callback, target) {
-    if (target === void 0) {
-      target = null;
-    }
-
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`filter` expects a function as first argument.', typeof callback === 'function'));
-
-    var ret = _A2();
-
-    this.forEach(function (x, idx, i) {
-      if (callback.call(target, x, idx, i)) {
-        ret.push(x);
+    /**
+      Returns a new array that is a slice of the receiver. This implementation
+      uses the observable array methods to retrieve the objects for the new
+      slice.
+       ```javascript
+      let arr = ['red', 'green', 'blue'];
+       arr.slice(0);       // ['red', 'green', 'blue']
+      arr.slice(0, 2);    // ['red', 'green']
+      arr.slice(1, 100);  // ['green', 'blue']
+      ```
+       @method slice
+      @param {Number} beginIndex (Optional) index to begin slicing from.
+      @param {Number} endIndex (Optional) index to end the slice at (but not included).
+      @return {Array} New array with specified slice
+      @public
+    */
+    slice: function slice(beginIndex, endIndex) {
+      if (beginIndex === void 0) {
+        beginIndex = 0;
       }
-    });
-    return ret;
-  }, _Mixin$create.reject = function reject(callback, target) {
-    if (target === void 0) {
-      target = null;
-    }
 
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`reject` expects a function as first argument.', typeof callback === 'function'));
-    return this.filter(function () {
-      return !callback.apply(target, arguments);
-    });
-  }, _Mixin$create.filterBy = function filterBy() {
-    return this.filter(iter.apply(void 0, arguments));
-  }, _Mixin$create.rejectBy = function rejectBy() {
-    return this.reject(iter.apply(void 0, arguments));
-  }, _Mixin$create.find = function find(callback, target) {
-    if (target === void 0) {
-      target = null;
-    }
+      var ret = _A2();
 
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`find` expects a function as first argument.', typeof callback === 'function'));
-    return _find(this, callback, target);
-  }, _Mixin$create.findBy = function findBy() {
-    return _find(this, iter.apply(void 0, arguments));
-  }, _Mixin$create.every = function every(callback, target) {
-    if (target === void 0) {
-      target = null;
-    }
+      var length = this.length;
 
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`every` expects a function as first argument.', typeof callback === 'function'));
-    return _every(this, callback, target);
-  }, _Mixin$create.isEvery = function isEvery() {
-    return _every(this, iter.apply(void 0, arguments));
-  }, _Mixin$create.any = function any(callback, target) {
-    if (target === void 0) {
-      target = null;
-    }
+      if (beginIndex < 0) {
+        beginIndex = length + beginIndex;
+      }
 
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`any` expects a function as first argument.', typeof callback === 'function'));
-    return _any(this, callback, target);
-  }, _Mixin$create.isAny = function isAny() {
-    return _any(this, iter.apply(void 0, arguments));
-  }, _Mixin$create.reduce = function reduce(callback, initialValue) {
-    (true && !(typeof callback === 'function') && (0, _debug.assert)('`reduce` expects a function as first argument.', typeof callback === 'function'));
-    var ret = initialValue;
-    this.forEach(function (item, i) {
-      ret = callback(ret, item, i, this);
-    }, this);
-    return ret;
-  }, _Mixin$create.invoke = function invoke(methodName) {
-    for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-      args[_key - 1] = arguments[_key];
-    }
+      if (endIndex === undefined || endIndex > length) {
+        endIndex = length;
+      } else if (endIndex < 0) {
+        endIndex = length + endIndex;
+      }
 
-    var ret = _A2();
+      while (beginIndex < endIndex) {
+        ret[ret.length] = (0, _metal.objectAt)(this, beginIndex++);
+      }
 
-    this.forEach(function (item) {
-      return ret.push((0, _utils.tryInvoke)(item, methodName, args));
-    });
-    return ret;
-  }, _Mixin$create.toArray = function toArray() {
-    return this.map(function (item) {
-      return item;
-    });
-  }, _Mixin$create.compact = function compact() {
-    return this.filter(function (value) {
-      return value != null;
-    });
-  }, _Mixin$create.includes = function includes(object, startAt) {
-    return _indexOf(this, object, startAt, true) !== -1;
-  }, _Mixin$create.sortBy = function sortBy() {
-    var sortKeys = arguments;
-    return this.toArray().sort(function (a, b) {
-      for (var i = 0; i < sortKeys.length; i++) {
-        var key = sortKeys[i];
-        var propA = (0, _metal.get)(a, key);
-        var propB = (0, _metal.get)(b, key); // return 1 or -1 else continue to the next sortKey
+      return ret;
+    },
 
-        var compareValue = (0, _compare.default)(propA, propB);
+    /**
+      Used to determine the passed object's first occurrence in the array.
+      Returns the index if found, -1 if no match is found.
+       The optional `startAt` argument can be used to pass a starting
+      index to search from, effectively slicing the searchable portion
+      of the array. If it's negative it will add the array length to
+      the startAt value passed in as the index to search from. If less
+      than or equal to `-1 * array.length` the entire array is searched.
+       ```javascript
+      let arr = ['a', 'b', 'c', 'd', 'a'];
+       arr.indexOf('a');       //  0
+      arr.indexOf('z');       // -1
+      arr.indexOf('a', 2);    //  4
+      arr.indexOf('a', -1);   //  4, equivalent to indexOf('a', 4)
+      arr.indexOf('a', -100); //  0, searches entire array
+      arr.indexOf('b', 3);    // -1
+      arr.indexOf('a', 100);  // -1
+       let people = [{ name: 'Zoey' }, { name: 'Bob' }]
+      let newPerson = { name: 'Tom' };
+      people = [newPerson, ...people, newPerson];
+       people.indexOf(newPerson);     //  0
+      people.indexOf(newPerson, 1);  //  3
+      people.indexOf(newPerson, -4); //  0
+      people.indexOf(newPerson, 10); // -1
+      ```
+       @method indexOf
+      @param {Object} object the item to search for
+      @param {Number} startAt optional starting location to search, default 0
+      @return {Number} index or -1 if not found
+      @public
+    */
+    indexOf: function indexOf(object, startAt) {
+      return _indexOf(this, object, startAt, false);
+    },
 
-        if (compareValue) {
-          return compareValue;
+    /**
+      Returns the index of the given `object`'s last occurrence.
+       - If no `startAt` argument is given, the search starts from
+      the last position.
+      - If it's greater than or equal to the length of the array,
+      the search starts from the last position.
+      - If it's negative, it is taken as the offset from the end
+      of the array i.e. `startAt + array.length`.
+      - If it's any other positive number, will search backwards
+      from that index of the array.
+       Returns -1 if no match is found.
+       ```javascript
+      let arr = ['a', 'b', 'c', 'd', 'a'];
+       arr.lastIndexOf('a');       //  4
+      arr.lastIndexOf('z');       // -1
+      arr.lastIndexOf('a', 2);    //  0
+      arr.lastIndexOf('a', -1);   //  4
+      arr.lastIndexOf('a', -3);   //  0
+      arr.lastIndexOf('b', 3);    //  1
+      arr.lastIndexOf('a', 100);  //  4
+      ```
+       @method lastIndexOf
+      @param {Object} object the item to search for
+      @param {Number} startAt optional starting location to search from
+      backwards, defaults to `(array.length - 1)`
+      @return {Number} The last index of the `object` in the array or -1
+      if not found
+      @public
+    */
+    lastIndexOf: function lastIndexOf(object, startAt) {
+      var len = this.length;
+
+      if (startAt === undefined || startAt >= len) {
+        startAt = len - 1;
+      }
+
+      if (startAt < 0) {
+        startAt += len;
+      }
+
+      for (var idx = startAt; idx >= 0; idx--) {
+        if ((0, _metal.objectAt)(this, idx) === object) {
+          return idx;
         }
       }
 
-      return 0;
-    });
-  }, _Mixin$create.uniq = function uniq() {
-    return _uniqBy(this);
-  }, _Mixin$create.uniqBy = function uniqBy(key) {
-    return _uniqBy(this, key);
-  }, _Mixin$create.without = function without(value) {
-    if (!this.includes(value)) {
-      return this; // nothing to do
-    } // SameValueZero comparison (NaN !== NaN)
+      return -1;
+    },
+    // ..........................................................
+    // ARRAY OBSERVERS
+    //
+
+    /**
+      Adds an array observer to the receiving array. The array observer object
+      normally must implement two methods:
+       * `willChange(observedObj, start, removeCount, addCount)` - This method will be
+        called just before the array is modified.
+      * `didChange(observedObj, start, removeCount, addCount)` - This method will be
+        called just after the array is modified.
+       Both callbacks will be passed the observed object, starting index of the
+      change as well as a count of the items to be removed and added. You can use
+      these callbacks to optionally inspect the array during the change, clear
+      caches, or do any other bookkeeping necessary.
+       In addition to passing a target, you can also include an options hash
+      which you can use to override the method names that will be invoked on the
+      target.
+       @method addArrayObserver
+      @param {Object} target The observer object.
+      @param {Object} opts Optional hash of configuration options including
+        `willChange` and `didChange` option.
+      @return {EmberArray} receiver
+      @public
+      @example
+          import Service from '@ember/service';
+           export default Service.extend({
+            data: Ember.A(),
+             init() {
+              this._super(...arguments);
+               this.data.addArrayObserver(this, {
+                willChange: 'dataWillChange',
+                didChange: 'dataDidChange'
+              });
+            },
+             dataWillChange(array, start, removeCount, addCount) {
+              console.log('array will change', array, start, removeCount, addCount);
+            },
+             dataDidChange(array, start, removeCount, addCount) {
+              console.log('array did change', array, start, removeCount, addCount);
+            }
+          });
+    */
+    addArrayObserver: function addArrayObserver(target, opts) {
+      return (0, _metal.addArrayObserver)(this, target, opts);
+    },
+
+    /**
+      Removes an array observer from the object if the observer is current
+      registered. Calling this method multiple times with the same object will
+      have no effect.
+       @method removeArrayObserver
+      @param {Object} target The object observing the array.
+      @param {Object} opts Optional hash of configuration options including
+        `willChange` and `didChange` option.
+      @return {EmberArray} receiver
+      @public
+    */
+    removeArrayObserver: function removeArrayObserver(target, opts) {
+      return (0, _metal.removeArrayObserver)(this, target, opts);
+    },
+
+    /**
+      Becomes true whenever the array currently has observers watching changes
+      on the array.
+       ```javascript
+      let arr = [1, 2, 3, 4, 5];
+      arr.hasArrayObservers; // false
+       arr.addArrayObserver(this, {
+        willChange() {
+          console.log('willChange');
+        }
+      });
+      arr.hasArrayObservers; // true
+      ```
+       @property {Boolean} hasArrayObservers
+      @public
+    */
+    hasArrayObservers: (0, _metal.nativeDescDecorator)({
+      configurable: true,
+      enumerable: false,
+      get: function get() {
+        return (0, _metal.hasListeners)(this, '@array:change') || (0, _metal.hasListeners)(this, '@array:before');
+      }
+    }),
+
+    /**
+      If you are implementing an object that supports `EmberArray`, call this
+      method just before the array content changes to notify any observers and
+      invalidate any related properties. Pass the starting index of the change
+      as well as a delta of the amounts to change.
+       ```app/components/show-post.js
+      import Component from '@ember/component';
+      import EmberObject from '@ember/object';
+       const Post = EmberObject.extend({
+        body: '',
+        save() {}
+      })
+       export default Component.extend({
+        attemptsToModify: 0,
+        successfulModifications: 0,
+        posts: null,
+         init() {
+          this._super(...arguments);
+           this.posts = [1, 2, 3].map(i => Post.create({ body: i }));
+          this.posts.addArrayObserver(this, {
+            willChange() {
+              this.incrementProperty('attemptsToModify');
+            },
+            didChange() {
+              this.incrementProperty('successfulModifications');
+            }
+          });
+        },
+         actions: {
+          editPost(post, newContent) {
+            let oldContent = post.body,
+                postIndex = this.posts.indexOf(post);
+             this.posts.arrayContentWillChange(postIndex, 0, 0); // attemptsToModify = 1
+            post.set('body', newContent);
+             post.save()
+              .then(response => {
+                this.posts.arrayContentDidChange(postIndex, 0, 0); // successfulModifications = 1
+              })
+              .catch(error => {
+                post.set('body', oldContent);
+              })
+          }
+        }
+      });
+      ```
+       @method arrayContentWillChange
+      @param {Number} startIdx The starting index in the array that will change.
+      @param {Number} removeAmt The number of items that will be removed. If you
+        pass `null` assumes 0
+      @param {Number} addAmt The number of items that will be added. If you
+        pass `null` assumes 0.
+      @return {EmberArray} receiver
+      @public
+    */
+    arrayContentWillChange: function arrayContentWillChange(startIdx, removeAmt, addAmt) {
+      return (0, _metal.arrayContentWillChange)(this, startIdx, removeAmt, addAmt);
+    },
+
+    /**
+      If you are implementing an object that supports `EmberArray`, call this
+      method just after the array content changes to notify any observers and
+      invalidate any related properties. Pass the starting index of the change
+      as well as a delta of the amounts to change.
+       ```javascript
+      let arr = [1, 2, 3, 4, 5];
+       arr.copyWithin(-2); // [1, 2, 3, 1, 2]
+      // arr.lastObject = 5
+      arr.arrayContentDidChange(3, 2, 2);
+      // arr.lastObject = 2
+      ```
+       @method arrayContentDidChange
+      @param {Number} startIdx The starting index in the array that did change.
+      @param {Number} removeAmt The number of items that were removed. If you
+        pass `null` assumes 0
+      @param {Number} addAmt The number of items that were added. If you
+        pass `null` assumes 0.
+      @return {EmberArray} receiver
+      @public
+    */
+    arrayContentDidChange: function arrayContentDidChange(startIdx, removeAmt, addAmt) {
+      return (0, _metal.arrayContentDidChange)(this, startIdx, removeAmt, addAmt);
+    },
+
+    /**
+      Iterates through the array, calling the passed function on each
+      item. This method corresponds to the `forEach()` method defined in
+      JavaScript 1.6.
+       The callback method you provide should have the following signature (all
+      parameters are optional):
+       ```javascript
+      function(item, index, array);
+      ```
+       - `item` is the current item in the iteration.
+      - `index` is the current index in the iteration.
+      - `array` is the array itself.
+       Note that in addition to a callback, you can also pass an optional target
+      object that will be set as `this` on the context. This is a good way
+      to give your iterator function access to the current object.
+       Example Usage:
+       ```javascript
+      let foods = [
+        { name: 'apple', eaten: false },
+        { name: 'banana', eaten: false },
+        { name: 'carrot', eaten: false }
+      ];
+       foods.forEach((food) => food.eaten = true);
+       let output = '';
+      foods.forEach((item, index, array) =>
+        output += `${index + 1}/${array.length} ${item.name}\n`;
+      );
+      console.log(output);
+      // 1/3 apple
+      // 2/3 banana
+      // 3/3 carrot
+      ```
+       @method forEach
+      @param {Function} callback The callback to execute
+      @param {Object} [target] The target object to use
+      @return {Object} receiver
+      @public
+    */
+    forEach: function forEach(callback, target) {
+      if (target === void 0) {
+        target = null;
+      }
+
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`forEach` expects a function as first argument.', typeof callback === 'function'));
+      var length = this.length;
+
+      for (var index = 0; index < length; index++) {
+        var item = this.objectAt(index);
+        callback.call(target, item, index, this);
+      }
+
+      return this;
+    },
+
+    /**
+      Alias for `mapBy`.
+       Returns the value of the named
+      property on all items in the enumeration.
+       ```javascript
+      let people = [{name: 'Joe'}, {name: 'Matt'}];
+       people.getEach('name');
+      // ['Joe', 'Matt'];
+       people.getEach('nonexistentProperty');
+      // [undefined, undefined];
+      ```
+       @method getEach
+      @param {String} key name of the property
+      @return {Array} The mapped array.
+      @public
+    */
+    getEach: mapBy,
+
+    /**
+      Sets the value on the named property for each member. This is more
+      ergonomic than using other methods defined on this helper. If the object
+      implements Observable, the value will be changed to `set(),` otherwise
+      it will be set directly. `null` objects are skipped.
+       ```javascript
+      let people = [{name: 'Joe'}, {name: 'Matt'}];
+       people.setEach('zipCode', '10011');
+      // [{name: 'Joe', zipCode: '10011'}, {name: 'Matt', zipCode: '10011'}];
+      ```
+       @method setEach
+      @param {String} key The key to set
+      @param {Object} value The object to set
+      @return {Object} receiver
+      @public
+    */
+    setEach: function setEach(key, value) {
+      return this.forEach(function (item) {
+        return (0, _metal.set)(item, key, value);
+      });
+    },
+
+    /**
+      Maps all of the items in the enumeration to another value, returning
+      a new array. This method corresponds to `map()` defined in JavaScript 1.6.
+       The callback method you provide should have the following signature (all
+      parameters are optional):
+       ```javascript
+      function(item, index, array);
+      let arr = [1, 2, 3, 4, 5, 6];
+       arr.map(element => element * element);
+      // [1, 4, 9, 16, 25, 36];
+       arr.map((element, index) => element + index);
+      // [1, 3, 5, 7, 9, 11];
+      ```
+       - `item` is the current item in the iteration.
+      - `index` is the current index in the iteration.
+      - `array` is the array itself.
+       It should return the mapped value.
+       Note that in addition to a callback, you can also pass an optional target
+      object that will be set as `this` on the context. This is a good way
+      to give your iterator function access to the current object.
+       @method map
+      @param {Function} callback The callback to execute
+      @param {Object} [target] The target object to use
+      @return {Array} The mapped array.
+      @public
+    */
+    map: function map(callback, target) {
+      if (target === void 0) {
+        target = null;
+      }
+
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`map` expects a function as first argument.', typeof callback === 'function'));
+
+      var ret = _A2();
+
+      this.forEach(function (x, idx, i) {
+        return ret[idx] = callback.call(target, x, idx, i);
+      });
+      return ret;
+    },
+
+    /**
+      Similar to map, this specialized function returns the value of the named
+      property on all items in the enumeration.
+       ```javascript
+      let people = [{name: 'Joe'}, {name: 'Matt'}];
+       people.mapBy('name');
+      // ['Joe', 'Matt'];
+       people.mapBy('unknownProperty');
+      // [undefined, undefined];
+      ```
+       @method mapBy
+      @param {String} key name of the property
+      @return {Array} The mapped array.
+      @public
+    */
+    mapBy: mapBy,
+
+    /**
+      Returns a new array with all of the items in the enumeration that the provided
+      callback function returns true for. This method corresponds to [Array.prototype.filter()](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/filter).
+       The callback method should have the following signature:
+       ```javascript
+      function(item, index, array);
+      ```
+       - `item` is the current item in the iteration.
+      - `index` is the current index in the iteration.
+      - `array` is the array itself.
+       All parameters are optional. The function should return `true` to include the item
+      in the results, and `false` otherwise.
+       Example:
+       ```javascript
+      function isAdult(person) {
+        return person.age > 18;
+      };
+       let people = Ember.A([{ name: 'John', age: 14 }, { name: 'Joan', age: 45 }]);
+       people.filter(isAdult); // returns [{ name: 'Joan', age: 45 }];
+      ```
+       Note that in addition to a callback, you can pass an optional target object
+      that will be set as `this` on the context. This is a good way to give your
+      iterator function access to the current object. For example:
+       ```javascript
+      function isAdultAndEngineer(person) {
+        return person.age > 18 && this.engineering;
+      }
+       class AdultsCollection {
+        engineering = false;
+         constructor(opts = {}) {
+          super(...arguments);
+           this.engineering = opts.engineering;
+          this.people = Ember.A([{ name: 'John', age: 14 }, { name: 'Joan', age: 45 }]);
+        }
+      }
+       let collection = new AdultsCollection({ engineering: true });
+      collection.people.filter(isAdultAndEngineer, { target: collection });
+      ```
+       @method filter
+      @param {Function} callback The callback to execute
+      @param {Object} [target] The target object to use
+      @return {Array} A filtered array.
+      @public
+    */
+    filter: function filter(callback, target) {
+      if (target === void 0) {
+        target = null;
+      }
+
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`filter` expects a function as first argument.', typeof callback === 'function'));
+
+      var ret = _A2();
+
+      this.forEach(function (x, idx, i) {
+        if (callback.call(target, x, idx, i)) {
+          ret.push(x);
+        }
+      });
+      return ret;
+    },
+
+    /**
+      Returns an array with all of the items in the enumeration where the passed
+      function returns false. This method is the inverse of filter().
+       The callback method you provide should have the following signature (all
+      parameters are optional):
+       ```javascript
+      function(item, index, array);
+      ```
+       - *item* is the current item in the iteration.
+      - *index* is the current index in the iteration
+      - *array* is the array itself.
+       It should return a falsey value to include the item in the results.
+       Note that in addition to a callback, you can also pass an optional target
+      object that will be set as "this" on the context. This is a good way
+      to give your iterator function access to the current object.
+       Example Usage:
+       ```javascript
+      const food = [
+        { food: 'apple', isFruit: true },
+        { food: 'bread', isFruit: false },
+        { food: 'banana', isFruit: true }
+      ];
+      const nonFruits = food.reject(function(thing) {
+        return thing.isFruit;
+      }); // [{food: 'bread', isFruit: false}]
+      ```
+       @method reject
+      @param {Function} callback The callback to execute
+      @param {Object} [target] The target object to use
+      @return {Array} A rejected array.
+      @public
+    */
+    reject: function reject(callback, target) {
+      if (target === void 0) {
+        target = null;
+      }
+
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`reject` expects a function as first argument.', typeof callback === 'function'));
+      return this.filter(function () {
+        return !callback.apply(target, arguments);
+      });
+    },
+
+    /**
+      Filters the array by the property and an optional value. If a value is given, it returns
+      the items that have said value for the property. If not, it returns all the items that
+      have a truthy value for the property.
+       Example Usage:
+       ```javascript
+      let things = Ember.A([{ food: 'apple', isFruit: true }, { food: 'beans', isFruit: false }]);
+       things.filterBy('food', 'beans'); // [{ food: 'beans' }]
+      things.filterBy('isFruit'); // [{ food: 'apple' }]
+      ```
+       @method filterBy
+      @param {String} key the property to test
+      @param {*} [value] optional value to test against.
+      @return {Array} filtered array
+      @public
+    */
+    filterBy: function filterBy() {
+      return this.filter(iter.apply(void 0, arguments));
+    },
+
+    /**
+      Returns an array with the items that do not have truthy values for the provided key.
+      You can pass an optional second argument with a target value to reject for the key.
+      Otherwise this will reject objects where the provided property evaluates to false.
+       Example Usage:
+       ```javascript
+        let food = [
+          { name: "apple", isFruit: true },
+          { name: "carrot", isFruit: false },
+          { name: "bread", isFruit: false },
+        ];
+        food.rejectBy('isFruit'); // [{ name: "carrot", isFruit: false }, { name: "bread", isFruit: false }]
+        food.rejectBy('name', 'carrot'); // [{ name: "apple", isFruit: true }}, { name: "bread", isFruit: false }]
+      ```
+       @method rejectBy
+      @param {String} key the property to test
+      @param {*} [value] optional value to test against.
+      @return {Array} rejected array
+      @public
+    */
+    rejectBy: function rejectBy() {
+      return this.reject(iter.apply(void 0, arguments));
+    },
+
+    /**
+      Returns the first item in the array for which the callback returns true.
+      This method is similar to the `find()` method defined in ECMAScript 2015.
+       The callback method you provide should have the following signature (all
+      parameters are optional):
+       ```javascript
+      function(item, index, array);
+      ```
+       - `item` is the current item in the iteration.
+      - `index` is the current index in the iteration.
+      - `array` is the array itself.
+       It should return the `true` to include the item in the results, `false`
+      otherwise.
+       Note that in addition to a callback, you can also pass an optional target
+      object that will be set as `this` on the context. This is a good way
+      to give your iterator function access to the current object.
+       Example Usage:
+       ```javascript
+      let users = [
+        { id: 1, name: 'Yehuda' },
+        { id: 2, name: 'Tom' },
+        { id: 3, name: 'Melanie' },
+        { id: 4, name: 'Leah' }
+      ];
+       users.find((user) => user.name == 'Tom'); // [{ id: 2, name: 'Tom' }]
+      users.find(({ id }) => id == 3); // [{ id: 3, name: 'Melanie' }]
+      ```
+       @method find
+      @param {Function} callback The callback to execute
+      @param {Object} [target] The target object to use
+      @return {Object} Found item or `undefined`.
+      @public
+    */
+    find: function find(callback, target) {
+      if (target === void 0) {
+        target = null;
+      }
+
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`find` expects a function as first argument.', typeof callback === 'function'));
+      return _find(this, callback, target);
+    },
+
+    /**
+      Returns the first item with a property matching the passed value. You
+      can pass an optional second argument with the target value. Otherwise
+      this will match any property that evaluates to `true`.
+       This method works much like the more generic `find()` method.
+       Usage Example:
+       ```javascript
+      let users = [
+        { id: 1, name: 'Yehuda', isTom: false },
+        { id: 2, name: 'Tom', isTom: true },
+        { id: 3, name: 'Melanie', isTom: false },
+        { id: 4, name: 'Leah', isTom: false }
+      ];
+       users.findBy('id', 4); // { id: 4, name: 'Leah', isTom: false }
+      users.findBy('name', 'Melanie'); // { id: 3, name: 'Melanie', isTom: false }
+      users.findBy('isTom'); // { id: 2, name: 'Tom', isTom: true }
+      ```
+       @method findBy
+      @param {String} key the property to test
+      @param {String} [value] optional value to test against.
+      @return {Object} found item or `undefined`
+      @public
+    */
+    findBy: function findBy() {
+      return _find(this, iter.apply(void 0, arguments));
+    },
+
+    /**
+      Returns `true` if the passed function returns true for every item in the
+      enumeration. This corresponds with the `Array.prototype.every()` method defined in ES5.
+       The callback method should have the following signature:
+       ```javascript
+      function(item, index, array);
+      ```
+       - `item` is the current item in the iteration.
+      - `index` is the current index in the iteration.
+      - `array` is the array itself.
+       All params are optional. The method should return `true` or `false`.
+       Note that in addition to a callback, you can also pass an optional target
+      object that will be set as `this` on the context. This is a good way
+      to give your iterator function access to the current object.
+       Usage example:
+       ```javascript
+      function isAdult(person) {
+        return person.age > 18;
+      };
+       const people = Ember.A([{ name: 'John', age: 24 }, { name: 'Joan', age: 45 }]);
+      const areAllAdults = people.every(isAdult);
+      ```
+       @method every
+      @param {Function} callback The callback to execute
+      @param {Object} [target] The target object to use
+      @return {Boolean}
+      @public
+    */
+    every: function every(callback, target) {
+      if (target === void 0) {
+        target = null;
+      }
+
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`every` expects a function as first argument.', typeof callback === 'function'));
+      return _every(this, callback, target);
+    },
+
+    /**
+      Returns `true` if the passed property resolves to the value of the second
+      argument for all items in the array. This method is often simpler/faster
+      than using a callback.
+       Note that like the native `Array.every`, `isEvery` will return true when called
+      on any empty array.
+      ```javascript
+      class Language {
+        constructor(name, isProgrammingLanguage) {
+          this.name = name;
+          this.programmingLanguage = isProgrammingLanguage;
+        }
+      }
+       const compiledLanguages = [
+        new Language('Java', true),
+        new Language('Go', true),
+        new Language('Rust', true)
+      ]
+       const languagesKnownByMe = [
+        new Language('Javascript', true),
+        new Language('English', false),
+        new Language('Ruby', true)
+      ]
+       compiledLanguages.isEvery('programmingLanguage'); // true
+      languagesKnownByMe.isEvery('programmingLanguage'); // false
+      ```
+       @method isEvery
+      @param {String} key the property to test
+      @param {String} [value] optional value to test against. Defaults to `true`
+      @return {Boolean}
+      @since 1.3.0
+      @public
+    */
+    isEvery: function isEvery() {
+      return _every(this, iter.apply(void 0, arguments));
+    },
+
+    /**
+      The any() method executes the callback function once for each element
+      present in the array until it finds the one where callback returns a truthy
+      value (i.e. `true`). If such an element is found, any() immediately returns
+      true. Otherwise, any() returns false.
+       ```javascript
+      function(item, index, array);
+      ```
+       - `item` is the current item in the iteration.
+      - `index` is the current index in the iteration.
+      - `array` is the array object itself.
+       Note that in addition to a callback, you can also pass an optional target
+      object that will be set as `this` on the context. It can be a good way
+      to give your iterator function access to an object in cases where an ES6
+      arrow function would not be appropriate.
+       Usage Example:
+       ```javascript
+      let includesManager = people.any(this.findPersonInManagersList, this);
+       let includesStockHolder = people.any(person => {
+        return this.findPersonInStockHoldersList(person)
+      });
+       if (includesManager || includesStockHolder) {
+        Paychecks.addBiggerBonus();
+      }
+      ```
+       @method any
+      @param {Function} callback The callback to execute
+      @param {Object} [target] The target object to use
+      @return {Boolean} `true` if the passed function returns `true` for any item
+      @public
+    */
+    any: function any(callback, target) {
+      if (target === void 0) {
+        target = null;
+      }
+
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`any` expects a function as first argument.', typeof callback === 'function'));
+      return _any(this, callback, target);
+    },
+
+    /**
+      Returns `true` if the passed property resolves to the value of the second
+      argument for any item in the array. This method is often simpler/faster
+      than using a callback.
+       Example usage:
+       ```javascript
+      const food = [
+        { food: 'apple', isFruit: true },
+        { food: 'bread', isFruit: false },
+        { food: 'banana', isFruit: true }
+      ];
+       food.isAny('isFruit'); // true
+      ```
+       @method isAny
+      @param {String} key the property to test
+      @param {String} [value] optional value to test against. Defaults to `true`
+      @return {Boolean}
+      @since 1.3.0
+      @public
+    */
+    isAny: function isAny() {
+      return _any(this, iter.apply(void 0, arguments));
+    },
+
+    /**
+      This will combine the values of the array into a single value. It
+      is a useful way to collect a summary value from an array. This
+      corresponds to the `reduce()` method defined in JavaScript 1.8.
+       The callback method you provide should have the following signature (all
+      parameters are optional):
+       ```javascript
+      function(previousValue, item, index, array);
+      ```
+       - `previousValue` is the value returned by the last call to the iterator.
+      - `item` is the current item in the iteration.
+      - `index` is the current index in the iteration.
+      - `array` is the array itself.
+       Return the new cumulative value.
+       In addition to the callback you can also pass an `initialValue`. An error
+      will be raised if you do not pass an initial value and the enumerator is
+      empty.
+       Note that unlike the other methods, this method does not allow you to
+      pass a target object to set as this for the callback. It's part of the
+      spec. Sorry.
+       Example Usage:
+       ```javascript
+        let numbers = [1, 2, 3, 4, 5];
+         numbers.reduce(function(summation, current) {
+          return summation + current;
+        }); // 15 (1 + 2 + 3 + 4 + 5)
+         numbers.reduce(function(summation, current) {
+          return summation + current;
+        }, -15); // 0 (-15 + 1 + 2 + 3 + 4 + 5)
+          let binaryValues = [true, false, false];
+         binaryValues.reduce(function(truthValue, current) {
+          return truthValue && current;
+        }); // false (true && false && false)
+      ```
+       @method reduce
+      @param {Function} callback The callback to execute
+      @param {Object} initialValue Initial value for the reduce
+      @return {Object} The reduced value.
+      @public
+    */
+    reduce: function reduce(callback, initialValue) {
+      (true && !(typeof callback === 'function') && (0, _debug.assert)('`reduce` expects a function as first argument.', typeof callback === 'function'));
+      var ret = initialValue;
+      this.forEach(function (item, i) {
+        ret = callback(ret, item, i, this);
+      }, this);
+      return ret;
+    },
+
+    /**
+      Invokes the named method on every object in the receiver that
+      implements it. This method corresponds to the implementation in
+      Prototype 1.6.
+       ```javascript
+      class Person {
+        name = null;
+         constructor(name) {
+          this.name = name;
+        }
+         greet(prefix='Hello') {
+          return `${prefix} ${this.name}`;
+        }
+      }
+       let people = [new Person('Joe'), new Person('Matt')];
+       people.invoke('greet'); // ['Hello Joe', 'Hello Matt']
+      people.invoke('greet', 'Bonjour'); // ['Bonjour Joe', 'Bonjour Matt']
+      ```
+       @method invoke
+      @param {String} methodName the name of the method
+      @param {Object...} args optional arguments to pass as well.
+      @return {Array} return values from calling invoke.
+      @public
+    */
+    invoke: function invoke(methodName) {
+      for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
+        args[_key - 1] = arguments[_key];
+      }
+
+      var ret = _A2();
+
+      this.forEach(function (item) {
+        return ret.push((0, _utils.tryInvoke)(item, methodName, args));
+      });
+      return ret;
+    },
+
+    /**
+      Simply converts the object into a genuine array. The order is not
+      guaranteed. Corresponds to the method implemented by Prototype.
+       @method toArray
+      @return {Array} the object as an array.
+      @public
+    */
+    toArray: function toArray() {
+      return this.map(function (item) {
+        return item;
+      });
+    },
+
+    /**
+      Returns a copy of the array with all `null` and `undefined` elements removed.
+       ```javascript
+      let arr = ['a', null, 'c', undefined];
+      arr.compact();  // ['a', 'c']
+      ```
+       @method compact
+      @return {Array} the array without null and undefined elements.
+      @public
+    */
+    compact: function compact() {
+      return this.filter(function (value) {
+        return value != null;
+      });
+    },
+
+    /**
+      Used to determine if the array contains the passed object.
+      Returns `true` if found, `false` otherwise.
+       The optional `startAt` argument can be used to pass a starting
+      index to search from, effectively slicing the searchable portion
+      of the array. If it's negative it will add the array length to
+      the startAt value passed in as the index to search from. If less
+      than or equal to `-1 * array.length` the entire array is searched.
+       This method has the same behavior of JavaScript's [Array.includes](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/includes).
+       ```javascript
+      [1, 2, 3].includes(2);     // true
+      [1, 2, 3].includes(4);     // false
+      [1, 2, 3].includes(3, 2);  // true
+      [1, 2, 3].includes(3, 3);  // false
+      [1, 2, 3].includes(3, -1); // true
+      [1, 2, 3].includes(1, -1); // false
+      [1, 2, 3].includes(1, -4); // true
+      [1, 2, NaN].includes(NaN); // true
+      ```
+       @method includes
+      @param {Object} object The object to search for.
+      @param {Number} startAt optional starting location to search, default 0
+      @return {Boolean} `true` if object is found in the array.
+      @public
+    */
+    includes: function includes(object, startAt) {
+      return _indexOf(this, object, startAt, true) !== -1;
+    },
+
+    /**
+      Sorts the array by the keys specified in the argument.
+       You may provide multiple arguments to sort by multiple properties.
+       ```javascript
+     let colors = [
+       { name: 'red', weight: 500 },
+       { name: 'green', weight: 600 },
+       { name: 'blue', weight: 500 }
+      ];
+      colors.sortBy('name');
+     // [{name: 'blue', weight: 500}, {name: 'green', weight: 600}, {name: 'red', weight: 500}]
+      colors.sortBy('weight', 'name');
+     // [{name: 'blue', weight: 500}, {name: 'red', weight: 500}, {name: 'green', weight: 600}]
+     ```
+       @method sortBy
+      @param {String} property name(s) to sort on
+      @return {Array} The sorted array.
+      @since 1.2.0
+      @public
+    */
+    sortBy: function sortBy() {
+      var sortKeys = arguments;
+      return this.toArray().sort(function (a, b) {
+        for (var i = 0; i < sortKeys.length; i++) {
+          var key = sortKeys[i];
+          var propA = (0, _metal.get)(a, key);
+          var propB = (0, _metal.get)(b, key); // return 1 or -1 else continue to the next sortKey
+
+          var compareValue = (0, _compare.default)(propA, propB);
+
+          if (compareValue) {
+            return compareValue;
+          }
+        }
+
+        return 0;
+      });
+    },
+
+    /**
+      Returns a new array that contains only unique values. The default
+      implementation returns an array regardless of the receiver type.
+       ```javascript
+      let arr = ['a', 'a', 'b', 'b'];
+      arr.uniq();  // ['a', 'b']
+      ```
+       This only works on primitive data types, e.g. Strings, Numbers, etc.
+       @method uniq
+      @return {EmberArray}
+      @public
+    */
+    uniq: function uniq() {
+      return _uniqBy(this);
+    },
+
+    /**
+      Returns a new array that contains only items containing a unique property value.
+      The default implementation returns an array regardless of the receiver type.
+       ```javascript
+      let arr = [{ value: 'a' }, { value: 'a' }, { value: 'b' }, { value: 'b' }];
+      arr.uniqBy('value');  // [{ value: 'a' }, { value: 'b' }]
+       let arr = [2.2, 2.1, 3.2, 3.3];
+      arr.uniqBy(Math.floor);  // [2.2, 3.2];
+      ```
+       @method uniqBy
+      @param {String,Function} key
+      @return {EmberArray}
+      @public
+    */
+    uniqBy: function uniqBy(key) {
+      return _uniqBy(this, key);
+    },
+
+    /**
+      Returns a new array that excludes the passed value. The default
+      implementation returns an array regardless of the receiver type.
+      If the receiver does not contain the value it returns the original array.
+       ```javascript
+      let arr = ['a', 'b', 'a', 'c'];
+      arr.without('a');  // ['b', 'c']
+      ```
+       @method without
+      @param {Object} value
+      @return {EmberArray}
+      @public
+    */
+    without: function without(value) {
+      if (!this.includes(value)) {
+        return this; // nothing to do
+      } // SameValueZero comparison (NaN !== NaN)
 
 
-    var predicate = value === value ? function (item) {
-      return item !== value;
-    } : function (item) {
-      return item === item;
-    };
-    return this.filter(predicate);
-  }, _Mixin$create));
+      var predicate = value === value ? function (item) {
+        return item !== value;
+      } : function (item) {
+        return item === item;
+      };
+      return this.filter(predicate);
+    }
+  });
   /**
     This mixin defines the API for modifying array-like objects. These methods
     can be applied only to a collection that keeps its items in an ordered set.
@@ -27643,7 +28547,7 @@ define("@ember/-internals/runtime/lib/mixins/array", ["exports", "@ember/-intern
   _exports.A = _A2;
 
   if (_environment.ENV.EXTEND_PROTOTYPES.Array) {
-    NativeArray.apply(Array.prototype);
+    NativeArray.apply(Array.prototype, true);
 
     _exports.A = _A2 = function A(arr) {
       (true && !(!(this instanceof _A2)) && (0, _debug.assert)('You cannot create an Ember Array with `new A()`, please update to calling A as a function: `A()`', !(this instanceof _A2)));
@@ -28087,7 +28991,7 @@ define("@ember/-internals/runtime/lib/mixins/mutable_enumerable", ["exports", "@
 
   _exports.default = _default;
 });
-define("@ember/-internals/runtime/lib/mixins/observable", ["exports", "@ember/-internals/metal", "@ember/debug"], function (_exports, _metal, _debug) {
+define("@ember/-internals/runtime/lib/mixins/observable", ["exports", "@ember/-internals/meta", "@ember/-internals/metal", "@ember/debug"], function (_exports, _meta, _metal, _debug) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -28448,6 +29352,7 @@ define("@ember/-internals/runtime/lib/mixins/observable", ["exports", "@ember/-i
       @param {Object} defaultValue The value to return if the property value is undefined
       @return {Object} The property value or the defaultValue.
       @public
+      @deprecated
     */
     getWithDefault: function getWithDefault(keyName, defaultValue) {
       return (0, _metal.getWithDefault)(this, keyName, defaultValue);
@@ -28521,7 +29426,11 @@ define("@ember/-internals/runtime/lib/mixins/observable", ["exports", "@ember/-i
       @public
     */
     cacheFor: function cacheFor(keyName) {
-      return (0, _metal.getCachedValueFor)(this, keyName);
+      var meta = (0, _meta.peekMeta)(this);
+
+      if (meta !== null) {
+        return meta.valueFor(keyName);
+      }
     }
   });
 
@@ -29125,7 +30034,7 @@ define("@ember/-internals/runtime/lib/mixins/target_action_support", ["exports",
     return null;
   }
 });
-define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-babel", "@ember/-internals/metal", "@ember/-internals/runtime/lib/system/object", "@ember/-internals/runtime/lib/mixins/array", "@ember/debug", "@glimmer/validator"], function (_exports, _emberBabel, _metal, _object, _array, _debug, _validator) {
+define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-babel", "@ember/-internals/metal", "@ember/-internals/utils", "@ember/-internals/runtime/lib/system/object", "@ember/-internals/runtime/lib/mixins/array", "@ember/debug", "@glimmer/validator"], function (_exports, _emberBabel, _metal, _utils, _object, _array, _debug, _validator) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -29230,6 +30139,8 @@ define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-ba
       this._arrangedContentIsUpdating = false;
       this._arrangedContentTag = null;
       this._arrangedContentRevision = null;
+      this._lengthTag = null;
+      this._arrTag = null;
     };
 
     _proto[_metal.PROPERTY_DID_CHANGE] = function () {
@@ -29237,12 +30148,14 @@ define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-ba
     };
 
     _proto[_metal.CUSTOM_TAG_FOR] = function (key) {
-      if (key === '[]' || key === 'length') {
-        // revalidate eagerly if we're being tracked, since we no longer will
-        // be able to later on due to backtracking re-render assertion
+      if (key === '[]') {
         this._revalidate();
 
-        return (0, _validator.combine)((0, _metal.getChainTagsForKey)(this, "arrangedContent." + key));
+        return this._arrTag;
+      } else if (key === 'length') {
+        this._revalidate();
+
+        return this._lengthTag;
       }
 
       return (0, _validator.tagFor)(this, key);
@@ -29328,9 +30241,8 @@ define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-ba
     } // Overriding length is not supported.
     ;
 
-    _proto._updateArrangedContentArray = function _updateArrangedContentArray() {
+    _proto._updateArrangedContentArray = function _updateArrangedContentArray(arrangedContent) {
       var oldLength = this._objects === null ? 0 : this._objects.length;
-      var arrangedContent = (0, _metal.get)(this, 'arrangedContent');
       var newLength = arrangedContent ? (0, _metal.get)(arrangedContent, 'length') : 0;
 
       this._removeArrangedContentArrayObserver();
@@ -29341,12 +30253,10 @@ define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-ba
 
       this.arrayContentDidChange(0, oldLength, newLength);
 
-      this._addArrangedContentArrayObserver();
+      this._addArrangedContentArrayObserver(arrangedContent);
     };
 
-    _proto._addArrangedContentArrayObserver = function _addArrangedContentArrayObserver() {
-      var arrangedContent = (0, _metal.get)(this, 'arrangedContent');
-
+    _proto._addArrangedContentArrayObserver = function _addArrangedContentArrayObserver(arrangedContent) {
       if (arrangedContent && !arrangedContent.isDestroyed) {
         (true && !(arrangedContent !== this) && (0, _debug.assert)("Can't set ArrayProxy's content to itself", arrangedContent !== this));
         (true && !((0, _array.isArray)(arrangedContent) || arrangedContent.isDestroyed) && (0, _debug.assert)("ArrayProxy expects an Array or ArrayProxy, but you passed " + typeof arrangedContent, (0, _array.isArray)(arrangedContent) || arrangedContent.isDestroyed));
@@ -29389,20 +30299,29 @@ define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-ba
       if (this._arrangedContentIsUpdating === true) return;
 
       if (this._arrangedContentTag === null || !(0, _validator.validateTag)(this._arrangedContentTag, this._arrangedContentRevision)) {
+        var arrangedContent = this.get('arrangedContent');
+
         if (this._arrangedContentTag === null) {
           // This is the first time the proxy has been setup, only add the observer
           // don't trigger any events
-          this._addArrangedContentArrayObserver();
+          this._addArrangedContentArrayObserver(arrangedContent);
         } else {
           this._arrangedContentIsUpdating = true;
 
-          this._updateArrangedContentArray();
+          this._updateArrangedContentArray(arrangedContent);
 
           this._arrangedContentIsUpdating = false;
         }
 
-        this._arrangedContentTag = (0, _validator.combine)((0, _metal.getChainTagsForKey)(this, 'arrangedContent'));
+        var arrangedContentTag = this._arrangedContentTag = (0, _validator.tagFor)(this, 'arrangedContent');
         this._arrangedContentRevision = (0, _validator.valueForTag)(this._arrangedContentTag);
+
+        if ((0, _utils.isObject)(arrangedContent)) {
+          this._lengthTag = (0, _validator.combine)([arrangedContentTag, (0, _metal.tagForProperty)(arrangedContent, 'length')]);
+          this._arrTag = (0, _validator.combine)([arrangedContentTag, (0, _metal.tagForProperty)(arrangedContent, '[]')]);
+        } else {
+          this._lengthTag = this._arrTag = arrangedContentTag;
+        }
       }
     };
 
@@ -29417,6 +30336,7 @@ define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-ba
           this._lengthDirty = false;
         }
 
+        (0, _validator.consumeTag)(this._lengthTag);
         return this._length;
       },
       set: function set(value) {
@@ -29460,13 +30380,12 @@ define("@ember/-internals/runtime/lib/system/array_proxy", ["exports", "ember-ba
     }
   });
 });
-define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-babel", "@ember/-internals/container", "@ember/-internals/owner", "@ember/polyfills", "@ember/-internals/utils", "@ember/runloop", "@ember/-internals/meta", "@ember/-internals/metal", "@ember/-internals/runtime/lib/mixins/action_handler", "@ember/debug"], function (_exports, _emberBabel, _container, _owner, _polyfills, _utils, _runloop, _meta2, _metal, _action_handler, _debug) {
+define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-babel", "@ember/-internals/container", "@ember/-internals/owner", "@ember/polyfills", "@ember/-internals/utils", "@ember/-internals/meta", "@ember/-internals/metal", "@ember/-internals/runtime/lib/mixins/action_handler", "@ember/debug", "@glimmer/runtime"], function (_exports, _emberBabel, _container, _owner, _polyfills, _utils, _meta2, _metal, _action_handler, _debug, _runtime) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
     value: true
   });
-  _exports.setFrameworkClass = setFrameworkClass;
   _exports.default = void 0;
 
   /**
@@ -29474,27 +30393,17 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
   */
   var _reopen = _metal.Mixin.prototype.reopen;
   var wasApplied = new _polyfills._WeakSet();
-  var factoryMap = new WeakMap();
-  var debugOwnerMap;
-
-  if (true
-  /* DEBUG */
-  ) {
-    debugOwnerMap = new WeakMap();
-  }
-
   var prototypeMixinMap = new WeakMap();
   var initCalled = true
   /* DEBUG */
   ? new _polyfills._WeakSet() : undefined; // only used in debug builds to enable the proxy trap
 
-  var PASSED_FROM_CREATE = true
-  /* DEBUG */
-  ? (0, _utils.symbol)('PASSED_FROM_CREATE') : undefined;
-  var FRAMEWORK_CLASSES = (0, _utils.symbol)('FRAMEWORK_CLASS');
+  var destroyCalled = new Set();
 
-  function setFrameworkClass(klass) {
-    klass[FRAMEWORK_CLASSES] = true;
+  function ensureDestroyCalled(instance) {
+    if (!destroyCalled.has(instance)) {
+      instance.destroy();
+    }
   }
 
   function initialize(obj, properties) {
@@ -29519,9 +30428,9 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
         var isDescriptor = possibleDesc !== undefined;
 
         if (!isDescriptor) {
-          var baseValue = obj[keyName];
-
           if (hasConcatenatedProps && concatenatedProperties.indexOf(keyName) > -1) {
+            var baseValue = obj[keyName];
+
             if (baseValue) {
               value = (0, _utils.makeArray)(baseValue).concat(value);
             } else {
@@ -29530,7 +30439,8 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
           }
 
           if (hasMergedProps && mergedProperties.indexOf(keyName) > -1) {
-            value = (0, _polyfills.assign)({}, baseValue, value);
+            var _baseValue = obj[keyName];
+            value = (0, _polyfills.assign)({}, _baseValue, value);
           }
         }
 
@@ -29633,22 +30543,11 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
 
 
   var CoreObject = /*#__PURE__*/function () {
-    CoreObject._initFactory = function _initFactory(factory) {
-      factoryMap.set(this, factory);
-    };
-
-    function CoreObject(passedFromCreate) {
-      var _this = this;
-
-      // pluck off factory
-      var initFactory = factoryMap.get(this.constructor);
-
-      if (initFactory !== undefined) {
-        factoryMap.delete(this.constructor);
-
-        _container.FACTORY_FOR.set(this, initFactory);
-      } // prepare prototype...
-
+    function CoreObject(owner) {
+      // setOwner has to set both OWNER and LEGACY_OWNER for backwards compatibility, and
+      // LEGACY_OWNER is enumerable, so setting it would add an enumerable property to the object,
+      // so we just set `OWNER` directly here.
+      this[_owner.OWNER] = owner; // prepare prototype...
 
       this.constructor.proto();
       var self = this;
@@ -29678,29 +30577,24 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
             }
           }
         });
+      }
 
-        _container.FACTORY_FOR.set(self, initFactory);
-      } // disable chains
-
+      (0, _runtime.registerDestructor)(self, ensureDestroyCalled, true);
+      (0, _runtime.registerDestructor)(self, function () {
+        return self.willDestroy();
+      }); // disable chains
 
       var m = (0, _meta2.meta)(self);
-      m.setInitializing();
-      (true && !(function () {
-        var owner = debugOwnerMap.get(_this.constructor);
-        debugOwnerMap.delete(_this.constructor);
-        return passedFromCreate !== undefined && (passedFromCreate === PASSED_FROM_CREATE || passedFromCreate === owner);
-      }()) && (0, _debug.assert)("An EmberObject based class, " + this.constructor + ", was not instantiated correctly. You may have either used `new` instead of `.create()`, or not passed arguments to your call to super in the constructor: `super(...arguments)`. If you are trying to use `new`, consider using native classes without extending from EmberObject.", function () {
-        var owner = debugOwnerMap.get(_this.constructor);
-        debugOwnerMap.delete(_this.constructor);
-        return passedFromCreate !== undefined && (passedFromCreate === PASSED_FROM_CREATE || passedFromCreate === owner);
-      }())); // only return when in debug builds and `self` is the proxy created above
+      m.setInitializing(); // only return when in debug builds and `self` is the proxy created above
 
       if (true
       /* DEBUG */
       && self !== this) {
         return self;
       }
-    }
+    } // Empty setter for absorbing setting the LEGACY_OWNER, which should _not_
+    // become an enumerable property, and should not be used in general.
+
 
     var _proto = CoreObject.prototype;
 
@@ -29728,9 +30622,10 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
       });
        // alerts 'Name is Steve'.
       ```
-       NOTE: If you do override `init` for a framework class like `Ember.View`,
-      be sure to call `this._super(...arguments)` in your
-      `init` declaration! If you don't, Ember may not have an opportunity to
+       NOTE: If you do override `init` for a framework class like `Component`
+      from `@ember/component`, be sure to call `this._super(...arguments)`
+      in your `init` declaration!
+      If you don't, Ember may not have an opportunity to
       do important setup work, and you'll see strange behavior in your
       application.
        @method init
@@ -29747,7 +30642,7 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
       in the superclass. However, there are some cases where it is preferable
       to build up a property's value by combining the superclass' property
       value with the subclass' value. An example of this in use within Ember
-      is the `classNames` property of `Ember.View`.
+      is the `classNames` property of `Component` from `@ember/component`.
        Here is some sample code showing the difference between a concatenated
       property and a normal one:
        ```javascript
@@ -29882,9 +30777,13 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
       @public
     */
     _proto.destroy = function destroy() {
-      if ((0, _metal.destroy)(this)) {
-        (0, _runloop.schedule)('actions', this, this.willDestroy);
-        return;
+      // Used to ensure that manually calling `.destroy()` does not immediately call destroy again
+      destroyCalled.add(this);
+
+      try {
+        (0, _runtime.destroy)(this);
+      } finally {
+        destroyCalled.delete(this);
       }
 
       return this;
@@ -29934,7 +30833,7 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
     _proto.toString = function toString() {
       var hasToStringExtension = typeof this.toStringExtension === 'function';
       var extension = hasToStringExtension ? ":" + this.toStringExtension() : '';
-      var ret = "<" + ((0, _utils.getName)(this) || _container.FACTORY_FOR.get(this) || this.constructor.toString()) + ":" + (0, _utils.guidFor)(this) + extension + ">";
+      var ret = "<" + ((0, _utils.getName)(this) || (0, _container.getFactoryFor)(this) || this.constructor.toString()) + ":" + (0, _utils.guidFor)(this) + extension + ">";
       return ret;
     }
     /**
@@ -30014,11 +30913,11 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
     ;
 
     CoreObject.extend = function extend() {
-      var Class = /*#__PURE__*/function (_this2) {
-        (0, _emberBabel.inheritsLoose)(Class, _this2);
+      var Class = /*#__PURE__*/function (_this) {
+        (0, _emberBabel.inheritsLoose)(Class, _this);
 
         function Class() {
-          return _this2.apply(this, arguments) || this;
+          return _this.apply(this, arguments) || this;
         }
 
         return Class;
@@ -30063,37 +30962,13 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
     ;
 
     CoreObject.create = function create(props, extra) {
-      var C = this;
       var instance;
 
-      if (this[FRAMEWORK_CLASSES]) {
-        var initFactory = factoryMap.get(this);
-        var owner;
-
-        if (initFactory !== undefined) {
-          owner = initFactory.owner;
-        } else if (props !== undefined) {
-          owner = (0, _owner.getOwner)(props);
-        }
-
-        if (true
-        /* DEBUG */
-        ) {
-          if (owner === undefined) {
-            // fallback to passing the special PASSED_FROM_CREATE symbol
-            // to avoid an error when folks call things like Controller.extend().create()
-            // we should do a subsequent deprecation pass to ensure this isn't allowed
-            owner = PASSED_FROM_CREATE;
-          } else {
-            debugOwnerMap.set(this, owner);
-          }
-        }
-
-        instance = new C(owner);
+      if (props !== undefined) {
+        instance = new this((0, _owner.getOwner)(props));
+        (0, _container.setFactoryFor)(instance, (0, _container.getFactoryFor)(props));
       } else {
-        instance = true
-        /* DEBUG */
-        ? new C(PASSED_FROM_CREATE) : new C();
+        instance = new this();
       }
 
       if (extra === undefined) {
@@ -30309,9 +31184,12 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
     };
 
     (0, _emberBabel.createClass)(CoreObject, [{
+      key: _owner.LEGACY_OWNER,
+      set: function set(value) {}
+    }, {
       key: "isDestroyed",
       get: function get() {
-        return (0, _meta2.peekMeta)(this).isSourceDestroyed();
+        return (0, _runtime.isDestroyed)(this);
       },
       set: function set(value) {
         (true && !(false) && (0, _debug.assert)("You cannot set `" + this + ".isDestroyed` directly, please use `.destroy()`.", false));
@@ -30328,7 +31206,7 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
     }, {
       key: "isDestroying",
       get: function get() {
-        return (0, _meta2.peekMeta)(this).isSourceDestroying();
+        return (0, _runtime.isDestroying)(this);
       },
       set: function set(value) {
         (true && !(false) && (0, _debug.assert)("You cannot set `" + this + ".isDestroying` directly, please use `.destroy()`.", false));
@@ -30388,8 +31266,8 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
         }
 
         if (hasMergedProps && mergedProperties.indexOf(keyName) > -1) {
-          var _baseValue = initProperties[keyName];
-          value = (0, _polyfills.assign)({}, _baseValue, value);
+          var _baseValue2 = initProperties[keyName];
+          value = (0, _polyfills.assign)({}, _baseValue2, value);
         }
 
         initProperties[keyName] = value;
@@ -30456,6 +31334,28 @@ define("@ember/-internals/runtime/lib/system/core_object", ["exports", "ember-ba
 
       return injections;
     };
+  }
+
+  if (!_utils.HAS_NATIVE_SYMBOL) {
+    // Allows OWNER and INIT_FACTORY to be non-enumerable in IE11
+    var instanceOwner = new WeakMap();
+    var instanceFactory = new WeakMap();
+    Object.defineProperty(CoreObject.prototype, _owner.OWNER, {
+      get: function get() {
+        return instanceOwner.get(this);
+      },
+      set: function set(value) {
+        instanceOwner.set(this, value);
+      }
+    });
+    Object.defineProperty(CoreObject.prototype, _container.INIT_FACTORY, {
+      get: function get() {
+        return instanceFactory.get(this);
+      },
+      set: function set(value) {
+        instanceFactory.set(this, value);
+      }
+    });
   }
 
   var _default = CoreObject;
@@ -30543,7 +31443,7 @@ define("@ember/-internals/runtime/lib/system/namespace", ["exports", "ember-babe
   Namespace.processAll = _metal.processAllNamespaces;
   Namespace.byName = _metal.findNamespace;
 });
-define("@ember/-internals/runtime/lib/system/object", ["exports", "ember-babel", "@ember/-internals/container", "@ember/-internals/owner", "@ember/-internals/utils", "@ember/-internals/metal", "@ember/-internals/runtime/lib/system/core_object", "@ember/-internals/runtime/lib/mixins/observable", "@ember/debug"], function (_exports, _emberBabel, _container, _owner, _utils, _metal, _core_object, _observable, _debug) {
+define("@ember/-internals/runtime/lib/system/object", ["exports", "ember-babel", "@ember/-internals/container", "@ember/-internals/utils", "@ember/-internals/metal", "@ember/-internals/runtime/lib/system/core_object", "@ember/-internals/runtime/lib/mixins/observable", "@ember/debug"], function (_exports, _emberBabel, _container, _utils, _metal, _core_object, _observable, _debug) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -30554,7 +31454,7 @@ define("@ember/-internals/runtime/lib/system/object", ["exports", "ember-babel",
   /**
   @module @ember/object
   */
-  var instanceOwner = new WeakMap();
+
   /**
     `EmberObject` is the main base class for all Ember objects. It is a subclass
     of `CoreObject` with the `Observable` mixin applied. For details,
@@ -30565,7 +31465,6 @@ define("@ember/-internals/runtime/lib/system/object", ["exports", "ember-babel",
     @uses Observable
     @public
   */
-
   var EmberObject = /*#__PURE__*/function (_CoreObject) {
     (0, _emberBabel.inheritsLoose)(EmberObject, _CoreObject);
 
@@ -30576,27 +31475,8 @@ define("@ember/-internals/runtime/lib/system/object", ["exports", "ember-babel",
     (0, _emberBabel.createClass)(EmberObject, [{
       key: "_debugContainerKey",
       get: function get() {
-        var factory = _container.FACTORY_FOR.get(this);
-
+        var factory = (0, _container.getFactoryFor)(this);
         return factory !== undefined && factory.fullName;
-      }
-    }, {
-      key: _owner.OWNER,
-      get: function get() {
-        var owner = instanceOwner.get(this);
-
-        if (owner !== undefined) {
-          return owner;
-        }
-
-        var factory = _container.FACTORY_FOR.get(this);
-
-        return factory !== undefined && factory.owner;
-      } // we need a setter here largely to support
-      // folks calling `owner.ownerInjection()` API
-      ,
-      set: function set(value) {
-        instanceOwner.set(this, value);
       }
     }]);
     return EmberObject;
@@ -30612,23 +31492,18 @@ define("@ember/-internals/runtime/lib/system/object", ["exports", "ember-babel",
 
   _exports.FrameworkObject = FrameworkObject = /*#__PURE__*/function (_CoreObject2) {
     (0, _emberBabel.inheritsLoose)(FrameworkObject, _CoreObject2);
+
+    function FrameworkObject() {
+      return _CoreObject2.apply(this, arguments) || this;
+    }
+
     (0, _emberBabel.createClass)(FrameworkObject, [{
       key: "_debugContainerKey",
       get: function get() {
-        var factory = _container.FACTORY_FOR.get(this);
-
+        var factory = (0, _container.getFactoryFor)(this);
         return factory !== undefined && factory.fullName;
       }
     }]);
-
-    function FrameworkObject(owner) {
-      var _this;
-
-      _this = _CoreObject2.call(this) || this;
-      (0, _owner.setOwner)((0, _emberBabel.assertThisInitialized)(_this), owner);
-      return _this;
-    }
-
     return FrameworkObject;
   }(_core_object.default);
 
@@ -30656,7 +31531,7 @@ define("@ember/-internals/runtime/lib/system/object", ["exports", "ember-babel",
       };
 
       _proto[ASSERT_INIT_WAS_CALLED] = function () {
-        (true && !(this[INIT_WAS_CALLED]) && (0, _debug.assert)("You must call `this._super(...arguments);` when overriding `init` on a framework object. Please update " + this + " to call `this._super(...arguments);` from `init`.", this[INIT_WAS_CALLED]));
+        (true && !(this[INIT_WAS_CALLED]) && (0, _debug.assert)("You must call `super.init(...arguments);` or `this._super(...arguments)` when overriding `init` on a framework object. Please update " + this + " to call `super.init(...arguments);` from `init` when using native classes or `this._super(...arguments)` when using `EmberObject.extend()`.", this[INIT_WAS_CALLED]));
       };
 
       return DebugFrameworkObject;
@@ -30681,22 +31556,22 @@ define("@ember/-internals/runtime/lib/system/object_proxy", ["exports", "ember-b
     import EmberObject from '@ember/object';
     import ObjectProxy from '@ember/object/proxy';
   
-    object = EmberObject.create({
+    let exampleObject = EmberObject.create({
       name: 'Foo'
     });
   
-    proxy = ObjectProxy.create({
-      content: object
+    let exampleProxy = ObjectProxy.create({
+      content: exampleObject
     });
   
     // Access and change existing properties
-    proxy.get('name')          // 'Foo'
-    proxy.set('name', 'Bar');
-    object.get('name')         // 'Bar'
+    exampleProxy.get('name');          // 'Foo'
+    exampleProxy.set('name', 'Bar');
+    exampleObject.get('name');         // 'Bar'
   
-    // Create new 'description' property on `object`
-    proxy.set('description', 'Foo is a whizboo baz');
-    object.get('description')  // 'Foo is a whizboo baz'
+    // Create new 'description' property on `exampleObject`
+    exampleProxy.set('description', 'Foo is a whizboo baz');
+    exampleObject.get('description');  // 'Foo is a whizboo baz'
     ```
   
     While `content` is unset, setting a property to be delegated will throw an
@@ -30705,14 +31580,14 @@ define("@ember/-internals/runtime/lib/system/object_proxy", ["exports", "ember-b
     ```javascript
     import ObjectProxy from '@ember/object/proxy';
   
-    proxy = ObjectProxy.create({
+    let exampleProxy = ObjectProxy.create({
       content: null,
       flag: null
     });
-    proxy.set('flag', true);
-    proxy.get('flag');         // true
-    proxy.get('foo');          // undefined
-    proxy.set('foo', 'data');  // throws Error
+    exampleProxy.set('flag', true);
+    exampleProxy.get('flag');         // true
+    exampleProxy.get('foo');          // undefined
+    exampleProxy.set('foo', 'data');  // throws Error
     ```
   
     Delegated properties can be bound to and will change when content is updated.
@@ -30734,14 +31609,14 @@ define("@ember/-internals/runtime/lib/system/object_proxy", ["exports", "ember-b
       })
     });
   
-    proxy = ProxyWithComputedProperty.create();
+    let exampleProxy = ProxyWithComputedProperty.create();
   
-    proxy.get('fullName');  // undefined
-    proxy.set('content', {
+    exampleProxy.get('fullName');  // undefined
+    exampleProxy.set('content', {
       firstName: 'Tom', lastName: 'Dale'
     }); // triggers property change for fullName on proxy
   
-    proxy.get('fullName');  // 'Tom Dale'
+    exampleProxy.get('fullName');  // 'Tom Dale'
     ```
   
     @class ObjectProxy
@@ -30885,7 +31760,7 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
   Object.defineProperty(_exports, "__esModule", {
     value: true
   });
-  _exports.symbol = symbol;
+  _exports.enumerableSymbol = enumerableSymbol;
   _exports.isInternalSymbol = isInternalSymbol;
   _exports.dictionary = makeDictionary;
   _exports.uuid = uuid;
@@ -30893,8 +31768,7 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
   _exports.guidFor = guidFor;
   _exports.intern = intern;
   _exports.wrap = wrap;
-  _exports.getObservers = getObservers;
-  _exports.getListeners = getListeners;
+  _exports.observerListenerMetaFor = observerListenerMetaFor;
   _exports.setObservers = setObservers;
   _exports.setListeners = setListeners;
   _exports.inspect = inspect;
@@ -30908,8 +31782,9 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
   _exports.isObject = isObject;
   _exports.isProxy = isProxy;
   _exports.setProxy = setProxy;
+  _exports.setEmberArray = setEmberArray;
   _exports.isEmberArray = isEmberArray;
-  _exports.setWithMandatorySetter = _exports.teardownMandatorySetter = _exports.setupMandatorySetter = _exports.EMBER_ARRAY = _exports.Cache = _exports.HAS_NATIVE_PROXY = _exports.HAS_NATIVE_SYMBOL = _exports.ROOT = _exports.checkHasSuper = _exports.GUID_KEY = _exports.getOwnPropertyDescriptors = _exports.getDebugName = void 0;
+  _exports.setWithMandatorySetter = _exports.teardownMandatorySetter = _exports.setupMandatorySetter = _exports.Cache = _exports.HAS_NATIVE_PROXY = _exports.HAS_NATIVE_SYMBOL = _exports.ROOT = _exports.checkHasSuper = _exports.GUID_KEY = _exports.getDebugName = _exports.symbol = void 0;
 
   /**
     Strongly hint runtimes to intern the provided string.
@@ -31117,26 +31992,47 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
     return guid;
   }
 
+  var HAS_NATIVE_SYMBOL = function () {
+    if (typeof Symbol !== 'function') {
+      return false;
+    }
+
+    return typeof Symbol() === 'symbol';
+  }();
+
+  _exports.HAS_NATIVE_SYMBOL = HAS_NATIVE_SYMBOL;
   var GENERATED_SYMBOLS = [];
 
   function isInternalSymbol(possibleSymbol) {
     return GENERATED_SYMBOLS.indexOf(possibleSymbol) !== -1;
-  }
+  } // Some legacy symbols still need to be enumerable for a variety of reasons.
+  // This code exists for that, and as a fallback in IE11. In general, prefer
+  // `symbol` below when creating a new symbol.
 
-  function symbol(debugName) {
+
+  function enumerableSymbol(debugName) {
     // TODO: Investigate using platform symbols, but we do not
     // want to require non-enumerability for this API, which
     // would introduce a large cost.
     var id = GUID_KEY + Math.floor(Math.random() * Date.now());
     var symbol = intern("__" + debugName + id + "__");
-    GENERATED_SYMBOLS.push(symbol);
+
+    if (true
+    /* DEBUG */
+    ) {
+      GENERATED_SYMBOLS.push(symbol);
+    }
+
     return symbol;
-  } // the delete is meant to hint at runtimes that this object should remain in
+  }
+
+  var symbol = HAS_NATIVE_SYMBOL ? Symbol : enumerableSymbol; // the delete is meant to hint at runtimes that this object should remain in
   // dictionary mode. This is clearly a runtime specific hack, but currently it
   // appears worthwhile in some usecases. Please note, these deletes do increase
   // the cost of creation dramatically over a plain Object.create. And as this
   // only makes sense for long-lived dictionaries that aren't instantiated often.
 
+  _exports.symbol = symbol;
 
   function makeDictionary(parent) {
     var dict = Object.create(parent);
@@ -31201,22 +32097,6 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
 
   var getDebugName$1 = getDebugName;
   _exports.getDebugName = getDebugName$1;
-  var getOwnPropertyDescriptors;
-
-  if (Object.getOwnPropertyDescriptors !== undefined) {
-    getOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
-  } else {
-    getOwnPropertyDescriptors = function getOwnPropertyDescriptors(obj) {
-      var descriptors = {};
-      Object.keys(obj).forEach(function (key) {
-        descriptors[key] = Object.getOwnPropertyDescriptor(obj, key);
-      });
-      return descriptors;
-    };
-  }
-
-  var getOwnPropertyDescriptors$1 = getOwnPropertyDescriptors;
-  _exports.getOwnPropertyDescriptors = getOwnPropertyDescriptors$1;
   var HAS_SUPER_PATTERN = /\.(_super|call\(this|apply\(this)/;
   var fnToString = Function.prototype.toString;
 
@@ -31253,26 +32133,36 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
     return hasSuper;
   }
 
-  var OBSERVERS_MAP = new WeakMap();
+  var ObserverListenerMeta = function ObserverListenerMeta() {
+    this.listeners = undefined;
+    this.observers = undefined;
+  };
+
+  var OBSERVERS_LISTENERS_MAP = new WeakMap();
+
+  function createObserverListenerMetaFor(fn) {
+    var meta = OBSERVERS_LISTENERS_MAP.get(fn);
+
+    if (meta === undefined) {
+      meta = new ObserverListenerMeta();
+      OBSERVERS_LISTENERS_MAP.set(fn, meta);
+    }
+
+    return meta;
+  }
+
+  function observerListenerMetaFor(fn) {
+    return OBSERVERS_LISTENERS_MAP.get(fn);
+  }
 
   function setObservers(func, observers) {
-    OBSERVERS_MAP.set(func, observers);
+    var meta = createObserverListenerMetaFor(func);
+    meta.observers = observers;
   }
-
-  function getObservers(func) {
-    return OBSERVERS_MAP.get(func);
-  }
-
-  var LISTENERS_MAP = new WeakMap();
 
   function setListeners(func, listeners) {
-    if (listeners) {
-      LISTENERS_MAP.set(func, listeners);
-    }
-  }
-
-  function getListeners(func) {
-    return LISTENERS_MAP.get(func);
+    var meta = createObserverListenerMetaFor(func);
+    meta.listeners = listeners;
   }
 
   var IS_WRAPPED_FUNCTION_SET = new _polyfills._WeakSet();
@@ -31312,8 +32202,12 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
     }
 
     IS_WRAPPED_FUNCTION_SET.add(superWrapper);
-    setObservers(superWrapper, getObservers(func));
-    setListeners(superWrapper, getListeners(func));
+    var meta = OBSERVERS_LISTENERS_MAP.get(func);
+
+    if (meta !== undefined) {
+      OBSERVERS_LISTENERS_MAP.set(superWrapper, meta);
+    }
+
     return superWrapper;
   }
 
@@ -31587,15 +32481,6 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
     return objectToString$1.call(obj);
   }
 
-  var HAS_NATIVE_SYMBOL = function () {
-    if (typeof Symbol !== 'function') {
-      return false;
-    }
-
-    return typeof Symbol() === 'symbol';
-  }();
-
-  _exports.HAS_NATIVE_SYMBOL = HAS_NATIVE_SYMBOL;
   var HAS_NATIVE_PROXY = typeof Proxy === 'function';
   _exports.HAS_NATIVE_PROXY = HAS_NATIVE_PROXY;
   var PROXIES = new _polyfills._WeakSet();
@@ -31657,11 +32542,14 @@ define("@ember/-internals/utils/index", ["exports", "@ember/polyfills", "@ember/
   }();
 
   _exports.Cache = Cache;
-  var EMBER_ARRAY = symbol('EMBER_ARRAY');
-  _exports.EMBER_ARRAY = EMBER_ARRAY;
+  var EMBER_ARRAYS = new _polyfills._WeakSet();
+
+  function setEmberArray(obj) {
+    EMBER_ARRAYS.add(obj);
+  }
 
   function isEmberArray(obj) {
-    return obj && obj[EMBER_ARRAY];
+    return EMBER_ARRAYS.has(obj);
   }
 
   var setupMandatorySetter;
@@ -32297,7 +33185,7 @@ define("@ember/-internals/views/lib/mixins/class_names_support", ["exports", "@e
 
   _exports.default = _default;
 });
-define("@ember/-internals/views/lib/mixins/text_support", ["exports", "@ember/-internals/metal", "@ember/-internals/runtime", "@ember/debug", "@ember/deprecated-features"], function (_exports, _metal, _runtime, _debug, _deprecatedFeatures) {
+define("@ember/-internals/views/lib/mixins/text_support", ["exports", "@ember/-internals/metal", "@ember/-internals/runtime", "@ember/debug", "@ember/deprecated-features", "@ember/-internals/views"], function (_exports, _metal, _runtime, _debug, _deprecatedFeatures, _views) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -32575,25 +33463,34 @@ define("@ember/-internals/views/lib/mixins/text_support", ["exports", "@ember/-i
   _exports.default = _default;
 
   function sendAction(eventName, view, event) {
-    var actionName = (0, _metal.get)(view, "attrs." + eventName) || (0, _metal.get)(view, eventName);
+    var action = (0, _metal.get)(view, "attrs." + eventName);
+
+    if (action !== null && typeof action === 'object' && action[_views.MUTABLE_CELL] === true) {
+      action = action.value;
+    }
+
+    if (action === undefined) {
+      action = (0, _metal.get)(view, eventName);
+    }
+
     var value = (0, _metal.get)(view, 'value');
 
-    if (_deprecatedFeatures.SEND_ACTION && typeof actionName === 'string') {
-      var message = "Passing actions to components as strings (like `<Input @" + eventName + "=\"" + actionName + "\" />`) is deprecated. Please use closure actions instead (`<Input @" + eventName + "={{action \"" + actionName + "\"}} />`).";
+    if (_deprecatedFeatures.SEND_ACTION && typeof action === 'string') {
+      var message = "Passing actions to components as strings (like `<Input @" + eventName + "=\"" + action + "\" />`) is deprecated. Please use closure actions instead (`<Input @" + eventName + "={{action \"" + action + "\"}} />`).";
       (true && !(false) && (0, _debug.deprecate)(message, false, {
         id: 'ember-component.send-action',
         until: '4.0.0',
         url: 'https://emberjs.com/deprecations/v3.x#toc_ember-component-send-action'
       }));
       view.triggerAction({
-        action: actionName,
+        action: action,
         actionContext: [value, event]
       });
-    } else if (typeof actionName === 'function') {
-      actionName(value, event);
+    } else if (typeof action === 'function') {
+      action(value, event);
     }
 
-    if (actionName && !(0, _metal.get)(view, 'bubbles')) {
+    if (action && !(0, _metal.get)(view, 'bubbles')) {
       event.stopPropagation();
     }
   }
@@ -33244,7 +34141,7 @@ define("@ember/-internals/views/lib/system/event_dispatcher", ["exports", "@embe
       }
 
       for (var event in events) {
-        if (events.hasOwnProperty(event)) {
+        if (Object.prototype.hasOwnProperty.call(events, event)) {
           this.setupHandler(rootElement, event, events[event]);
         }
       }
@@ -33507,17 +34404,16 @@ define("@ember/-internals/views/lib/system/jquery_event_deprecation", ["exports"
           switch (name) {
             case 'originalEvent':
               (true && !(function (EmberENV) {
-                // this deprecation is intentionally checking `global.EmberENV` /
-                // `global.ENV` so that we can ensure we _only_ deprecate in the
-                // case where jQuery integration is enabled implicitly (e.g.
-                // "defaulted" to enabled) as opposed to when the user explicitly
-                // opts in to using jQuery
+                // this deprecation is intentionally checking `global.EmberENV` so
+                // that we can ensure we _only_ deprecate in the case where jQuery
+                // integration is enabled implicitly (e.g. "defaulted" to enabled)
+                // as opposed to when the user explicitly opts in to using jQuery
                 if (typeof EmberENV !== 'object' || EmberENV === null) return false;
                 return EmberENV._JQUERY_INTEGRATION === true;
-              }(_environment.global.EmberENV || _environment.global.ENV)) && (0, _debug.deprecate)('Accessing jQuery.Event specific properties is deprecated. Either use the ember-jquery-legacy addon to normalize events to native events, or explicitly opt into jQuery integration using @ember/optional-features.', function (EmberENV) {
+              }(_environment.global.EmberENV)) && (0, _debug.deprecate)('Accessing jQuery.Event specific properties is deprecated. Either use the ember-jquery-legacy addon to normalize events to native events, or explicitly opt into jQuery integration using @ember/optional-features.', function (EmberENV) {
                 if (typeof EmberENV !== 'object' || EmberENV === null) return false;
                 return EmberENV._JQUERY_INTEGRATION === true;
-              }(_environment.global.EmberENV || _environment.global.ENV), {
+              }(_environment.global.EmberENV), {
                 id: 'ember-views.event-dispatcher.jquery-event',
                 until: '4.0.0',
                 url: 'https://emberjs.com/deprecations/v3.x#toc_jquery-event'
@@ -35389,6 +36285,8 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
         options = {};
       }
 
+      (true && !(!this.isDestroyed) && (0, _debug.assert)('You cannot build new instances of this application since it has already been destroyed', !this.isDestroyed));
+      (true && !(!this.isDestroying) && (0, _debug.assert)('You cannot build new instances of this application since it is being destroyed', !this.isDestroying));
       options.base = this;
       options.application = this;
       return _instance.default.create(options);
@@ -35502,7 +36400,7 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
       @method domReady
     */
     domReady: function domReady() {
-      if (this.isDestroyed) {
+      if (this.isDestroying || this.isDestroyed) {
         return;
       }
 
@@ -35533,7 +36431,9 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
     */
     deferReadiness: function deferReadiness() {
       (true && !(this instanceof Application) && (0, _debug.assert)('You must call deferReadiness on an instance of Application', this instanceof Application));
-      (true && !(this._readinessDeferrals > 0) && (0, _debug.assert)('You cannot defer readiness since the `ready()` hook has already been called.', this._readinessDeferrals > 0));
+      (true && !(!this.isDestroyed) && (0, _debug.assert)('You cannot defer readiness since application has already destroyed', !this.isDestroyed));
+      (true && !(!this.isDestroying) && (0, _debug.assert)('You cannot defer readiness since the application is being destroyed', !this.isDestroying));
+      (true && !(this._readinessDeferrals > 0) && (0, _debug.assert)('You cannot defer readiness since the `ready()` hook has already been called', this._readinessDeferrals > 0));
       this._readinessDeferrals++;
     },
 
@@ -35547,6 +36447,9 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
     */
     advanceReadiness: function advanceReadiness() {
       (true && !(this instanceof Application) && (0, _debug.assert)('You must call advanceReadiness on an instance of Application', this instanceof Application));
+      (true && !(!this.isDestroyed) && (0, _debug.assert)('You cannot advance readiness since application has already destroyed', !this.isDestroyed));
+      (true && !(!this.isDestroying) && (0, _debug.assert)('You cannot advance readiness since the application is being destroyed', !this.isDestroying));
+      (true && !(this._readinessDeferrals > 0) && (0, _debug.assert)('You cannot advance readiness since the `ready()` hook has already been called', this._readinessDeferrals > 0));
       this._readinessDeferrals--;
 
       if (this._readinessDeferrals === 0) {
@@ -35568,6 +36471,9 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
       @return {Promise<Application,Error>}
     */
     boot: function boot() {
+      (true && !(!this.isDestroyed) && (0, _debug.assert)('You cannot boot this application since it has already been destroyed', !this.isDestroyed));
+      (true && !(!this.isDestroying) && (0, _debug.assert)('You cannot boot this application since it is being destroyed', !this.isDestroying));
+
       if (this._bootPromise) {
         return this._bootPromise;
       }
@@ -35593,7 +36499,7 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
        @private
     */
     _bootSync: function _bootSync() {
-      if (this._booted) {
+      if (this._booted || this.isDestroying || this.isDestroyed) {
         return;
       } // Even though this returns synchronously, we still need to make sure the
       // boot promise exists for book-keeping purposes: if anything went wrong in
@@ -35673,6 +36579,8 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
       @public
     */
     reset: function reset() {
+      (true && !(!this.isDestroyed) && (0, _debug.assert)('You cannot reset this application since it has already been destroyed', !this.isDestroyed));
+      (true && !(!this.isDestroying) && (0, _debug.assert)('You cannot reset this application since it is being destroyed', !this.isDestroying));
       (true && !(this._globalsMode && this.autoboot) && (0, _debug.assert)("Calling reset() on instances of `Application` is not\n            supported when globals mode is disabled; call `visit()` to\n            create new `ApplicationInstance`s and dispose them\n            via their `destroy()` method instead.", this._globalsMode && this.autoboot));
       var instance = this.__deprecatedInstance__;
       this._readinessDeferrals = 1;
@@ -35696,6 +36604,10 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
       @method didBecomeReady
     */
     didBecomeReady: function didBecomeReady() {
+      if (this.isDestroying || this.isDestroyed) {
+        return;
+      }
+
       try {
         // TODO: Is this still needed for _globalsMode = false?
         if (!(0, _debug.isTesting)()) {
@@ -35755,9 +36667,6 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
       this._super.apply(this, arguments);
 
       (0, _metal.setNamespaceSearchDisabled)(false);
-      this._booted = false;
-      this._bootPromise = null;
-      this._bootResolver = null;
 
       if (_lazy_load._loaded.application === this) {
         _lazy_load._loaded.application = undefined;
@@ -35927,6 +36836,8 @@ define("@ember/application/lib/application", ["exports", "ember-babel", "@ember/
     visit: function visit(url, options) {
       var _this = this;
 
+      (true && !(!this.isDestroyed) && (0, _debug.assert)('You cannot visit this application since it has already been destroyed', !this.isDestroyed));
+      (true && !(!this.isDestroying) && (0, _debug.assert)('You cannot visit this application since it is being destroyed', !this.isDestroying));
       return this.boot().then(function () {
         var instance = _this.buildInstance();
 
@@ -36100,7 +37011,7 @@ define("@ember/canary-features/index", ["exports", "@ember/-internals/environmen
     value: true
   });
   _exports.isEnabled = isEnabled;
-  _exports.EMBER_ROUTING_MODEL_ARG = _exports.EMBER_GLIMMER_SET_COMPONENT_TEMPLATE = _exports.EMBER_CUSTOM_COMPONENT_ARG_PROXY = _exports.EMBER_MODULE_UNIFICATION = _exports.EMBER_NAMED_BLOCKS = _exports.EMBER_IMPROVED_INSTRUMENTATION = _exports.EMBER_LIBRARIES_ISREGISTERED = _exports.FEATURES = _exports.DEFAULT_FEATURES = void 0;
+  _exports.EMBER_DESTROYABLES = _exports.EMBER_CACHE_API = _exports.EMBER_GLIMMER_IN_ELEMENT = _exports.EMBER_ROUTING_MODEL_ARG = _exports.EMBER_GLIMMER_SET_COMPONENT_TEMPLATE = _exports.EMBER_MODULE_UNIFICATION = _exports.EMBER_NAMED_BLOCKS = _exports.EMBER_IMPROVED_INSTRUMENTATION = _exports.EMBER_LIBRARIES_ISREGISTERED = _exports.FEATURES = _exports.DEFAULT_FEATURES = void 0;
 
   /**
     Set `EmberENV.FEATURES` in your application's `config/environment.js` file
@@ -36117,9 +37028,11 @@ define("@ember/canary-features/index", ["exports", "@ember/-internals/environmen
     EMBER_IMPROVED_INSTRUMENTATION: false,
     EMBER_NAMED_BLOCKS: false,
     EMBER_MODULE_UNIFICATION: false,
-    EMBER_CUSTOM_COMPONENT_ARG_PROXY: true,
     EMBER_GLIMMER_SET_COMPONENT_TEMPLATE: true,
-    EMBER_ROUTING_MODEL_ARG: true
+    EMBER_ROUTING_MODEL_ARG: true,
+    EMBER_GLIMMER_IN_ELEMENT: true,
+    EMBER_CACHE_API: true,
+    EMBER_DESTROYABLES: true
   };
   /**
     The hash of enabled Canary features. Add to this, any canary features
@@ -36179,12 +37092,16 @@ define("@ember/canary-features/index", ["exports", "@ember/-internals/environmen
   _exports.EMBER_NAMED_BLOCKS = EMBER_NAMED_BLOCKS;
   var EMBER_MODULE_UNIFICATION = featureValue(FEATURES.EMBER_MODULE_UNIFICATION);
   _exports.EMBER_MODULE_UNIFICATION = EMBER_MODULE_UNIFICATION;
-  var EMBER_CUSTOM_COMPONENT_ARG_PROXY = featureValue(FEATURES.EMBER_CUSTOM_COMPONENT_ARG_PROXY);
-  _exports.EMBER_CUSTOM_COMPONENT_ARG_PROXY = EMBER_CUSTOM_COMPONENT_ARG_PROXY;
   var EMBER_GLIMMER_SET_COMPONENT_TEMPLATE = featureValue(FEATURES.EMBER_GLIMMER_SET_COMPONENT_TEMPLATE);
   _exports.EMBER_GLIMMER_SET_COMPONENT_TEMPLATE = EMBER_GLIMMER_SET_COMPONENT_TEMPLATE;
   var EMBER_ROUTING_MODEL_ARG = featureValue(FEATURES.EMBER_ROUTING_MODEL_ARG);
   _exports.EMBER_ROUTING_MODEL_ARG = EMBER_ROUTING_MODEL_ARG;
+  var EMBER_GLIMMER_IN_ELEMENT = featureValue(FEATURES.EMBER_GLIMMER_IN_ELEMENT);
+  _exports.EMBER_GLIMMER_IN_ELEMENT = EMBER_GLIMMER_IN_ELEMENT;
+  var EMBER_CACHE_API = featureValue(FEATURES.EMBER_CACHE_API);
+  _exports.EMBER_CACHE_API = EMBER_CACHE_API;
+  var EMBER_DESTROYABLES = featureValue(FEATURES.EMBER_DESTROYABLES);
+  _exports.EMBER_DESTROYABLES = EMBER_DESTROYABLES;
 });
 define("@ember/component/index", ["exports", "@ember/-internals/glimmer"], function (_exports, _glimmer) {
   "use strict";
@@ -36288,8 +37205,6 @@ define("@ember/controller/index", ["exports", "@ember/-internals/runtime", "@emb
     @public
   */
   var Controller = _runtime.FrameworkObject.extend(_controller_mixin.default);
-
-  (0, _runtime.setFrameworkClass)(Controller);
   /**
     Creates a property that lazily looks up another controller in the container.
     Can only be used when defining another controller.
@@ -36331,6 +37246,7 @@ define("@ember/controller/index", ["exports", "@ember/-internals/runtime", "@emb
     @return {ComputedDecorator} injection decorator instance
     @public
   */
+
 
   function inject() {
     return _metal.inject.apply(void 0, ['controller'].concat(Array.prototype.slice.call(arguments)));
@@ -36882,7 +37798,7 @@ define("@ember/debug/lib/deprecate", ["exports", "@ember/-internals/environment"
         if (error.stack) {
           if (error['arguments']) {
             // Chrome
-            stack = error.stack.replace(/^\s+at\s+/gm, '').replace(/^([^\(]+?)([\n$])/gm, '{anonymous}($1)$2').replace(/^Object.<anonymous>\s*\(([^\)]+)\)/gm, '{anonymous}($1)').split('\n');
+            stack = error.stack.replace(/^\s+at\s+/gm, '').replace(/^([^(]+?)([\n$])/gm, '{anonymous}($1)$2').replace(/^Object.<anonymous>\s*\(([^)]+)\)/gm, '{anonymous}($1)').split('\n');
             stack.shift();
           } else {
             // Firefox
@@ -37151,6 +38067,298 @@ define("@ember/deprecated-features/index", ["exports"], function (_exports) {
   _exports.PARTIALS = PARTIALS;
   var GLOBALS_RESOLVER = !!'3.16.0-beta.1';
   _exports.GLOBALS_RESOLVER = GLOBALS_RESOLVER;
+});
+define("@ember/destroyable/index", ["exports", "@glimmer/runtime"], function (_exports, _runtime) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.registerDestructor = registerDestructor;
+  _exports.unregisterDestructor = unregisterDestructor;
+  Object.defineProperty(_exports, "assertDestroyablesDestroyed", {
+    enumerable: true,
+    get: function get() {
+      return _runtime.assertDestroyablesDestroyed;
+    }
+  });
+  Object.defineProperty(_exports, "associateDestroyableChild", {
+    enumerable: true,
+    get: function get() {
+      return _runtime.associateDestroyableChild;
+    }
+  });
+  Object.defineProperty(_exports, "destroy", {
+    enumerable: true,
+    get: function get() {
+      return _runtime.destroy;
+    }
+  });
+  Object.defineProperty(_exports, "enableDestroyableTracking", {
+    enumerable: true,
+    get: function get() {
+      return _runtime.enableDestroyableTracking;
+    }
+  });
+  Object.defineProperty(_exports, "isDestroying", {
+    enumerable: true,
+    get: function get() {
+      return _runtime.isDestroying;
+    }
+  });
+  Object.defineProperty(_exports, "isDestroyed", {
+    enumerable: true,
+    get: function get() {
+      return _runtime.isDestroyed;
+    }
+  });
+
+  /**
+    Ember manages the lifecycles and lifetimes of many built in constructs, such
+    as components, and does so in a hierarchical way - when a parent component is
+    destroyed, all of its children are destroyed as well.
+  
+    This destroyables API exposes the basic building blocks for destruction:
+  
+    * registering a function to be ran when an object is destroyyed
+    * checking if an object is in a destroying state
+    * associate an object as a child of another so that the child object will be destroyed
+      when the associated parent object is destroyed.
+  
+    @module @ember/destroyable
+    @category EMBER_DESTROYABLES
+    @public
+  */
+
+  /**
+    This function is used to associate a destroyable object with a parent. When the parent
+    is destroyed, all registered children will also be destroyed.
+  
+    ```js
+    class CustomSelect extends Component {
+      constructor() {
+        // obj is now a child of the component. When the component is destroyed,
+        // obj will also be destroyed, and have all of its destructors triggered.
+        this.obj = associateDestroyableChild(this, {});
+      }
+    }
+    ```
+  
+    Returns the associated child for convenience.
+  
+    @method associateDestroyableChild
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @param {Object|Function} parent the destroyable to entangle the child destroyables lifetime with
+    @param {Object|Function} child the destroyable to be entangled with the parents lifetime
+    @param {Function} destructor the destructor to run when the destroyable object is destroyed
+    @returns {Object|Function} the child argument
+    @static
+    @public
+  */
+
+  /**
+   Receives a destroyable, and returns true if the destroyable has begun destroying. Otherwise returns
+   false.
+  
+    ```js
+    let obj = {};
+    isDestroying(obj); // false
+    destroy(obj);
+    isDestroying(obj); // true
+    // ...sometime later, after scheduled destruction
+    isDestroyed(obj); // true
+    isDestroying(obj); // true
+    ```
+  
+    @method isDestroying
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @param {Object|Function} destroyable the object to check
+    @returns {Boolean}
+    @static
+    @public
+  */
+
+  /**
+    Receives a destroyable, and returns true if the destroyable has finished destroying. Otherwise
+    returns false.
+  
+    ```js
+    let obj = {};
+  
+    isDestroyed(obj); // false
+    destroy(obj);
+  
+    // ...sometime later, after scheduled destruction
+  
+    isDestroyed(obj); // true
+    ```
+  
+    @method isDestroyed
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @param {Object|Function} destroyable the object to check
+    @returns {Boolean}
+    @static
+    @public
+  */
+
+  /**
+    Initiates the destruction of a destroyable object. It runs all associated destructors, and then
+    destroys all children recursively.
+  
+    ```js
+    let obj = {};
+  
+    registerDestructor(obj, () => console.log('destroyed!'));
+  
+    destroy(obj); // this will schedule the destructor to be called
+  
+    // ...some time later, during scheduled destruction
+  
+    // destroyed!
+    ```
+  
+    Destruction via `destroy()` follows these steps:
+  
+    1, Mark the destroyable such that `isDestroying(destroyable)` returns `true`
+    2, Call `destroy()` on each of the destroyable's associated children
+    3, Schedule calling the destroyable's destructors
+    4, Schedule setting destroyable such that `isDestroyed(destroyable)` returns `true`
+  
+    This results in the entire tree of destroyables being first marked as destroying,
+    then having all of their destructors called, and finally all being marked as isDestroyed.
+    There won't be any in between states where some items are marked as `isDestroying` while
+    destroying, while others are not.
+  
+    @method destroy
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @param {Object|Function} destroyable the object to destroy
+    @static
+    @public
+  */
+
+  /**
+    This function asserts that all objects which have associated destructors or associated children
+    have been destroyed at the time it is called. It is meant to be a low level hook that testing
+    frameworks can use to hook into and validate that all destroyables have in fact been destroyed.
+  
+    This function requires that `enableDestroyableTracking` was called previously, and is only
+    available in non-production builds.
+  
+    @method assertDestroyablesDestroyed
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @static
+    @public
+  */
+
+  /**
+    This function instructs the destroyable system to keep track of all destroyables (their
+    children, destructors, etc). This enables a future usage of `assertDestroyablesDestroyed`
+    to be used to ensure that all destroyable tasks (registered destructors and associated children)
+    have completed when `assertDestroyablesDestroyed` is called.
+  
+    @method enableDestroyableTracking
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @static
+    @public
+  */
+
+  /**
+    Receives a destroyable object and a destructor function, and associates the
+    function with it. When the destroyable is destroyed with destroy, or when its
+    parent is destroyed, the destructor function will be called.
+  
+    ```js
+    import { registerDestructor } from '@ember/destroyable';
+  
+    class Modal extends Component {
+      @service resize;
+  
+      constructor() {
+        this.resize.register(this, this.layout);
+  
+        registerDestructor(this, () => this.resize.unregister(this));
+      }
+    }
+    ```
+  
+    Multiple destructors can be associated with a given destroyable, and they can be
+    associated over time, allowing libraries to dynamically add destructors as needed.
+    `registerDestructor` also returns the associated destructor function, for convenience.
+  
+    The destructor function is passed a single argument, which is the destroyable itself.
+    This allows the function to be reused multiple times for many destroyables, rather
+    than creating a closure function per destroyable.
+  
+    ```js
+    import { registerDestructor } from '@ember/destroyable';
+  
+    function unregisterResize(instance) {
+      instance.resize.unregister(instance);
+    }
+  
+    class Modal extends Component {
+      @service resize;
+  
+      constructor() {
+        this.resize.register(this, this.layout);
+  
+        registerDestructor(this, unregisterResize);
+      }
+    }
+    ```
+  
+    @method registerDestructor
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @param {Object|Function} destroyable the destroyable to register the destructor function with
+    @param {Function} destructor the destructor to run when the destroyable object is destroyed
+    @static
+    @public
+  */
+  function registerDestructor(destroyable, destructor) {
+    return (0, _runtime.registerDestructor)(destroyable, destructor);
+  }
+  /**
+    Receives a destroyable and a destructor function, and de-associates the destructor
+    from the destroyable.
+  
+    ```js
+    import { registerDestructor, unregisterDestructor } from '@ember/destroyable';
+  
+    class Modal extends Component {
+      @service modals;
+  
+      constructor() {
+        this.modals.add(this);
+  
+        this.modalDestructor = registerDestructor(this, () => this.modals.remove(this));
+      }
+  
+      @action pinModal() {
+        unregisterDestructor(this, this.modalDestructor);
+      }
+    }
+    ```
+  
+    @method unregisterDestructor
+    @category EMBER_DESTROYABLES
+    @for @ember/destroyable
+    @param {Object|Function} destroyable the destroyable to unregister the destructor function from
+    @param {Function} destructor the destructor to remove from the destroyable
+    @static
+    @public
+  */
+
+
+  function unregisterDestructor(destroyable, destructor) {
+    return (0, _runtime.unregisterDestructor)(destroyable, destructor);
+  }
 });
 define("@ember/engine/index", ["exports", "ember-babel", "@ember/engine/lib/engine-parent", "@ember/-internals/utils", "@ember/controller", "@ember/-internals/runtime", "@ember/-internals/container", "dag-map", "@ember/debug", "@ember/-internals/metal", "@ember/application/globals-resolver", "@ember/engine/instance", "@ember/-internals/routing", "@ember/-internals/extension-support", "@ember/-internals/views", "@ember/-internals/glimmer"], function (_exports, _emberBabel, _engineParent, _utils, _controller, _runtime, _container, _dagMap, _debug, _metal, _globalsResolver, _instance, _routing, _extensionSupport, _views, _glimmer) {
   "use strict";
@@ -37612,7 +38820,6 @@ define("@ember/engine/index", ["exports", "ember-babel", "@ember/engine/lib/engi
     registry.register('controller:basic', _controller.default, {
       instantiate: false
     });
-    registry.injection('view', '_viewRegistry', '-view-registry:main');
     registry.injection('renderer', '_viewRegistry', '-view-registry:main');
     registry.injection('route', '_topLevelViewTemplate', 'template:-outlet');
     registry.injection('view:-outlet', 'namespace', 'application:main');
@@ -38236,14 +39443,15 @@ define("@ember/object/compat", ["exports", "@ember/-internals/metal", "@ember/de
   });
   _exports.dependentKeyCompat = dependentKeyCompat;
 
-  var wrapGetterSetter = function wrapGetterSetter(_target, key, desc) {
+  var wrapGetterSetter = function wrapGetterSetter(target, key, desc) {
     var originalGet = desc.get;
+    (true && !((0, _metal.descriptorForProperty)(target, key) === undefined) && (0, _debug.assert)('You attempted to use @dependentKeyCompat on a property that already has been decorated with either @computed or @tracked. @dependentKeyCompat is only necessary for native getters that are not decorated with @computed.', (0, _metal.descriptorForProperty)(target, key) === undefined));
 
     if (originalGet !== undefined) {
       desc.get = function () {
         var _this = this;
 
-        var propertyTag = (0, _metal.tagForProperty)(this, key);
+        var propertyTag = (0, _validator.tagFor)(this, key);
         var ret;
         var tag = (0, _validator.track)(function () {
           ret = originalGet.call(_this);
@@ -38591,7 +39799,7 @@ define("@ember/object/index", ["exports", "@ember/debug", "@ember/polyfills", "@
       target.constructor.proto();
     }
 
-    if (!target.hasOwnProperty('actions')) {
+    if (!Object.prototype.hasOwnProperty.call(target, 'actions')) {
       var parentActions = target.actions; // we need to assign because of the way mixins copy actions down when inheriting
 
       target.actions = parentActions ? (0, _polyfills.assign)({}, parentActions) : {};
@@ -39862,7 +41070,7 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
   @module @ember/object
   */
   function reduceMacro(dependentKey, callback, initialValue, name) {
-    (true && !(!/[\[\]\{\}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed." + name + "` shouldn't contain brace expanding pattern.", !/[\[\]\{\}]/g.test(dependentKey)));
+    (true && !(!/[[\]{}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed." + name + "` shouldn't contain brace expanding pattern.", !/[[\]{}]/g.test(dependentKey)));
     return (0, _metal.computed)(dependentKey + ".[]", function () {
       var arr = (0, _metal.get)(this, dependentKey);
 
@@ -39898,9 +41106,9 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
 
   function multiArrayMacro(_dependentKeys, callback, name) {
     (true && !(_dependentKeys.every(function (dependentKey) {
-      return !/[\[\]\{\}]/g.test(dependentKey);
+      return !/[[\]{}]/g.test(dependentKey);
     })) && (0, _debug.assert)("Dependent keys passed to `computed." + name + "` shouldn't contain brace expanding pattern.", _dependentKeys.every(function (dependentKey) {
-      return !/[\[\]\{\}]/g.test(dependentKey);
+      return !/[[\]{}]/g.test(dependentKey);
     })));
 
     var dependentKeys = _dependentKeys.map(function (key) {
@@ -40359,7 +41567,7 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
   function mapBy(dependentKey, propertyKey) {
     (true && !(!(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))) && (0, _debug.assert)('You attempted to use @mapBy as a decorator directly, but it requires `dependentKey` and `propertyKey` parameters', !(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))));
     (true && !(typeof propertyKey === 'string') && (0, _debug.assert)('`computed.mapBy` expects a property string for its second argument, ' + 'perhaps you meant to use "map"', typeof propertyKey === 'string'));
-    (true && !(!/[\[\]\{\}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed.mapBy` shouldn't contain brace expanding pattern.", !/[\[\]\{\}]/g.test(dependentKey)));
+    (true && !(!/[[\]{}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed.mapBy` shouldn't contain brace expanding pattern.", !/[[\]{}]/g.test(dependentKey)));
     return map(dependentKey + ".@each." + propertyKey, function (item) {
       return (0, _metal.get)(item, propertyKey);
     });
@@ -40568,7 +41776,7 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
 
   function filterBy(dependentKey, propertyKey, value) {
     (true && !(!(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))) && (0, _debug.assert)('You attempted to use @filterBy as a decorator directly, but it requires atleast `dependentKey` and `propertyKey` parameters', !(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))));
-    (true && !(!/[\[\]\{\}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed.filterBy` shouldn't contain brace expanding pattern.", !/[\[\]\{\}]/g.test(dependentKey)));
+    (true && !(!/[[\]{}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed.filterBy` shouldn't contain brace expanding pattern.", !/[[\]{}]/g.test(dependentKey)));
     var callback;
 
     if (arguments.length === 2) {
@@ -40732,7 +41940,7 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
 
   function uniqBy(dependentKey, propertyKey) {
     (true && !(!(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))) && (0, _debug.assert)('You attempted to use @uniqBy as a decorator directly, but it requires `dependentKey` and `propertyKey` parameters', !(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))));
-    (true && !(!/[\[\]\{\}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed.uniqBy` shouldn't contain brace expanding pattern.", !/[\[\]\{\}]/g.test(dependentKey)));
+    (true && !(!/[[\]{}]/g.test(dependentKey)) && (0, _debug.assert)("Dependent key passed to `computed.uniqBy` shouldn't contain brace expanding pattern.", !/[[\]{}]/g.test(dependentKey)));
     return (0, _metal.computed)(dependentKey + ".[]", function () {
       var list = (0, _metal.get)(this, dependentKey);
       return (0, _runtime.isArray)(list) ? (0, _runtime.uniqBy)(list, propertyKey) : (0, _runtime.A)();
@@ -40754,7 +41962,7 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
         set(this, 'vegetables', vegetables);
       }
   
-      @union('fruits', 'vegetables') ediblePlants;
+      @union('fruits', 'vegetables') uniqueFruits;
     });
   
     let hamster = new, Hamster(
@@ -40978,7 +42186,7 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
   function setDiff(setAProperty, setBProperty) {
     (true && !(!(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))) && (0, _debug.assert)('You attempted to use @setDiff as a decorator directly, but it requires atleast one dependent key parameter', !(0, _metal.isElementDescriptor)(Array.prototype.slice.call(arguments))));
     (true && !(arguments.length === 2) && (0, _debug.assert)('`computed.setDiff` requires exactly two dependent arrays.', arguments.length === 2));
-    (true && !(!/[\[\]\{\}]/g.test(setAProperty) && !/[\[\]\{\}]/g.test(setBProperty)) && (0, _debug.assert)("Dependent keys passed to `computed.setDiff` shouldn't contain brace expanding pattern.", !/[\[\]\{\}]/g.test(setAProperty) && !/[\[\]\{\}]/g.test(setBProperty)));
+    (true && !(!/[[\]{}]/g.test(setAProperty) && !/[[\]{}]/g.test(setBProperty)) && (0, _debug.assert)("Dependent keys passed to `computed.setDiff` shouldn't contain brace expanding pattern.", !/[[\]{}]/g.test(setAProperty) && !/[[\]{}]/g.test(setBProperty)));
     return (0, _metal.computed)(setAProperty + ".[]", setBProperty + ".[]", function () {
       var setA = (0, _metal.get)(this, setAProperty);
       var setB = (0, _metal.get)(this, setBProperty);
@@ -41279,7 +42487,7 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
 
 
   function propertySort(itemsKey, sortPropertiesKey) {
-    var cp = (0, _metal.computed)(itemsKey + ".[]", sortPropertiesKey + ".[]", function (key) {
+    var cp = (0, _metal.autoComputed)(function (key) {
       var sortProperties = (0, _metal.get)(this, sortPropertiesKey);
       (true && !((0, _runtime.isArray)(sortProperties) && sortProperties.every(function (s) {
         return typeof s === 'string';
@@ -41300,7 +42508,6 @@ define("@ember/object/lib/computed/reduce_computed_macros", ["exports", "@ember/
         return sortByNormalizedSortProperties(items, normalizedSortProperties);
       }
     }).readOnly();
-    (0, _metal.descriptorForDecorator)(cp).auto();
     return cp;
   }
 
@@ -42390,7 +43597,6 @@ define("@ember/service/index", ["exports", "@ember/-internals/runtime", "@ember/
   Service.reopenClass({
     isServiceFactory: true
   });
-  (0, _runtime.setFrameworkClass)(Service);
   var _default = Service;
   _exports.default = _default;
 });
@@ -42428,7 +43634,7 @@ define("@ember/string/index", ["exports", "@ember/string/lib/string_registry", "
   var STRING_DASHERIZE_CACHE = new _utils.Cache(1000, function (key) {
     return decamelize(key).replace(STRING_DASHERIZE_REGEXP, '-');
   });
-  var STRING_CAMELIZE_REGEXP_1 = /(\-|\_|\.|\s)+(.)?/g;
+  var STRING_CAMELIZE_REGEXP_1 = /(-|_|\.|\s)+(.)?/g;
   var STRING_CAMELIZE_REGEXP_2 = /(^|\/)([A-Z])/g;
   var CAMELIZE_CACHE = new _utils.Cache(1000, function (key) {
     return key.replace(STRING_CAMELIZE_REGEXP_1, function (_match, _separator, chr) {
@@ -42439,8 +43645,8 @@ define("@ember/string/index", ["exports", "@ember/string/lib/string_registry", "
       return match.toLowerCase();
     });
   });
-  var STRING_CLASSIFY_REGEXP_1 = /^(\-|_)+(.)?/;
-  var STRING_CLASSIFY_REGEXP_2 = /(.)(\-|\_|\.|\s)+(.)?/g;
+  var STRING_CLASSIFY_REGEXP_1 = /^(-|_)+(.)?/;
+  var STRING_CLASSIFY_REGEXP_2 = /(.)(-|_|\.|\s)+(.)?/g;
   var STRING_CLASSIFY_REGEXP_3 = /(^|\/|\.)([a-z])/g;
   var CLASSIFY_CACHE = new _utils.Cache(1000, function (str) {
     var replace1 = function replace1(_match, _separator, chr) {
@@ -42464,7 +43670,7 @@ define("@ember/string/index", ["exports", "@ember/string/lib/string_registry", "
     });
   });
   var STRING_UNDERSCORE_REGEXP_1 = /([a-z\d])([A-Z]+)/g;
-  var STRING_UNDERSCORE_REGEXP_2 = /\-|\s+/g;
+  var STRING_UNDERSCORE_REGEXP_2 = /-|\s+/g;
   var UNDERSCORE_CACHE = new _utils.Cache(1000, function (str) {
     return str.replace(STRING_UNDERSCORE_REGEXP_1, '$1_$2').replace(STRING_UNDERSCORE_REGEXP_2, '_').toLowerCase();
   });
@@ -42932,6 +44138,183 @@ define("@glimmer/env", ["exports"], function (_exports) {
   var CI = false;
   _exports.CI = CI;
 });
+define("@glimmer/global-context", ["exports"], function (_exports) {
+  "use strict";
+
+  Object.defineProperty(_exports, "__esModule", {
+    value: true
+  });
+  _exports.testOverrideGlobalContext = _exports.assertGlobalContextWasSet = _exports.warnIfStyleNotTrusted = _exports.getPath = _exports.setProp = _exports.getProp = _exports.toBool = _exports.toIterator = _exports.scheduleDestroyed = _exports.scheduleDestroy = _exports.scheduleRevalidate = _exports.default = void 0;
+
+  /**
+   * This package contains global context functions for Glimmer. These functions
+   * are set by the embedding environment and must be set before initial render.
+   *
+   * These functions should meet the following criteria:
+   *
+   * - Must be provided by the embedder, due to having framework specific
+   *   behaviors (e.g. interop with classic Ember behaviors that should not be
+   *   upstreamed) or to being out of scope for the VM (e.g. scheduling a
+   *   revalidation)
+   * - Never differ between render roots
+   * - Never change over time
+   *
+   */
+
+  /**
+   * Schedules a VM revalidation.
+   *
+   * Note: this has a default value so that tags can warm themselves when first loaded.
+   */
+  var scheduleRevalidate = function scheduleRevalidate() {};
+  /**
+   * Schedules a destructor to run
+   *
+   * @param destroyable The destroyable being destroyed
+   * @param destructor The destructor being scheduled
+   */
+
+
+  _exports.scheduleRevalidate = scheduleRevalidate;
+  var scheduleDestroy;
+  /**
+   * Finalizes destruction
+   *
+   * @param finalizer finalizer function
+   */
+
+  _exports.scheduleDestroy = scheduleDestroy;
+  var scheduleDestroyed;
+  /**
+   * Hook to provide iterators for `{{each}}` loops
+   *
+   * @param value The value to create an iterator for
+   */
+
+  _exports.scheduleDestroyed = scheduleDestroyed;
+  var toIterator;
+  /**
+   * Hook to specify truthiness within Glimmer templates
+   *
+   * @param value The value to convert to a boolean
+   */
+
+  _exports.toIterator = toIterator;
+  var toBool;
+  /**
+   * Hook for specifying how Glimmer should access properties in cases where it
+   * needs to. For instance, accessing an object's values in templates.
+   *
+   * @param obj The object provided to get a value from
+   * @param path The path to get the value from
+   */
+
+  _exports.toBool = toBool;
+  var getProp;
+  /**
+   * Hook for specifying how Glimmer should update props in cases where it needs
+   * to. For instance, when updating a template reference (e.g. 2-way-binding)
+   *
+   * @param obj The object provided to get a value from
+   * @param prop The prop to set the value at
+   * @param value The value to set the value to
+   */
+
+  _exports.getProp = getProp;
+  var setProp;
+  /**
+   * Hook for specifying how Glimmer should access paths in cases where it needs
+   * to. For instance, the `key` value of `{{each}}` loops.
+   *
+   * @param obj The object provided to get a value from
+   * @param path The path to get the value from
+   */
+
+  _exports.setProp = setProp;
+  var getPath;
+  /**
+   * Hook to warn if a style binding string or value was not marked as trusted
+   * (e.g. HTMLSafe)
+   */
+
+  _exports.getPath = getPath;
+  var warnIfStyleNotTrusted;
+  _exports.warnIfStyleNotTrusted = warnIfStyleNotTrusted;
+  var globalContextWasSet = false;
+
+  function setGlobalContext(context) {
+    if (true
+    /* DEBUG */
+    ) {
+      if (globalContextWasSet) {
+        throw new Error('Attempted to set the global context twice. This should only be set once.');
+      }
+
+      globalContextWasSet = true;
+    }
+
+    _exports.scheduleRevalidate = scheduleRevalidate = context.scheduleRevalidate;
+    _exports.scheduleDestroy = scheduleDestroy = context.scheduleDestroy;
+    _exports.scheduleDestroyed = scheduleDestroyed = context.scheduleDestroyed;
+    _exports.toIterator = toIterator = context.toIterator;
+    _exports.toBool = toBool = context.toBool;
+    _exports.getProp = getProp = context.getProp;
+    _exports.setProp = setProp = context.setProp;
+    _exports.getPath = getPath = context.getPath;
+    _exports.warnIfStyleNotTrusted = warnIfStyleNotTrusted = context.warnIfStyleNotTrusted;
+  }
+
+  var assertGlobalContextWasSet;
+  _exports.assertGlobalContextWasSet = assertGlobalContextWasSet;
+  var testOverrideGlobalContext;
+  _exports.testOverrideGlobalContext = testOverrideGlobalContext;
+
+  if (true
+  /* DEBUG */
+  ) {
+    _exports.assertGlobalContextWasSet = assertGlobalContextWasSet = function assertGlobalContextWasSet() {
+      if (globalContextWasSet === false) {
+        throw new Error('The global context for Glimmer VM was not set. You must set these global context functions to let Glimmer VM know how to accomplish certain operations. You can do this by importing `setGlobalContext` from `@glimmer/global-context`');
+      }
+    };
+
+    _exports.testOverrideGlobalContext = testOverrideGlobalContext = function testOverrideGlobalContext(context) {
+      var _a, _b, _c, _d, _e, _f, _g, _h, _j;
+
+      var originalGlobalContext = globalContextWasSet ? {
+        scheduleRevalidate: scheduleRevalidate,
+        scheduleDestroy: scheduleDestroy,
+        scheduleDestroyed: scheduleDestroyed,
+        toIterator: toIterator,
+        toBool: toBool,
+        getProp: getProp,
+        setProp: setProp,
+        getPath: getPath,
+        warnIfStyleNotTrusted: warnIfStyleNotTrusted
+      } : null;
+
+      if (context === null) {
+        globalContextWasSet = false;
+      } else {
+        globalContextWasSet = true;
+      }
+
+      _exports.scheduleRevalidate = scheduleRevalidate = ((_a = context) === null || _a === void 0 ? void 0 : _a.scheduleRevalidate) || scheduleRevalidate;
+      _exports.scheduleDestroy = scheduleDestroy = ((_b = context) === null || _b === void 0 ? void 0 : _b.scheduleDestroy) || scheduleDestroy;
+      _exports.scheduleDestroyed = scheduleDestroyed = ((_c = context) === null || _c === void 0 ? void 0 : _c.scheduleDestroyed) || scheduleDestroyed;
+      _exports.toIterator = toIterator = ((_d = context) === null || _d === void 0 ? void 0 : _d.toIterator) || toIterator;
+      _exports.toBool = toBool = ((_e = context) === null || _e === void 0 ? void 0 : _e.toBool) || toBool;
+      _exports.getProp = getProp = ((_f = context) === null || _f === void 0 ? void 0 : _f.getProp) || getProp;
+      _exports.setProp = setProp = ((_g = context) === null || _g === void 0 ? void 0 : _g.setProp) || setProp;
+      _exports.getPath = getPath = ((_h = context) === null || _h === void 0 ? void 0 : _h.getPath) || getPath;
+      _exports.warnIfStyleNotTrusted = warnIfStyleNotTrusted = ((_j = context) === null || _j === void 0 ? void 0 : _j.warnIfStyleNotTrusted) || warnIfStyleNotTrusted;
+      return originalGlobalContext;
+    };
+  }
+
+  var _default = setGlobalContext;
+  _exports.default = _default;
+});
 define("@glimmer/low-level", ["exports"], function (_exports) {
   "use strict";
 
@@ -43278,13 +44661,17 @@ define("@glimmer/opcode-compiler", ["exports", "ember-babel", "@glimmer/vm", "@g
     };
   }
 
-  function prim(operand, type) {
+  function immediate(value) {
+    return {
+      type: 'immediate',
+      value: value
+    };
+  }
+
+  function prim(value) {
     return {
       type: 'primitive',
-      value: {
-        primitive: operand,
-        type: type
-      }
+      value: value
     };
   }
 
@@ -43429,41 +44816,7 @@ define("@glimmer/opcode-compiler", ["exports", "ember-babel", "@glimmer/vm", "@g
 
 
   function PushPrimitive(primitive) {
-    var p;
-
-    switch (typeof primitive) {
-      case 'number':
-        if ((0, _util.isSmallInt)(primitive)) {
-          p = prim(primitive, 0
-          /* IMMEDIATE */
-          );
-        } else {
-          p = prim(primitive, 2
-          /* NUMBER */
-          );
-        }
-
-        break;
-
-      case 'string':
-        p = prim(primitive, 1
-        /* STRING */
-        );
-        break;
-
-      case 'boolean':
-      case 'object': // assume null
-
-      case 'undefined':
-        p = prim(primitive, 0
-        /* IMMEDIATE */
-        );
-        break;
-
-      default:
-        throw new Error('Invalid primitive passed to pushPrimitive');
-    }
-
+    var p = typeof primitive === 'number' && (0, _util.isSmallInt)(primitive) ? immediate(primitive) : prim(primitive);
     return op(30
     /* Primitive */
     , p);
@@ -45772,7 +47125,7 @@ define("@glimmer/opcode-compiler", ["exports", "ember-babel", "@glimmer/vm", "@g
     }
 
     if (typeof operand === 'string') {
-      return constants.string(operand);
+      return constants.value(operand);
     }
 
     if (operand === null) {
@@ -45780,55 +47133,23 @@ define("@glimmer/opcode-compiler", ["exports", "ember-babel", "@glimmer/vm", "@g
     }
 
     switch (operand.type) {
-      case 'array':
-        return constants.array(operand.value);
-
       case 'string-array':
-        return constants.stringArray(operand.value);
+        return constants.array(operand.value);
 
       case 'serializable':
         return constants.serializable(operand.value);
 
-      case 'template-meta':
-        return constants.templateMeta(operand.value);
-
-      case 'other':
-        // TODO: Bad cast
-        return constants.other(operand.value);
-
       case 'stdlib':
         return operand;
 
+      case 'immediate':
+        return (0, _util.encodeImmediate)(operand.value);
+
       case 'primitive':
-        {
-          switch (operand.value.type) {
-            case 1
-            /* STRING */
-            :
-              return (0, _util.encodeHandle)(constants.string(operand.value.primitive), 1073741823
-              /* STRING_MAX_INDEX */
-              , -1
-              /* STRING_MAX_HANDLE */
-              );
-
-            case 2
-            /* NUMBER */
-            :
-              return (0, _util.encodeHandle)(constants.number(operand.value.primitive), 1073741823
-              /* NUMBER_MAX_INDEX */
-              , -1073741825
-              /* NUMBER_MAX_HANDLE */
-              );
-
-            case 0
-            /* IMMEDIATE */
-            :
-              return (0, _util.encodeImmediate)(operand.value.primitive);
-
-            default:
-              return (0, _util.exhausted)(operand.value);
-          }
-        }
+      case 'template-meta':
+      case 'array':
+      case 'other':
+        return (0, _util.encodeHandle)(constants.value(operand.value));
 
       case 'lookup':
         throw (0, _util.unreachable)('lookup not reachable');
@@ -46023,7 +47344,7 @@ define("@glimmer/opcode-compiler", ["exports", "ember-babel", "@glimmer/vm", "@g
 
     out.push(op(100
     /* BeginComponentTransaction */
-    ));
+    , _vm.$s0));
 
     if (capabilities.dynamicScope) {
       out.push(op(59
@@ -46306,7 +47627,7 @@ define("@glimmer/opcode-compiler", ["exports", "ember-babel", "@glimmer/vm", "@g
 
     var out = [op(100
     /* BeginComponentTransaction */
-    ), op(59
+    , _vm.$s0), op(59
     /* PushDynamicScope */
     ), op(89
     /* CreateComponent */
@@ -46728,48 +48049,32 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
   _exports.patchStdlibs = patchStdlibs;
   _exports.programArtifacts = programArtifacts;
   _exports.artifacts = artifacts;
-  _exports.RuntimeOpImpl = _exports.RuntimeProgramImpl = _exports.HeapImpl = _exports.RuntimeHeapImpl = _exports.JitConstants = _exports.RuntimeConstantsImpl = _exports.WriteOnlyConstants = _exports.WELL_KNOWN_EMPTY_ARRAY_POSITION = void 0;
-  var UNRESOLVED = {};
-  var WELL_KNOWN_EMPTY_ARRAY_POSITION = 0;
-  _exports.WELL_KNOWN_EMPTY_ARRAY_POSITION = WELL_KNOWN_EMPTY_ARRAY_POSITION;
-  var WELL_KNOW_EMPTY_ARRAY = Object.freeze([]);
+  _exports.RuntimeOpImpl = _exports.RuntimeProgramImpl = _exports.HeapImpl = _exports.RuntimeHeapImpl = _exports.JitConstants = _exports.RuntimeConstantsImpl = _exports.WriteOnlyConstants = void 0;
+  var WELL_KNOWN_EMPTY_ARRAY = Object.freeze([]);
+  var STARTER_CONSTANTS = (0, _util.constants)(WELL_KNOWN_EMPTY_ARRAY);
+  var WELL_KNOWN_EMPTY_ARRAY_POSITION = STARTER_CONSTANTS.indexOf(WELL_KNOWN_EMPTY_ARRAY);
 
   var WriteOnlyConstants = /*#__PURE__*/function () {
     function WriteOnlyConstants() {
       // `0` means NULL
-      this.strings = [];
-      this.arrays = [WELL_KNOW_EMPTY_ARRAY];
-      this.tables = [];
-      this.handles = [];
-      this.resolved = [];
-      this.numbers = [];
-      this.others = [];
+      this.values = STARTER_CONSTANTS.slice();
+      this.indexMap = new Map(this.values.map(function (value, index) {
+        return [value, index];
+      }));
     }
 
     var _proto = WriteOnlyConstants.prototype;
 
-    _proto.other = function other(_other) {
-      return this.others.push(_other) - 1;
-    };
+    _proto.value = function value(_value) {
+      var indexMap = this.indexMap;
+      var index = indexMap.get(_value);
 
-    _proto.string = function string(value) {
-      var index = this.strings.indexOf(value);
-
-      if (index > -1) {
-        return index;
+      if (index === undefined) {
+        index = this.values.push(_value) - 1;
+        indexMap.set(_value, index);
       }
 
-      return this.strings.push(value) - 1;
-    };
-
-    _proto.stringArray = function stringArray(strings) {
-      var _strings = new Array(strings.length);
-
-      for (var i = 0; i < strings.length; i++) {
-        _strings[i] = this.string(strings[i]);
-      }
-
-      return this.array(_strings);
+      return index;
     };
 
     _proto.array = function array(values) {
@@ -46777,47 +48082,22 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
         return WELL_KNOWN_EMPTY_ARRAY_POSITION;
       }
 
-      var index = this.arrays.indexOf(values);
+      var handles = new Array(values.length);
 
-      if (index > -1) {
-        return index;
+      for (var i = 0; i < values.length; i++) {
+        handles[i] = this.value(values[i]);
       }
 
-      return this.arrays.push(values) - 1;
+      return this.value(handles);
     };
 
     _proto.serializable = function serializable(value) {
       var str = JSON.stringify(value);
-      var index = this.strings.indexOf(str);
-
-      if (index > -1) {
-        return index;
-      }
-
-      return this.strings.push(str) - 1;
-    };
-
-    _proto.templateMeta = function templateMeta(value) {
-      return this.serializable(value);
-    };
-
-    _proto.number = function number(_number) {
-      var index = this.numbers.indexOf(_number);
-
-      if (index > -1) {
-        return index;
-      }
-
-      return this.numbers.push(_number) - 1;
+      return this.value(str);
     };
 
     _proto.toPool = function toPool() {
-      return {
-        strings: this.strings,
-        arrays: this.arrays,
-        handles: this.handles,
-        numbers: this.numbers
-      };
+      return this.values;
     };
 
     return WriteOnlyConstants;
@@ -46827,50 +48107,29 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
 
   var RuntimeConstantsImpl = /*#__PURE__*/function () {
     function RuntimeConstantsImpl(pool) {
-      this.strings = pool.strings;
-      this.arrays = pool.arrays;
-      this.handles = pool.handles;
-      this.numbers = pool.numbers;
-      this.others = [];
+      this.values = pool;
     }
 
     var _proto2 = RuntimeConstantsImpl.prototype;
 
-    _proto2.getString = function getString(value) {
-      return this.strings[value];
-    };
-
-    _proto2.getNumber = function getNumber(value) {
-      return this.numbers[value];
-    };
-
-    _proto2.getStringArray = function getStringArray(value) {
-      var names = this.getArray(value);
-
-      var _names = new Array(names.length);
-
-      for (var i = 0; i < names.length; i++) {
-        var n = names[i];
-        _names[i] = this.getString(n);
-      }
-
-      return _names;
+    _proto2.getValue = function getValue(handle) {
+      return this.values[handle];
     };
 
     _proto2.getArray = function getArray(value) {
-      return this.arrays[value];
+      var handles = this.getValue(value);
+      var reified = new Array(handles.length);
+
+      for (var i = 0; i < handles.length; i++) {
+        var n = handles[i];
+        reified[i] = this.getValue(n);
+      }
+
+      return reified;
     };
 
     _proto2.getSerializable = function getSerializable(s) {
-      return JSON.parse(this.strings[s]);
-    };
-
-    _proto2.getTemplateMeta = function getTemplateMeta(m) {
-      return this.getSerializable(m);
-    };
-
-    _proto2.getOther = function getOther(value) {
-      return this.others[value];
+      return JSON.parse(this.values[s]);
     };
 
     return RuntimeConstantsImpl;
@@ -46881,73 +48140,46 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
   var JitConstants = /*#__PURE__*/function (_WriteOnlyConstants) {
     (0, _emberBabel.inheritsLoose)(JitConstants, _WriteOnlyConstants);
 
-    function JitConstants(pool) {
+    function JitConstants() {
+      var _this$reifiedArrs;
+
       var _this;
 
-      _this = _WriteOnlyConstants.call(this) || this;
-      _this.metas = [];
-
-      if (pool) {
-        _this.strings = pool.strings;
-        _this.arrays = pool.arrays;
-        _this.handles = pool.handles;
-        _this.resolved = _this.handles.map(function () {
-          return UNRESOLVED;
-        });
-        _this.numbers = pool.numbers;
-      }
-
-      _this.others = [];
+      _this = _WriteOnlyConstants.apply(this, arguments) || this;
+      _this.reifiedArrs = (_this$reifiedArrs = {}, _this$reifiedArrs[WELL_KNOWN_EMPTY_ARRAY_POSITION] = WELL_KNOWN_EMPTY_ARRAY, _this$reifiedArrs);
       return _this;
     }
 
     var _proto3 = JitConstants.prototype;
 
     _proto3.templateMeta = function templateMeta(meta) {
-      var index = this.metas.indexOf(meta);
+      return this.value(meta);
+    };
 
-      if (index > -1) {
-        return index;
+    _proto3.getValue = function getValue(index) {
+      return this.values[index];
+    };
+
+    _proto3.getArray = function getArray(index) {
+      var reifiedArrs = this.reifiedArrs;
+      var reified = reifiedArrs[index];
+
+      if (reified === undefined) {
+        var names = this.getValue(index);
+        reified = new Array(names.length);
+
+        for (var i = 0; i < names.length; i++) {
+          reified[i] = this.getValue(names[i]);
+        }
+
+        reifiedArrs[index] = reified;
       }
 
-      return this.metas.push(meta) - 1;
-    };
-
-    _proto3.getNumber = function getNumber(value) {
-      return this.numbers[value];
-    };
-
-    _proto3.getString = function getString(value) {
-      return this.strings[value];
-    };
-
-    _proto3.getStringArray = function getStringArray(value) {
-      var names = this.getArray(value);
-
-      var _names = new Array(names.length);
-
-      for (var i = 0; i < names.length; i++) {
-        var n = names[i];
-        _names[i] = this.getString(n);
-      }
-
-      return _names;
-    };
-
-    _proto3.getArray = function getArray(value) {
-      return this.arrays[value];
+      return reified;
     };
 
     _proto3.getSerializable = function getSerializable(s) {
-      return JSON.parse(this.strings[s]);
-    };
-
-    _proto3.getTemplateMeta = function getTemplateMeta(m) {
-      return this.metas[m];
-    };
-
-    _proto3.getOther = function getOther(value) {
-      return this.others[value];
+      return JSON.parse(this.getValue(s));
     };
 
     return JitConstants;
@@ -47297,16 +48529,16 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
   _exports.HeapImpl = HeapImpl;
 
   var RuntimeProgramImpl = /*#__PURE__*/function () {
-    function RuntimeProgramImpl(constants, heap) {
-      this.constants = constants;
+    function RuntimeProgramImpl(constants$$1, heap) {
+      this.constants = constants$$1;
       this.heap = heap;
       this._opcode = new RuntimeOpImpl(this.heap);
     }
 
     RuntimeProgramImpl.hydrate = function hydrate(artifacts) {
       var heap = new RuntimeHeapImpl(artifacts.heap);
-      var constants = new RuntimeConstantsImpl(artifacts.constants);
-      return new RuntimeProgramImpl(constants, heap);
+      var constants$$1 = new RuntimeConstantsImpl(artifacts.constants);
+      return new RuntimeProgramImpl(constants$$1, heap);
     };
 
     var _proto6 = RuntimeProgramImpl.prototype;
@@ -47323,8 +48555,8 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
 
   function hydrateProgram(artifacts) {
     var heap = new RuntimeHeapImpl(artifacts.heap);
-    var constants = new RuntimeConstantsImpl(artifacts.constants);
-    return new RuntimeProgramImpl(constants, heap);
+    var constants$$1 = new RuntimeConstantsImpl(artifacts.constants);
+    return new RuntimeProgramImpl(constants$$1, heap);
   }
 
   function slice(arr, start, end) {
@@ -47360,10 +48592,10 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
 
   function programArtifacts(program) {
     var heap = program.heap.capture(program.stdlib);
-    var constants = program.constants.toPool();
+    var constants$$1 = program.constants.toPool();
     return {
       heap: heap,
-      constants: constants
+      constants: constants$$1
     };
   }
 
@@ -47371,17 +48603,18 @@ define("@glimmer/program", ["exports", "ember-babel", "@glimmer/util"], function
     return programArtifacts(syntax.program);
   }
 });
-define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimmer/validator"], function (_exports, _emberBabel, _util, _validator) {
+define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimmer/validator", "@glimmer/global-context"], function (_exports, _emberBabel, _util, _validator, _globalContext) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
     value: true
   });
   _exports.isModified = isModified;
-  _exports.IterableImpl = _exports.IterationItemReference = _exports.PropertyReference = _exports.HelperRootReference = _exports.ComponentRootReference = _exports.RootReference = _exports.UPDATE_REFERENCED_VALUE = _exports.IteratorSynchronizer = _exports.ReferenceIterator = _exports.IterationArtifacts = _exports.END = _exports.ListItem = _exports.ConstReference = _exports.ReferenceCache = _exports.CachedReference = void 0;
+  _exports.IterationItemReference = _exports.PropertyReference = _exports.HelperRootReference = _exports.ComponentRootReference = _exports.RootReference = _exports.UPDATE_REFERENCED_VALUE = _exports.IterableReference = _exports.UNDEFINED_REFERENCE = _exports.ConstReference = _exports.ReferenceCache = _exports.CachedReference = void 0;
 
   var CachedReference = /*#__PURE__*/function () {
     function CachedReference() {
+      this.tag = null;
       this.lastRevision = null;
       this.lastValue = null;
     }
@@ -47389,20 +48622,35 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
     var _proto = CachedReference.prototype;
 
     _proto.value = function value() {
-      var tag = this.tag,
-          lastRevision = this.lastRevision,
-          lastValue = this.lastValue;
+      var _this = this;
 
-      if (lastRevision === null || !(0, _validator.validateTag)(tag, lastRevision)) {
-        lastValue = this.lastValue = this.compute();
+      var lastRevision = this.lastRevision,
+          tag = this.tag;
+      var lastValue;
+
+      if (tag === null || !(0, _validator.validateTag)(tag, lastRevision)) {
+        tag = this.tag = (0, _validator.track)(function () {
+          lastValue = _this.lastValue = _this.compute();
+        }, true
+        /* DEBUG */
+        && this.debugLabel);
         this.lastRevision = (0, _validator.valueForTag)(tag);
+      } else {
+        lastValue = this.lastValue;
       }
 
+      (0, _validator.consumeTag)(tag);
       return lastValue;
     };
 
-    _proto.invalidate = function invalidate() {
-      this.lastRevision = null;
+    _proto.isConst = function isConst() {
+      if (true
+      /* DEBUG */
+      && this.tag === null) {
+        throw new Error('Attempted to read isConst before the reference was calculated for the first time');
+      }
+
+      return this.tag === _validator.CONSTANT_TAG;
     };
 
     return CachedReference;
@@ -47413,45 +48661,17 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
 
   var ReferenceCache = /*#__PURE__*/function () {
     function ReferenceCache(reference) {
-      this.lastValue = null;
-      this.lastRevision = null;
-      this.initialized = false;
-      this.tag = reference.tag;
       this.reference = reference;
+      this.lastValue = reference.value();
     }
 
     var _proto2 = ReferenceCache.prototype;
 
-    _proto2.peek = function peek() {
-      if (!this.initialized) {
-        return this.initialize();
-      }
-
-      return this.lastValue;
-    };
-
     _proto2.revalidate = function revalidate() {
-      if (!this.initialized) {
-        return this.initialize();
-      }
-
-      var reference = this.reference,
-          lastRevision = this.lastRevision;
-      var tag = reference.tag;
-      if ((0, _validator.validateTag)(tag, lastRevision)) return NOT_MODIFIED;
       var lastValue = this.lastValue;
-      var currentValue = reference.value();
-      this.lastRevision = (0, _validator.valueForTag)(tag);
+      var currentValue = this.reference.value();
       if (currentValue === lastValue) return NOT_MODIFIED;
       this.lastValue = currentValue;
-      return currentValue;
-    };
-
-    _proto2.initialize = function initialize() {
-      var reference = this.reference;
-      var currentValue = this.lastValue = reference.value();
-      this.lastRevision = (0, _validator.valueForTag)(reference.tag);
-      this.initialized = true;
       return currentValue;
     };
 
@@ -47468,13 +48688,16 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
   var PrimitiveReference = /*#__PURE__*/function () {
     function PrimitiveReference(inner) {
       this.inner = inner;
-      this.tag = _validator.CONSTANT_TAG;
     }
 
     var _proto3 = PrimitiveReference.prototype;
 
     _proto3.value = function value() {
       return this.inner;
+    };
+
+    _proto3.isConst = function isConst() {
+      return true;
     };
 
     _proto3.get = function get(_key) {
@@ -47485,17 +48708,21 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
   }();
 
   var UNDEFINED_REFERENCE = new PrimitiveReference(undefined);
+  _exports.UNDEFINED_REFERENCE = UNDEFINED_REFERENCE;
 
   var ConstReference = /*#__PURE__*/function () {
     function ConstReference(inner) {
       this.inner = inner;
-      this.tag = _validator.CONSTANT_TAG;
     }
 
     var _proto4 = ConstReference.prototype;
 
     _proto4.value = function value() {
       return this.inner;
+    };
+
+    _proto4.isConst = function isConst() {
+      return true;
     };
 
     _proto4.get = function get(_key) {
@@ -47506,335 +48733,6 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
   }();
 
   _exports.ConstReference = ConstReference;
-
-  var ListItem = /*#__PURE__*/function (_ListNode) {
-    (0, _emberBabel.inheritsLoose)(ListItem, _ListNode);
-
-    function ListItem(iterable, result) {
-      var _this;
-
-      _this = _ListNode.call(this, iterable.valueReferenceFor(result)) || this;
-      _this.retained = false;
-      _this.seen = false;
-      _this.key = result.key;
-      _this.iterable = iterable;
-      _this.memo = iterable.memoReferenceFor(result);
-      return _this;
-    }
-
-    var _proto5 = ListItem.prototype;
-
-    _proto5.update = function update(item) {
-      this.retained = true;
-      this.iterable.updateValueReference(this.value, item);
-      this.iterable.updateMemoReference(this.memo, item);
-    };
-
-    _proto5.shouldRemove = function shouldRemove() {
-      return !this.retained;
-    };
-
-    _proto5.reset = function reset() {
-      this.retained = false;
-      this.seen = false;
-    };
-
-    return ListItem;
-  }(_util.ListNode);
-
-  _exports.ListItem = ListItem;
-
-  var IterationArtifacts = /*#__PURE__*/function () {
-    function IterationArtifacts(iterable) {
-      this.iterator = null;
-      this.map = new Map();
-      this.list = new _util.LinkedList();
-      this.tag = iterable.tag;
-      this.iterable = iterable;
-    }
-
-    var _proto6 = IterationArtifacts.prototype;
-
-    _proto6.isEmpty = function isEmpty() {
-      var iterator = this.iterator = this.iterable.iterate();
-      return iterator.isEmpty();
-    };
-
-    _proto6.iterate = function iterate() {
-      var iterator;
-
-      if (this.iterator === null) {
-        iterator = this.iterable.iterate();
-      } else {
-        iterator = this.iterator;
-      }
-
-      this.iterator = null;
-      return iterator;
-    };
-
-    _proto6.advanceToKey = function advanceToKey(key, current) {
-      var seek = current;
-
-      while (seek !== null && seek.key !== key) {
-        seek = this.advanceNode(seek);
-      }
-
-      return seek;
-    };
-
-    _proto6.has = function has(key) {
-      return this.map.has(key);
-    };
-
-    _proto6.get = function get(key) {
-      return this.map.get(key);
-    };
-
-    _proto6.wasSeen = function wasSeen(key) {
-      var node = this.map.get(key);
-      return node !== undefined && node.seen;
-    };
-
-    _proto6.update = function update(item) {
-      var found = this.get(item.key);
-      found.update(item);
-      return found;
-    };
-
-    _proto6.append = function append(item) {
-      var map = this.map,
-          list = this.list,
-          iterable = this.iterable;
-      var node = new ListItem(iterable, item);
-      map.set(item.key, node);
-      list.append(node);
-      return node;
-    };
-
-    _proto6.insertBefore = function insertBefore(item, reference) {
-      var map = this.map,
-          list = this.list,
-          iterable = this.iterable;
-      var node = new ListItem(iterable, item);
-      map.set(item.key, node);
-      node.retained = true;
-      list.insertBefore(node, reference);
-      return node;
-    };
-
-    _proto6.move = function move(item, reference) {
-      var list = this.list;
-      item.retained = true;
-      list.remove(item);
-      list.insertBefore(item, reference);
-    };
-
-    _proto6.remove = function remove(item) {
-      var list = this.list;
-      list.remove(item);
-      this.map.delete(item.key);
-    };
-
-    _proto6.nextNode = function nextNode(item) {
-      return this.list.nextNode(item);
-    };
-
-    _proto6.advanceNode = function advanceNode(item) {
-      item.seen = true;
-      return this.list.nextNode(item);
-    };
-
-    _proto6.head = function head() {
-      return this.list.head();
-    };
-
-    return IterationArtifacts;
-  }();
-
-  _exports.IterationArtifacts = IterationArtifacts;
-
-  var ReferenceIterator = /*#__PURE__*/function () {
-    // if anyone needs to construct this object with something other than
-    // an iterable, let @wycats know.
-    function ReferenceIterator(iterable) {
-      this.iterator = null;
-      var artifacts = new IterationArtifacts(iterable);
-      this.artifacts = artifacts;
-    }
-
-    var _proto7 = ReferenceIterator.prototype;
-
-    _proto7.next = function next() {
-      var artifacts = this.artifacts;
-      var iterator = this.iterator = this.iterator || artifacts.iterate();
-      var item = iterator.next();
-      if (item === null) return null;
-      return artifacts.append(item);
-    };
-
-    return ReferenceIterator;
-  }();
-
-  _exports.ReferenceIterator = ReferenceIterator;
-  var Phase;
-
-  (function (Phase) {
-    Phase[Phase["Append"] = 0] = "Append";
-    Phase[Phase["Prune"] = 1] = "Prune";
-    Phase[Phase["Done"] = 2] = "Done";
-  })(Phase || (Phase = {}));
-
-  var END = (0, _util.symbol)('END');
-  _exports.END = END;
-
-  var IteratorSynchronizer = /*#__PURE__*/function () {
-    function IteratorSynchronizer(_ref) {
-      var target = _ref.target,
-          artifacts = _ref.artifacts,
-          env = _ref.env;
-      this.target = target;
-      this.artifacts = artifacts;
-      this.iterator = artifacts.iterate();
-      this.current = artifacts.head();
-      this.env = env;
-    }
-
-    var _proto8 = IteratorSynchronizer.prototype;
-
-    _proto8.sync = function sync() {
-      var phase = Phase.Append;
-
-      while (true) {
-        switch (phase) {
-          case Phase.Append:
-            phase = this.nextAppend();
-            break;
-
-          case Phase.Prune:
-            phase = this.nextPrune();
-            break;
-
-          case Phase.Done:
-            this.nextDone();
-            return;
-        }
-      }
-    };
-
-    _proto8.advanceToKey = function advanceToKey(key) {
-      var current = this.current,
-          artifacts = this.artifacts;
-      if (current === null) return;
-      var next = artifacts.advanceNode(current);
-
-      if (next.key === key) {
-        this.current = artifacts.advanceNode(next);
-        return;
-      }
-
-      var seek = artifacts.advanceToKey(key, current);
-
-      if (seek) {
-        this.move(seek, current);
-        this.current = artifacts.nextNode(current);
-      }
-    };
-
-    _proto8.move = function move(item, reference) {
-      if (item.next !== reference) {
-        this.artifacts.move(item, reference);
-        this.target.move(this.env, item.key, item.value, item.memo, reference ? reference.key : END);
-      }
-    };
-
-    _proto8.nextAppend = function nextAppend() {
-      var iterator = this.iterator,
-          current = this.current,
-          artifacts = this.artifacts;
-      var item = iterator.next();
-
-      if (item === null) {
-        return this.startPrune();
-      }
-
-      var key = item.key;
-
-      if (current !== null && current.key === key) {
-        this.nextRetain(item, current);
-      } else if (artifacts.has(key)) {
-        this.nextMove(item);
-      } else {
-        this.nextInsert(item);
-      }
-
-      return Phase.Append;
-    };
-
-    _proto8.nextRetain = function nextRetain(item, current) {
-      var artifacts = this.artifacts; // current = expect(current, 'BUG: current is empty');
-
-      current.update(item);
-      this.current = artifacts.nextNode(current);
-      this.target.retain(this.env, item.key, current.value, current.memo);
-    };
-
-    _proto8.nextMove = function nextMove(item) {
-      var current = this.current,
-          artifacts = this.artifacts;
-      var key = item.key;
-      var found = artifacts.update(item);
-
-      if (artifacts.wasSeen(key)) {
-        this.move(found, current);
-      } else {
-        this.advanceToKey(key);
-      }
-    };
-
-    _proto8.nextInsert = function nextInsert(item) {
-      var artifacts = this.artifacts,
-          target = this.target,
-          current = this.current;
-      var node = artifacts.insertBefore(item, current);
-      target.insert(this.env, node.key, node.value, node.memo, current ? current.key : null);
-    };
-
-    _proto8.startPrune = function startPrune() {
-      this.current = this.artifacts.head();
-      return Phase.Prune;
-    };
-
-    _proto8.nextPrune = function nextPrune() {
-      var artifacts = this.artifacts,
-          target = this.target,
-          current = this.current;
-
-      if (current === null) {
-        return Phase.Done;
-      }
-
-      var node = current;
-      this.current = artifacts.nextNode(node);
-
-      if (node.shouldRemove()) {
-        artifacts.remove(node);
-        target.delete(this.env, node.key);
-      } else {
-        node.reset();
-      }
-
-      return Phase.Prune;
-    };
-
-    _proto8.nextDone = function nextDone() {
-      this.target.done(this.env);
-    };
-
-    return IteratorSynchronizer;
-  }();
-
-  _exports.IteratorSynchronizer = IteratorSynchronizer;
   var UPDATE_REFERENCED_VALUE = (0, _util.symbol)('UPDATE_REFERENCED_VALUE');
   /**
    * RootReferences refer to a constant root value within a template. For
@@ -47851,42 +48749,32 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
 
   _exports.UPDATE_REFERENCED_VALUE = UPDATE_REFERENCED_VALUE;
 
-  var RootReference = /*#__PURE__*/function () {
-    function RootReference(env) {
-      this.env = env;
-      this.children = (0, _util.dict)();
-      this.tag = _validator.CONSTANT_TAG;
+  var RootReference = /*#__PURE__*/function (_CachedReference) {
+    (0, _emberBabel.inheritsLoose)(RootReference, _CachedReference);
+
+    function RootReference() {
+      var _this2;
+
+      _this2 = _CachedReference.apply(this, arguments) || this;
+      _this2.children = (0, _util.dict)();
+      return _this2;
     }
 
-    var _proto9 = RootReference.prototype;
+    var _proto5 = RootReference.prototype;
 
-    _proto9.get = function get(key) {
+    _proto5.get = function get(key) {
       // References should in general be identical to one another, so we can usually
       // deduplicate them in production. However, in DEBUG we need unique references
       // so we can properly key off them for the logging context.
       if (true
       /* DEBUG */
       ) {
-        // We register the template debug context now since the reference is
-        // created before the component itself. It shouldn't be possible to cause
-        // errors when accessing the root, only subproperties of the root, so this
-        // should be fine for the time being. The exception is helpers, but they
-        // set their context earlier.
-        //
-        // TODO: This points to a need for more first class support for arguments in
-        // the debugRenderTree. The fact that we can't accurately relate an argument
-        // reference to its component is problematic for debug tooling.
-        if (!this.didSetupDebugContext) {
-          this.didSetupDebugContext = true;
-          this.env.setTemplatePathDebugContext(this, this.debugLogName || 'this', null);
-        }
-
-        return new PropertyReference(this, key, this.env);
+        return new PropertyReference(this, key);
       } else {
         var ref = this.children[key];
 
         if (ref === undefined) {
-          ref = this.children[key] = new PropertyReference(this, key, this.env);
+          ref = this.children[key] = new PropertyReference(this, key);
         }
 
         return ref;
@@ -47894,24 +48782,40 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
     };
 
     return RootReference;
-  }();
+  }(CachedReference);
 
   _exports.RootReference = RootReference;
 
   var ComponentRootReference = /*#__PURE__*/function (_RootReference) {
     (0, _emberBabel.inheritsLoose)(ComponentRootReference, _RootReference);
 
-    function ComponentRootReference(inner, env) {
-      var _this2;
+    function ComponentRootReference(inner) {
+      var _this3;
 
-      _this2 = _RootReference.call(this, env) || this;
-      _this2.inner = inner;
-      return _this2;
+      _this3 = _RootReference.call(this) || this;
+      _this3.inner = inner;
+
+      if (true
+      /* DEBUG */
+      ) {
+        _this3.debugLabel = 'this';
+      }
+
+      return _this3;
     }
 
-    var _proto10 = ComponentRootReference.prototype;
+    var _proto6 = ComponentRootReference.prototype;
 
-    _proto10.value = function value() {
+    _proto6.value = function value() {
+      return this.inner;
+    };
+
+    _proto6.isConst = function isConst() {
+      return true;
+    } // Make type checker happy...
+    ;
+
+    _proto6.compute = function compute() {
       return this.inner;
     };
 
@@ -47923,74 +48827,21 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
   var HelperRootReference = /*#__PURE__*/function (_RootReference2) {
     (0, _emberBabel.inheritsLoose)(HelperRootReference, _RootReference2);
 
-    function HelperRootReference(fn, args, env, debugName) {
-      var _this3;
+    function HelperRootReference(fn, args, debugName) {
+      var _this4;
 
-      _this3 = _RootReference2.call(this, env) || this;
-      _this3.fn = fn;
-      _this3.args = args;
-      _this3.computeRevision = null;
-      _this3.computeTag = null;
+      _this4 = _RootReference2.call(this) || this;
 
       if (true
       /* DEBUG */
       ) {
         var name = debugName || fn.name;
-        env.setTemplatePathDebugContext((0, _emberBabel.assertThisInitialized)(_this3), "(result of a `" + name + "` helper)", null);
-        _this3.didSetupDebugContext = true;
+        _this4.debugLabel = "(result of a `" + name + "` helper)";
       }
 
-      if ((0, _validator.isConst)(args)) {
-        _this3.compute();
-      }
-
-      var _assertThisInitialize = (0, _emberBabel.assertThisInitialized)(_this3),
-          tag = _assertThisInitialize.tag,
-          computeTag = _assertThisInitialize.computeTag;
-
-      if (computeTag !== null && (0, _validator.isConstTag)(computeTag)) {
-        // If the args are constant, and the first computation is constant, then
-        // the helper itself is constant and will never update.
-        tag = _this3.tag = _validator.CONSTANT_TAG;
-        _this3.computeRevision = (0, _validator.valueForTag)(tag);
-      } else {
-        var valueTag = _this3.valueTag = (0, _validator.createUpdatableTag)();
-        tag = _this3.tag = (0, _validator.combine)([args.tag, valueTag]);
-
-        if (computeTag !== null) {
-          // We computed once, so setup the cache state correctly
-          (0, _validator.updateTag)(valueTag, computeTag);
-          _this3.computeRevision = (0, _validator.valueForTag)(tag);
-        }
-      }
-
-      return _this3;
+      _this4.compute = fn.bind(null, args);
+      return _this4;
     }
-
-    var _proto11 = HelperRootReference.prototype;
-
-    _proto11.compute = function compute() {
-      var _this4 = this;
-
-      this.computeTag = (0, _validator.track)(function () {
-        _this4.computeValue = _this4.fn(_this4.args);
-      }, true
-      /* DEBUG */
-      && this.env.getTemplatePathDebugContext(this));
-    };
-
-    _proto11.value = function value() {
-      var tag = this.tag,
-          computeRevision = this.computeRevision;
-
-      if (computeRevision === null || !(0, _validator.validateTag)(tag, computeRevision)) {
-        this.compute();
-        (0, _validator.updateTag)(this.valueTag, this.computeTag);
-        this.computeRevision = (0, _validator.valueForTag)(tag);
-      }
-
-      return this.computeValue;
-    };
 
     return HelperRootReference;
   }(RootReference);
@@ -48006,86 +48857,69 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
 
   _exports.HelperRootReference = HelperRootReference;
 
-  var PropertyReference = /*#__PURE__*/function () {
-    function PropertyReference(parentReference, propertyKey, env) {
-      this.parentReference = parentReference;
-      this.propertyKey = propertyKey;
-      this.env = env;
-      this.children = (0, _util.dict)();
-      this.lastRevision = null;
+  var PropertyReference = /*#__PURE__*/function (_CachedReference2) {
+    (0, _emberBabel.inheritsLoose)(PropertyReference, _CachedReference2);
+
+    function PropertyReference(parentReference, propertyKey) {
+      var _this5;
+
+      _this5 = _CachedReference2.call(this) || this;
+      _this5.parentReference = parentReference;
+      _this5.propertyKey = propertyKey;
+      _this5.children = (0, _util.dict)();
 
       if (true
       /* DEBUG */
       ) {
-        env.setTemplatePathDebugContext(this, propertyKey, parentReference);
+        _this5.debugLabel = parentReference.debugLabel + "." + propertyKey;
       }
 
-      var valueTag = this.valueTag = (0, _validator.createUpdatableTag)();
-      var parentReferenceTag = parentReference.tag;
-      this.tag = (0, _validator.combine)([parentReferenceTag, valueTag]);
+      return _this5;
     }
 
-    var _proto12 = PropertyReference.prototype;
+    var _proto7 = PropertyReference.prototype;
 
-    _proto12.value = function value() {
-      var _this5 = this;
-
-      var tag = this.tag,
-          lastRevision = this.lastRevision,
-          lastValue = this.lastValue,
-          parentReference = this.parentReference,
-          valueTag = this.valueTag,
+    _proto7.compute = function compute() {
+      var parentReference = this.parentReference,
           propertyKey = this.propertyKey;
+      var parentValue = parentReference.value();
 
-      if (lastRevision === null || !(0, _validator.validateTag)(tag, lastRevision)) {
-        var parentValue = parentReference.value();
-
-        if ((0, _util.isDict)(parentValue)) {
-          var combined = (0, _validator.track)(function () {
-            lastValue = _this5.env.getPath(parentValue, propertyKey);
-          }, true
-          /* DEBUG */
-          && this.env.getTemplatePathDebugContext(this));
-          (0, _validator.updateTag)(valueTag, combined);
-        } else {
-          lastValue = undefined;
-        }
-
-        this.lastValue = lastValue;
-        this.lastRevision = (0, _validator.valueForTag)(tag);
+      if ((0, _util.isDict)(parentValue)) {
+        return (0, _globalContext.getProp)(parentValue, propertyKey);
       }
-
-      return lastValue;
     };
 
-    _proto12.get = function get(key) {
+    _proto7.get = function get(key) {
       // References should in general be identical to one another, so we can usually
       // deduplicate them in production. However, in DEBUG we need unique references
       // so we can properly key off them for the logging context.
       if (true
       /* DEBUG */
       ) {
-        return new PropertyReference(this, key, this.env);
+        return new PropertyReference(this, key);
       } else {
         var ref = this.children[key];
 
         if (ref === undefined) {
-          ref = this.children[key] = new PropertyReference(this, key, this.env);
+          ref = this.children[key] = new PropertyReference(this, key);
         }
 
         return ref;
       }
     };
 
-    _proto12[UPDATE_REFERENCED_VALUE] = function (value) {
+    _proto7[UPDATE_REFERENCED_VALUE] = function (value) {
       var parentReference = this.parentReference,
           propertyKey = this.propertyKey;
       var parentValue = parentReference.value();
-      this.env.setPath(parentValue, propertyKey, value);
+
+      if ((0, _util.isDict)(parentValue)) {
+        (0, _globalContext.setProp)(parentValue, propertyKey, value);
+      }
     };
 
     return PropertyReference;
-  }(); //////////
+  }(CachedReference); //////////
 
   /**
    * IterationItemReferences represent an individual item in an iterable `each`.
@@ -48107,44 +48941,50 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
   _exports.PropertyReference = PropertyReference;
 
   var IterationItemReference = /*#__PURE__*/function () {
-    function IterationItemReference(parentReference, itemValue, itemKey, env) {
+    function IterationItemReference(parentReference, itemValue, itemKey) {
       this.parentReference = parentReference;
       this.itemValue = itemValue;
-      this.env = env;
-      this.tag = (0, _validator.createUpdatableTag)();
       this.children = (0, _util.dict)();
+      this.tag = (0, _validator.createTag)();
 
       if (true
       /* DEBUG */
       ) {
-        env.setTemplatePathDebugContext(this, (0, _util.debugToString)(itemKey), parentReference);
+        this.debugLabel = parentReference.debugLabel + "." + (0, _util.debugToString)(itemKey);
       }
     }
 
-    var _proto13 = IterationItemReference.prototype;
+    var _proto8 = IterationItemReference.prototype;
 
-    _proto13.value = function value() {
+    _proto8.isConst = function isConst() {
+      return false;
+    };
+
+    _proto8.value = function value() {
+      (0, _validator.consumeTag)(this.tag);
       return this.itemValue;
     };
 
-    _proto13.update = function update(value) {
-      (0, _validator.dirtyTag)(this.tag);
-      this.itemValue = value;
+    _proto8.update = function update(value) {
+      if (value !== this.itemValue) {
+        (0, _validator.dirtyTag)(this.tag);
+        this.itemValue = value;
+      }
     };
 
-    _proto13.get = function get(key) {
+    _proto8.get = function get(key) {
       // References should in general be identical to one another, so we can usually
       // deduplicate them in production. However, in DEBUG we need unique references
       // so we can properly key off them for the logging context.
       if (true
       /* DEBUG */
       ) {
-        return new PropertyReference(this, key, this.env);
+        return new PropertyReference(this, key);
       } else {
         var ref = this.children[key];
 
         if (ref === undefined) {
-          ref = this.children[key] = new PropertyReference(this, key, this.env);
+          ref = this.children[key] = new PropertyReference(this, key);
         }
 
         return ref;
@@ -48175,7 +49015,7 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
     return item;
   };
 
-  function keyForPath(path, getPath) {
+  function keyForPath(path) {
     if (true
     /* DEBUG */
     && path[0] === '@') {
@@ -48183,11 +49023,11 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
     }
 
     return uniqueKeyFor(function (item) {
-      return getPath(item, path);
+      return (0, _globalContext.getPath)(item, path);
     });
   }
 
-  function makeKeyFor(key, getPath) {
+  function makeKeyFor(key) {
     switch (key) {
       case '@key':
         return uniqueKeyFor(KEY);
@@ -48199,16 +49039,16 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
         return uniqueKeyFor(IDENTITY);
 
       default:
-        return keyForPath(key, getPath);
+        return keyForPath(key);
     }
   }
 
   var WeakMapWithPrimitives = /*#__PURE__*/function () {
     function WeakMapWithPrimitives() {}
 
-    var _proto14 = WeakMapWithPrimitives.prototype;
+    var _proto9 = WeakMapWithPrimitives.prototype;
 
-    _proto14.set = function set(key, value) {
+    _proto9.set = function set(key, value) {
       if ((0, _util.isObject)(key) || typeof key === 'function') {
         this.weakMap.set(key, value);
       } else {
@@ -48216,7 +49056,7 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
       }
     };
 
-    _proto14.get = function get(key) {
+    _proto9.get = function get(key) {
       if ((0, _util.isObject)(key) || typeof key === 'function') {
         return this.weakMap.get(key);
       } else {
@@ -48300,28 +49140,60 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
     };
   }
 
-  var IterableImpl = /*#__PURE__*/function () {
-    function IterableImpl(parentRef, key, env) {
-      this.parentRef = parentRef;
-      this.key = key;
-      this.env = env;
-      this.tag = parentRef.tag;
+  var IterableReference = /*#__PURE__*/function (_CachedReference3) {
+    (0, _emberBabel.inheritsLoose)(IterableReference, _CachedReference3);
+
+    function IterableReference(parentRef, key) {
+      var _this6;
+
+      _this6 = _CachedReference3.call(this) || this;
+      _this6.parentRef = parentRef;
+      _this6.key = key;
+      _this6.iterator = null;
+      return _this6;
     }
 
-    var _proto15 = IterableImpl.prototype;
+    var _proto10 = IterableReference.prototype;
 
-    _proto15.iterate = function iterate() {
+    _proto10.isConst = function isConst() {
+      return false;
+    };
+
+    _proto10.isDone = function isDone() {
+      return this.iterator === null;
+    };
+
+    _proto10.compute = function compute() {
+      return !this.isEmpty();
+    };
+
+    _proto10.isEmpty = function isEmpty() {
+      var iterator = this.iterator = this.createIterator();
+      return iterator.isEmpty();
+    };
+
+    _proto10.next = function next() {
+      var iterator = this.iterator;
+      var item = iterator.next();
+
+      if (item === null) {
+        this.iterator = null;
+      }
+
+      return item;
+    };
+
+    _proto10.createIterator = function createIterator() {
       var parentRef = this.parentRef,
-          key = this.key,
-          env = this.env;
+          key = this.key;
       var iterable = parentRef.value();
-      var keyFor = makeKeyFor(key, env.getPath);
+      var keyFor = makeKeyFor(key);
 
       if (Array.isArray(iterable)) {
         return new ArrayIterator(iterable, keyFor);
       }
 
-      var maybeIterator = env.toIterator(iterable);
+      var maybeIterator = (0, _globalContext.toIterator)(iterable);
 
       if (maybeIterator === null) {
         return new ArrayIterator(_util.EMPTY_ARRAY, function () {
@@ -48332,32 +49204,17 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
       return new IteratorWrapper(maybeIterator, keyFor);
     };
 
-    _proto15.valueReferenceFor = function valueReferenceFor(item) {
-      var parentRef = this.parentRef,
-          env = this.env;
-      return new IterationItemReference(parentRef, item.value, item.memo, env);
-    };
-
-    _proto15.updateValueReference = function updateValueReference(reference, item) {
-      reference.update(item.value);
-    };
-
-    _proto15.memoReferenceFor = function memoReferenceFor(item) {
-      var parentRef = this.parentRef,
-          env = this.env;
-      return new IterationItemReference(parentRef, item.memo, true
+    _proto10.childRefFor = function childRefFor(key, value) {
+      var parentRef = this.parentRef;
+      return new IterationItemReference(parentRef, value, true
       /* DEBUG */
-      ? "(key: " + (0, _util.debugToString)(item.key) : '', env);
+      ? "(key: " + (0, _util.debugToString)(key) : '');
     };
 
-    _proto15.updateMemoReference = function updateMemoReference(reference, item) {
-      reference.update(item.memo);
-    };
+    return IterableReference;
+  }(CachedReference);
 
-    return IterableImpl;
-  }();
-
-  _exports.IterableImpl = IterableImpl;
+  _exports.IterableReference = IterableReference;
 
   var IteratorWrapper = /*#__PURE__*/function () {
     function IteratorWrapper(inner, keyFor) {
@@ -48365,13 +49222,13 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
       this.keyFor = keyFor;
     }
 
-    var _proto16 = IteratorWrapper.prototype;
+    var _proto11 = IteratorWrapper.prototype;
 
-    _proto16.isEmpty = function isEmpty() {
+    _proto11.isEmpty = function isEmpty() {
       return this.inner.isEmpty();
     };
 
-    _proto16.next = function next() {
+    _proto11.next = function next() {
       var nextValue = this.inner.next();
 
       if (nextValue !== null) {
@@ -48402,13 +49259,13 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
       }
     }
 
-    var _proto17 = ArrayIterator.prototype;
+    var _proto12 = ArrayIterator.prototype;
 
-    _proto17.isEmpty = function isEmpty() {
+    _proto12.isEmpty = function isEmpty() {
       return this.current.kind === 'empty';
     };
 
-    _proto17.next = function next() {
+    _proto12.next = function next() {
       var value;
       var current = this.current;
 
@@ -48436,7 +49293,7 @@ define("@glimmer/reference", ["exports", "ember-babel", "@glimmer/util", "@glimm
     return ArrayIterator;
   }();
 });
-define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer/reference", "@glimmer/program", "@glimmer/vm", "@glimmer/validator", "@glimmer/low-level"], function (_exports, _emberBabel, _util, _reference, _program, _vm2, _validator, _lowLevel) {
+define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer/global-context", "@glimmer/reference", "@glimmer/vm", "@glimmer/validator", "@glimmer/program", "@glimmer/low-level"], function (_exports, _emberBabel, _util, _globalContext, _reference, _vm2, _validator, _program, _lowLevel) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -48461,15 +49318,26 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   _exports.renderJitComponent = renderJitComponent;
   _exports.renderJitMain = renderJitMain;
   _exports.renderSync = renderSync;
+  _exports.createCapturedArgs = createCapturedArgs;
+  _exports.reifyArgs = reifyArgs;
+  _exports.reifyNamed = reifyNamed;
+  _exports.reifyPositional = reifyPositional;
   _exports.dynamicAttribute = dynamicAttribute;
   _exports.clientBuilder = clientBuilder;
   _exports.isSerializationFirstNode = isSerializationFirstNode;
   _exports.rehydrationBuilder = rehydrationBuilder;
-  _exports.TEMPLATE_ONLY_COMPONENT = _exports.SimpleComponentManager = _exports.SERIALIZATION_FIRST_NODE_STRING = _exports.RehydrateBuilder = _exports.RemoteLiveBlock = _exports.UpdatableBlockImpl = _exports.NewElementBuilder = _exports.SimpleDynamicAttribute = _exports.DynamicAttribute = _exports.CapturedPositionalArgumentsImpl = _exports.CapturedNamedArgumentsImpl = _exports.CapturedArgumentsImpl = _exports.EMPTY_ARGS = _exports.LowLevelVM = _exports.UpdatingVM = _exports.UNDEFINED_REFERENCE = _exports.PrimitiveReference = _exports.NULL_REFERENCE = _exports.ConditionalReference = _exports.ScopeImpl = _exports.EnvironmentImpl = _exports.DefaultDynamicScope = _exports.DOMTreeConstruction = _exports.IDOMChanges = _exports.DOMChanges = _exports.MINIMAL_CAPABILITIES = _exports.DEFAULT_CAPABILITIES = _exports.CurriedComponentDefinition = _exports.CursorImpl = _exports.ConcreteBounds = void 0;
+  _exports.destroy = destroy;
+  _exports.registerDestructor = registerDestructor;
+  _exports.unregisterDestructor = unregisterDestructor;
+  _exports.associateDestroyableChild = associateDestroyableChild;
+  _exports.isDestroying = isDestroying;
+  _exports.isDestroyed = isDestroyed;
+  _exports._destroyChildren = destroyChildren;
+  _exports.TEMPLATE_ONLY_COMPONENT = _exports.SimpleComponentManager = _exports.assertDestroyablesDestroyed = _exports.enableDestroyableTracking = _exports.SERIALIZATION_FIRST_NODE_STRING = _exports.RehydrateBuilder = _exports.RemoteLiveBlock = _exports.UpdatableBlockImpl = _exports.NewElementBuilder = _exports.SimpleDynamicAttribute = _exports.DynamicAttribute = _exports.ReifyPositionalReference = _exports.ReifyNamedReference = _exports.EMPTY_POSITIONAL = _exports.EMPTY_NAMED = _exports.EMPTY_ARGS = _exports.LowLevelVM = _exports.UpdatingVM = _exports.UNDEFINED_REFERENCE = _exports.PrimitiveReference = _exports.NULL_REFERENCE = _exports.ConditionalReference = _exports.EnvironmentImpl = _exports.PartialScopeImpl = _exports.DynamicScopeImpl = _exports.DOMTreeConstruction = _exports.IDOMChanges = _exports.DOMChanges = _exports.MINIMAL_CAPABILITIES = _exports.DEFAULT_CAPABILITIES = _exports.CurriedComponentDefinition = _exports.CursorImpl = _exports.ConcreteBounds = void 0;
   // the VM in other classes, but are not intended to be a part of
   // Glimmer's API.
   var INNER_VM = (0, _util.symbol)('INNER_VM');
-  var DESTRUCTOR_STACK = (0, _util.symbol)('DESTRUCTOR_STACK');
+  var DESTROYABLE_STACK = (0, _util.symbol)('DESTROYABLE_STACK');
   var STACKS = (0, _util.symbol)('STACKS');
   var REGISTERS = (0, _util.symbol)('REGISTERS');
   var HEAP = (0, _util.symbol)('HEAP');
@@ -48533,7 +49401,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return SingleNodeBounds;
   }();
 
-  function _move(bounds, reference) {
+  function move(bounds, reference) {
     var parent = bounds.parentElement();
     var first = bounds.firstNode();
     var last = bounds.lastNode();
@@ -48567,1035 +49435,6 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
       current = next;
     }
-  }
-
-  function legacySyncReset(parent, env) {
-    var linked = (0, _util.peekAssociated)(parent);
-
-    if (linked !== null) {
-      env.willDestroy((0, _util.snapshot)(linked));
-    }
-  }
-
-  function asyncReset(parent, env) {
-    var linked = (0, _util.takeAssociated)(parent);
-
-    if (linked !== null) {
-      env.didDestroy((0, _util.snapshot)(linked));
-    }
-  }
-
-  function legacySyncDestroy(parent, env) {
-    env.willDestroy((0, _util.destructor)(parent));
-  }
-
-  function asyncDestroy(parent, env) {
-    env.didDestroy((0, _util.destructor)(parent));
-  }
-
-  function detach(parent, env) {
-    legacySyncDestroy(parent, env);
-    clear(parent);
-    asyncDestroy(parent, env);
-  }
-
-  function detachChildren(parent, env) {
-    legacySyncReset(parent, env);
-    asyncReset(parent, env);
-    return clear(parent);
-  }
-
-  var _a;
-
-  var First = /*#__PURE__*/function () {
-    function First(node) {
-      this.node = node;
-    }
-
-    var _proto3 = First.prototype;
-
-    _proto3.firstNode = function firstNode() {
-      return this.node;
-    };
-
-    return First;
-  }();
-
-  var Last = /*#__PURE__*/function () {
-    function Last(node) {
-      this.node = node;
-    }
-
-    var _proto4 = Last.prototype;
-
-    _proto4.lastNode = function lastNode() {
-      return this.node;
-    };
-
-    return Last;
-  }();
-
-  var CURSOR_STACK = (0, _util.symbol)('CURSOR_STACK');
-
-  var NewElementBuilder = /*#__PURE__*/function () {
-    function NewElementBuilder(env, parentNode, nextSibling) {
-      this.constructing = null;
-      this.operations = null;
-      this[_a] = new _util.Stack();
-      this.modifierStack = new _util.Stack();
-      this.blockStack = new _util.Stack();
-      this.pushElement(parentNode, nextSibling);
-      this.env = env;
-      this.dom = env.getAppendOperations();
-      this.updateOperations = env.getDOM();
-    }
-
-    NewElementBuilder.forInitialRender = function forInitialRender(env, cursor) {
-      return new this(env, cursor.element, cursor.nextSibling).initialize();
-    };
-
-    NewElementBuilder.resume = function resume(env, block) {
-      var parentNode = block.parentElement();
-      var nextSibling = block.reset(env);
-      var stack = new this(env, parentNode, nextSibling).initialize();
-      stack.pushLiveBlock(block);
-      return stack;
-    };
-
-    var _proto5 = NewElementBuilder.prototype;
-
-    _proto5.initialize = function initialize() {
-      this.pushSimpleBlock();
-      return this;
-    };
-
-    _proto5.debugBlocks = function debugBlocks() {
-      return this.blockStack.toArray();
-    };
-
-    _proto5.block = function block() {
-      return this.blockStack.current;
-    };
-
-    _proto5.popElement = function popElement() {
-      this[CURSOR_STACK].pop();
-      this[CURSOR_STACK].current;
-    };
-
-    _proto5.pushSimpleBlock = function pushSimpleBlock() {
-      return this.pushLiveBlock(new SimpleLiveBlock(this.element));
-    };
-
-    _proto5.pushUpdatableBlock = function pushUpdatableBlock() {
-      return this.pushLiveBlock(new UpdatableBlockImpl(this.element));
-    };
-
-    _proto5.pushBlockList = function pushBlockList(list) {
-      return this.pushLiveBlock(new LiveBlockList(this.element, list));
-    };
-
-    _proto5.pushLiveBlock = function pushLiveBlock(block, isRemote) {
-      if (isRemote === void 0) {
-        isRemote = false;
-      }
-
-      var current = this.blockStack.current;
-
-      if (current !== null) {
-        if (!isRemote) {
-          current.didAppendBounds(block);
-        }
-      }
-
-      this.__openBlock();
-
-      this.blockStack.push(block);
-      return block;
-    };
-
-    _proto5.popBlock = function popBlock() {
-      this.block().finalize(this);
-
-      this.__closeBlock();
-
-      return this.blockStack.pop();
-    };
-
-    _proto5.__openBlock = function __openBlock() {};
-
-    _proto5.__closeBlock = function __closeBlock() {} // todo return seems unused
-    ;
-
-    _proto5.openElement = function openElement(tag) {
-      var element = this.__openElement(tag);
-
-      this.constructing = element;
-      return element;
-    };
-
-    _proto5.__openElement = function __openElement(tag) {
-      return this.dom.createElement(tag, this.element);
-    };
-
-    _proto5.flushElement = function flushElement(modifiers) {
-      var parent = this.element;
-      var element = this.constructing;
-
-      this.__flushElement(parent, element);
-
-      this.constructing = null;
-      this.operations = null;
-      this.pushModifiers(modifiers);
-      this.pushElement(element, null);
-      this.didOpenElement(element);
-    };
-
-    _proto5.__flushElement = function __flushElement(parent, constructing) {
-      this.dom.insertBefore(parent, constructing, this.nextSibling);
-    };
-
-    _proto5.closeElement = function closeElement() {
-      this.willCloseElement();
-      this.popElement();
-      return this.popModifiers();
-    };
-
-    _proto5.pushRemoteElement = function pushRemoteElement(element, guid, insertBefore) {
-      return this.__pushRemoteElement(element, guid, insertBefore);
-    };
-
-    _proto5.__pushRemoteElement = function __pushRemoteElement(element, _guid, insertBefore) {
-      this.pushElement(element, insertBefore);
-
-      if (insertBefore === undefined) {
-        while (element.lastChild) {
-          element.removeChild(element.lastChild);
-        }
-      }
-
-      var block = new RemoteLiveBlock(element);
-      return this.pushLiveBlock(block, true);
-    };
-
-    _proto5.popRemoteElement = function popRemoteElement() {
-      this.popBlock();
-      this.popElement();
-    };
-
-    _proto5.pushElement = function pushElement(element, nextSibling) {
-      if (nextSibling === void 0) {
-        nextSibling = null;
-      }
-
-      this[CURSOR_STACK].push(new CursorImpl(element, nextSibling));
-    };
-
-    _proto5.pushModifiers = function pushModifiers(modifiers) {
-      this.modifierStack.push(modifiers);
-    };
-
-    _proto5.popModifiers = function popModifiers() {
-      return this.modifierStack.pop();
-    };
-
-    _proto5.didAppendBounds = function didAppendBounds(bounds) {
-      this.block().didAppendBounds(bounds);
-      return bounds;
-    };
-
-    _proto5.didAppendNode = function didAppendNode(node) {
-      this.block().didAppendNode(node);
-      return node;
-    };
-
-    _proto5.didOpenElement = function didOpenElement(element) {
-      this.block().openElement(element);
-      return element;
-    };
-
-    _proto5.willCloseElement = function willCloseElement() {
-      this.block().closeElement();
-    };
-
-    _proto5.appendText = function appendText(string) {
-      return this.didAppendNode(this.__appendText(string));
-    };
-
-    _proto5.__appendText = function __appendText(text) {
-      var dom = this.dom,
-          element = this.element,
-          nextSibling = this.nextSibling;
-      var node = dom.createTextNode(text);
-      dom.insertBefore(element, node, nextSibling);
-      return node;
-    };
-
-    _proto5.__appendNode = function __appendNode(node) {
-      this.dom.insertBefore(this.element, node, this.nextSibling);
-      return node;
-    };
-
-    _proto5.__appendFragment = function __appendFragment(fragment) {
-      var first = fragment.firstChild;
-
-      if (first) {
-        var ret = new ConcreteBounds(this.element, first, fragment.lastChild);
-        this.dom.insertBefore(this.element, fragment, this.nextSibling);
-        return ret;
-      } else {
-        return new SingleNodeBounds(this.element, this.__appendComment(''));
-      }
-    };
-
-    _proto5.__appendHTML = function __appendHTML(html) {
-      return this.dom.insertHTMLBefore(this.element, this.nextSibling, html);
-    };
-
-    _proto5.appendDynamicHTML = function appendDynamicHTML(value) {
-      var bounds = this.trustedContent(value);
-      this.didAppendBounds(bounds);
-    };
-
-    _proto5.appendDynamicText = function appendDynamicText(value) {
-      var node = this.untrustedContent(value);
-      this.didAppendNode(node);
-      return node;
-    };
-
-    _proto5.appendDynamicFragment = function appendDynamicFragment(value) {
-      var bounds = this.__appendFragment(value);
-
-      this.didAppendBounds(bounds);
-    };
-
-    _proto5.appendDynamicNode = function appendDynamicNode(value) {
-      var node = this.__appendNode(value);
-
-      var bounds = new SingleNodeBounds(this.element, node);
-      this.didAppendBounds(bounds);
-    };
-
-    _proto5.trustedContent = function trustedContent(value) {
-      return this.__appendHTML(value);
-    };
-
-    _proto5.untrustedContent = function untrustedContent(value) {
-      return this.__appendText(value);
-    };
-
-    _proto5.appendComment = function appendComment(string) {
-      return this.didAppendNode(this.__appendComment(string));
-    };
-
-    _proto5.__appendComment = function __appendComment(string) {
-      var dom = this.dom,
-          element = this.element,
-          nextSibling = this.nextSibling;
-      var node = dom.createComment(string);
-      dom.insertBefore(element, node, nextSibling);
-      return node;
-    };
-
-    _proto5.__setAttribute = function __setAttribute(name, value, namespace) {
-      this.dom.setAttribute(this.constructing, name, value, namespace);
-    };
-
-    _proto5.__setProperty = function __setProperty(name, value) {
-      this.constructing[name] = value;
-    };
-
-    _proto5.setStaticAttribute = function setStaticAttribute(name, value, namespace) {
-      this.__setAttribute(name, value, namespace);
-    };
-
-    _proto5.setDynamicAttribute = function setDynamicAttribute(name, value, trusting, namespace) {
-      var element = this.constructing;
-      var attribute = this.env.attributeFor(element, name, trusting, namespace);
-      attribute.set(this, value, this.env);
-      return attribute;
-    };
-
-    (0, _emberBabel.createClass)(NewElementBuilder, [{
-      key: "element",
-      get: function get() {
-        return this[CURSOR_STACK].current.element;
-      }
-    }, {
-      key: "nextSibling",
-      get: function get() {
-        return this[CURSOR_STACK].current.nextSibling;
-      }
-    }, {
-      key: "hasBlocks",
-      get: function get() {
-        return this.blockStack.size > 0;
-      }
-    }]);
-    return NewElementBuilder;
-  }();
-
-  _exports.NewElementBuilder = NewElementBuilder;
-  _a = CURSOR_STACK;
-
-  var SimpleLiveBlock = /*#__PURE__*/function () {
-    function SimpleLiveBlock(parent) {
-      this.parent = parent;
-      this.first = null;
-      this.last = null;
-      this.destroyables = null;
-      this.nesting = 0;
-    }
-
-    var _proto6 = SimpleLiveBlock.prototype;
-
-    _proto6.parentElement = function parentElement() {
-      return this.parent;
-    };
-
-    _proto6.firstNode = function firstNode() {
-      var first = this.first;
-      return first.firstNode();
-    };
-
-    _proto6.lastNode = function lastNode() {
-      var last = this.last;
-      return last.lastNode();
-    };
-
-    _proto6.openElement = function openElement(element) {
-      this.didAppendNode(element);
-      this.nesting++;
-    };
-
-    _proto6.closeElement = function closeElement() {
-      this.nesting--;
-    };
-
-    _proto6.didAppendNode = function didAppendNode(node) {
-      if (this.nesting !== 0) return;
-
-      if (!this.first) {
-        this.first = new First(node);
-      }
-
-      this.last = new Last(node);
-    };
-
-    _proto6.didAppendBounds = function didAppendBounds(bounds) {
-      if (this.nesting !== 0) return;
-
-      if (!this.first) {
-        this.first = bounds;
-      }
-
-      this.last = bounds;
-    };
-
-    _proto6.finalize = function finalize(stack) {
-      if (this.first === null) {
-        stack.appendComment('');
-      }
-    };
-
-    return SimpleLiveBlock;
-  }();
-
-  var RemoteLiveBlock = /*#__PURE__*/function (_SimpleLiveBlock) {
-    (0, _emberBabel.inheritsLoose)(RemoteLiveBlock, _SimpleLiveBlock);
-
-    function RemoteLiveBlock() {
-      return _SimpleLiveBlock.apply(this, arguments) || this;
-    }
-
-    var _proto7 = RemoteLiveBlock.prototype;
-
-    _proto7[_util.DESTROY] = function () {
-      // In general, you only need to clear the root of a hierarchy, and should never
-      // need to clear any child nodes. This is an important constraint that gives us
-      // a strong guarantee that clearing a subtree is a single DOM operation.
-      //
-      // Because remote blocks are not normally physically nested inside of the tree
-      // that they are logically nested inside, we manually clear remote blocks when
-      // a logical parent is cleared.
-      //
-      // HOWEVER, it is currently possible for a remote block to be physically nested
-      // inside of the block it is logically contained inside of. This happens when
-      // the remote block is appended to the end of the application's entire element.
-      //
-      // The problem with that scenario is that Glimmer believes that it owns more of
-      // the DOM than it actually does. The code is attempting to write past the end
-      // of the Glimmer-managed root, but Glimmer isn't aware of that.
-      //
-      // The correct solution to that problem is for Glimmer to be aware of the end
-      // of the bounds that it owns, and once we make that change, this check could
-      // be removed.
-      //
-      // For now, a more targeted fix is to check whether the node was already removed
-      // and avoid clearing the node if it was. In most cases this shouldn't happen,
-      // so this might hide bugs where the code clears nested nodes unnecessarily,
-      // so we should eventually try to do the correct fix.
-      if (this.parentElement() === this.firstNode().parentNode) {
-        clear(this);
-      }
-    };
-
-    return RemoteLiveBlock;
-  }(SimpleLiveBlock);
-
-  _exports.RemoteLiveBlock = RemoteLiveBlock;
-
-  var UpdatableBlockImpl = /*#__PURE__*/function (_SimpleLiveBlock2) {
-    (0, _emberBabel.inheritsLoose)(UpdatableBlockImpl, _SimpleLiveBlock2);
-
-    function UpdatableBlockImpl() {
-      return _SimpleLiveBlock2.apply(this, arguments) || this;
-    }
-
-    var _proto8 = UpdatableBlockImpl.prototype;
-
-    _proto8.reset = function reset(env) {
-      var nextSibling = detachChildren(this, env); // let nextSibling = clear(this);
-
-      this.first = null;
-      this.last = null;
-      this.destroyables = null;
-      this.nesting = 0;
-      return nextSibling;
-    };
-
-    return UpdatableBlockImpl;
-  }(SimpleLiveBlock); // FIXME: All the noops in here indicate a modelling problem
-
-
-  _exports.UpdatableBlockImpl = UpdatableBlockImpl;
-
-  var LiveBlockList = /*#__PURE__*/function () {
-    function LiveBlockList(parent, boundList) {
-      this.parent = parent;
-      this.boundList = boundList;
-      this.parent = parent;
-      this.boundList = boundList;
-    }
-
-    var _proto9 = LiveBlockList.prototype;
-
-    _proto9.parentElement = function parentElement() {
-      return this.parent;
-    };
-
-    _proto9.firstNode = function firstNode() {
-      var head = this.boundList.head();
-      return head.firstNode();
-    };
-
-    _proto9.lastNode = function lastNode() {
-      var tail = this.boundList.tail();
-      return tail.lastNode();
-    };
-
-    _proto9.openElement = function openElement(_element) {};
-
-    _proto9.closeElement = function closeElement() {};
-
-    _proto9.didAppendNode = function didAppendNode(_node) {};
-
-    _proto9.didAppendBounds = function didAppendBounds(_bounds) {};
-
-    _proto9.finalize = function finalize(_stack) {};
-
-    return LiveBlockList;
-  }();
-
-  function clientBuilder(env, cursor) {
-    return NewElementBuilder.forInitialRender(env, cursor);
-  } // http://www.w3.org/TR/html/syntax.html#html-integration-point
-
-
-  var SVG_INTEGRATION_POINTS = {
-    foreignObject: 1,
-    desc: 1,
-    title: 1
-  }; // http://www.w3.org/TR/html/syntax.html#adjust-svg-attributes
-  // TODO: Adjust SVG attributes
-  // http://www.w3.org/TR/html/syntax.html#parsing-main-inforeign
-  // TODO: Adjust SVG elements
-  // http://www.w3.org/TR/html/syntax.html#parsing-main-inforeign
-
-  var BLACKLIST_TABLE = Object.create(null);
-
-  var DOMOperations = /*#__PURE__*/function () {
-    function DOMOperations(document) {
-      this.document = document;
-      this.setupUselessElement();
-    } // split into seperate method so that NodeDOMTreeConstruction
-    // can override it.
-
-
-    var _proto10 = DOMOperations.prototype;
-
-    _proto10.setupUselessElement = function setupUselessElement() {
-      this.uselessElement = this.document.createElement('div');
-    };
-
-    _proto10.createElement = function createElement(tag, context) {
-      var isElementInSVGNamespace, isHTMLIntegrationPoint;
-
-      if (context) {
-        isElementInSVGNamespace = context.namespaceURI === "http://www.w3.org/2000/svg"
-        /* SVG */
-        || tag === 'svg';
-        isHTMLIntegrationPoint = !!SVG_INTEGRATION_POINTS[context.tagName];
-      } else {
-        isElementInSVGNamespace = tag === 'svg';
-        isHTMLIntegrationPoint = false;
-      }
-
-      if (isElementInSVGNamespace && !isHTMLIntegrationPoint) {
-        // FIXME: This does not properly handle <font> with color, face, or
-        // size attributes, which is also disallowed by the spec. We should fix
-        // this.
-        if (BLACKLIST_TABLE[tag]) {
-          throw new Error("Cannot create a " + tag + " inside an SVG context");
-        }
-
-        return this.document.createElementNS("http://www.w3.org/2000/svg"
-        /* SVG */
-        , tag);
-      } else {
-        return this.document.createElement(tag);
-      }
-    };
-
-    _proto10.insertBefore = function insertBefore(parent, node, reference) {
-      parent.insertBefore(node, reference);
-    };
-
-    _proto10.insertHTMLBefore = function insertHTMLBefore(parent, nextSibling, html) {
-      if (html === '') {
-        var comment = this.createComment('');
-        parent.insertBefore(comment, nextSibling);
-        return new ConcreteBounds(parent, comment, comment);
-      }
-
-      var prev = nextSibling ? nextSibling.previousSibling : parent.lastChild;
-      var last;
-
-      if (nextSibling === null) {
-        parent.insertAdjacentHTML("beforeend"
-        /* beforeend */
-        , html);
-        last = parent.lastChild;
-      } else if (nextSibling instanceof HTMLElement) {
-        nextSibling.insertAdjacentHTML('beforebegin', html);
-        last = nextSibling.previousSibling;
-      } else {
-        // Non-element nodes do not support insertAdjacentHTML, so add an
-        // element and call it on that element. Then remove the element.
-        //
-        // This also protects Edge, IE and Firefox w/o the inspector open
-        // from merging adjacent text nodes. See ./compat/text-node-merging-fix.ts
-        var uselessElement = this.uselessElement;
-        parent.insertBefore(uselessElement, nextSibling);
-        uselessElement.insertAdjacentHTML("beforebegin"
-        /* beforebegin */
-        , html);
-        last = uselessElement.previousSibling;
-        parent.removeChild(uselessElement);
-      }
-
-      var first = prev ? prev.nextSibling : parent.firstChild;
-      return new ConcreteBounds(parent, first, last);
-    };
-
-    _proto10.createTextNode = function createTextNode(text) {
-      return this.document.createTextNode(text);
-    };
-
-    _proto10.createComment = function createComment(data) {
-      return this.document.createComment(data);
-    };
-
-    return DOMOperations;
-  }();
-
-  function moveNodesBefore(source, target, nextSibling) {
-    var first = source.firstChild;
-    var last = first;
-    var current = first;
-
-    while (current) {
-      var next = current.nextSibling;
-      target.insertBefore(current, nextSibling);
-      last = current;
-      current = next;
-    }
-
-    return new ConcreteBounds(target, first, last);
-  }
-
-  var SVG_NAMESPACE = "http://www.w3.org/2000/svg"
-  /* SVG */
-  ; // Patch:    insertAdjacentHTML on SVG Fix
-  // Browsers: Safari, IE, Edge, Firefox ~33-34
-  // Reason:   insertAdjacentHTML does not exist on SVG elements in Safari. It is
-  //           present but throws an exception on IE and Edge. Old versions of
-  //           Firefox create nodes in the incorrect namespace.
-  // Fix:      Since IE and Edge silently fail to create SVG nodes using
-  //           innerHTML, and because Firefox may create nodes in the incorrect
-  //           namespace using innerHTML on SVG elements, an HTML-string wrapping
-  //           approach is used. A pre/post SVG tag is added to the string, then
-  //           that whole string is added to a div. The created nodes are plucked
-  //           out and applied to the target location on DOM.
-
-  function applySVGInnerHTMLFix(document, DOMClass, svgNamespace) {
-    if (!document) return DOMClass;
-
-    if (!shouldApplyFix(document, svgNamespace)) {
-      return DOMClass;
-    }
-
-    var div = document.createElement('div');
-    return /*#__PURE__*/function (_DOMClass) {
-      (0, _emberBabel.inheritsLoose)(DOMChangesWithSVGInnerHTMLFix, _DOMClass);
-
-      function DOMChangesWithSVGInnerHTMLFix() {
-        return _DOMClass.apply(this, arguments) || this;
-      }
-
-      var _proto11 = DOMChangesWithSVGInnerHTMLFix.prototype;
-
-      _proto11.insertHTMLBefore = function insertHTMLBefore(parent, nextSibling, html) {
-        if (html === '') {
-          return _DOMClass.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
-        }
-
-        if (parent.namespaceURI !== svgNamespace) {
-          return _DOMClass.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
-        }
-
-        return fixSVG(parent, div, html, nextSibling);
-      };
-
-      return DOMChangesWithSVGInnerHTMLFix;
-    }(DOMClass);
-  }
-
-  function fixSVG(parent, div, html, reference) {
-    var source; // This is important, because decendants of the <foreignObject> integration
-    // point are parsed in the HTML namespace
-
-    if (parent.tagName.toUpperCase() === 'FOREIGNOBJECT') {
-      // IE, Edge: also do not correctly support using `innerHTML` on SVG
-      // namespaced elements. So here a wrapper is used.
-      var wrappedHtml = '<svg><foreignObject>' + html + '</foreignObject></svg>';
-      (0, _util.clearElement)(div);
-      div.insertAdjacentHTML("afterbegin"
-      /* afterbegin */
-      , wrappedHtml);
-      source = div.firstChild.firstChild;
-    } else {
-      // IE, Edge: also do not correctly support using `innerHTML` on SVG
-      // namespaced elements. So here a wrapper is used.
-      var _wrappedHtml = '<svg>' + html + '</svg>';
-
-      (0, _util.clearElement)(div);
-      div.insertAdjacentHTML("afterbegin"
-      /* afterbegin */
-      , _wrappedHtml);
-      source = div.firstChild;
-    }
-
-    return moveNodesBefore(source, parent, reference);
-  }
-
-  function shouldApplyFix(document, svgNamespace) {
-    var svg = document.createElementNS(svgNamespace, 'svg');
-
-    try {
-      svg.insertAdjacentHTML("beforeend"
-      /* beforeend */
-      , '<circle></circle>');
-    } catch (e) {// IE, Edge: Will throw, insertAdjacentHTML is unsupported on SVG
-      // Safari: Will throw, insertAdjacentHTML is not present on SVG
-    } finally {
-      // FF: Old versions will create a node in the wrong namespace
-      if (svg.childNodes.length === 1 && svg.firstChild.namespaceURI === SVG_NAMESPACE) {
-        // The test worked as expected, no fix required
-        return false;
-      }
-
-      return true;
-    }
-  } // Patch:    Adjacent text node merging fix
-  // Browsers: IE, Edge, Firefox w/o inspector open
-  // Reason:   These browsers will merge adjacent text nodes. For exmaple given
-  //           <div>Hello</div> with div.insertAdjacentHTML(' world') browsers
-  //           with proper behavior will populate div.childNodes with two items.
-  //           These browsers will populate it with one merged node instead.
-  // Fix:      Add these nodes to a wrapper element, then iterate the childNodes
-  //           of that wrapper and move the nodes to their target location. Note
-  //           that potential SVG bugs will have been handled before this fix.
-  //           Note that this fix must only apply to the previous text node, as
-  //           the base implementation of `insertHTMLBefore` already handles
-  //           following text nodes correctly.
-
-
-  function applyTextNodeMergingFix(document, DOMClass) {
-    if (!document) return DOMClass;
-
-    if (!shouldApplyFix$1(document)) {
-      return DOMClass;
-    }
-
-    return /*#__PURE__*/function (_DOMClass2) {
-      (0, _emberBabel.inheritsLoose)(DOMChangesWithTextNodeMergingFix, _DOMClass2);
-
-      function DOMChangesWithTextNodeMergingFix(document) {
-        var _this;
-
-        _this = _DOMClass2.call(this, document) || this;
-        _this.uselessComment = document.createComment('');
-        return _this;
-      }
-
-      var _proto12 = DOMChangesWithTextNodeMergingFix.prototype;
-
-      _proto12.insertHTMLBefore = function insertHTMLBefore(parent, nextSibling, html) {
-        if (html === '') {
-          return _DOMClass2.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
-        }
-
-        var didSetUselessComment = false;
-        var nextPrevious = nextSibling ? nextSibling.previousSibling : parent.lastChild;
-
-        if (nextPrevious && nextPrevious instanceof Text) {
-          didSetUselessComment = true;
-          parent.insertBefore(this.uselessComment, nextSibling);
-        }
-
-        var bounds = _DOMClass2.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
-
-        if (didSetUselessComment) {
-          parent.removeChild(this.uselessComment);
-        }
-
-        return bounds;
-      };
-
-      return DOMChangesWithTextNodeMergingFix;
-    }(DOMClass);
-  }
-
-  function shouldApplyFix$1(document) {
-    var mergingTextDiv = document.createElement('div');
-    mergingTextDiv.appendChild(document.createTextNode('first'));
-    mergingTextDiv.insertAdjacentHTML("beforeend"
-    /* beforeend */
-    , 'second');
-
-    if (mergingTextDiv.childNodes.length === 2) {
-      // It worked as expected, no fix required
-      return false;
-    }
-
-    return true;
-  }
-
-  ['b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'main', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small', 'span', 'strong', 'strike', 'sub', 'sup', 'table', 'tt', 'u', 'ul', 'var'].forEach(function (tag) {
-    return BLACKLIST_TABLE[tag] = 1;
-  });
-  var WHITESPACE = /[\t-\r \xA0\u1680\u180E\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]/;
-  var doc = typeof document === 'undefined' ? null : document;
-
-  function isWhitespace(string) {
-    return WHITESPACE.test(string);
-  }
-
-  var DOM;
-
-  (function (DOM) {
-    var TreeConstruction = /*#__PURE__*/function (_DOMOperations) {
-      (0, _emberBabel.inheritsLoose)(TreeConstruction, _DOMOperations);
-
-      function TreeConstruction() {
-        return _DOMOperations.apply(this, arguments) || this;
-      }
-
-      var _proto13 = TreeConstruction.prototype;
-
-      _proto13.createElementNS = function createElementNS(namespace, tag) {
-        return this.document.createElementNS(namespace, tag);
-      };
-
-      _proto13.setAttribute = function setAttribute(element, name, value, namespace) {
-        if (namespace === void 0) {
-          namespace = null;
-        }
-
-        if (namespace) {
-          element.setAttributeNS(namespace, name, value);
-        } else {
-          element.setAttribute(name, value);
-        }
-      };
-
-      return TreeConstruction;
-    }(DOMOperations);
-
-    DOM.TreeConstruction = TreeConstruction;
-    var appliedTreeContruction = TreeConstruction;
-    appliedTreeContruction = applyTextNodeMergingFix(doc, appliedTreeContruction);
-    appliedTreeContruction = applySVGInnerHTMLFix(doc, appliedTreeContruction, "http://www.w3.org/2000/svg"
-    /* SVG */
-    );
-    DOM.DOMTreeConstruction = appliedTreeContruction;
-  })(DOM || (DOM = {}));
-
-  var DOMChangesImpl = /*#__PURE__*/function (_DOMOperations2) {
-    (0, _emberBabel.inheritsLoose)(DOMChangesImpl, _DOMOperations2);
-
-    function DOMChangesImpl(document) {
-      var _this2;
-
-      _this2 = _DOMOperations2.call(this, document) || this;
-      _this2.document = document;
-      _this2.namespace = null;
-      return _this2;
-    }
-
-    var _proto14 = DOMChangesImpl.prototype;
-
-    _proto14.setAttribute = function setAttribute(element, name, value) {
-      element.setAttribute(name, value);
-    };
-
-    _proto14.removeAttribute = function removeAttribute(element, name) {
-      element.removeAttribute(name);
-    };
-
-    _proto14.insertAfter = function insertAfter(element, node, reference) {
-      this.insertBefore(element, node, reference.nextSibling);
-    };
-
-    return DOMChangesImpl;
-  }(DOMOperations);
-
-  _exports.IDOMChanges = DOMChangesImpl;
-  var helper = DOMChangesImpl;
-  helper = applyTextNodeMergingFix(doc, helper);
-  helper = applySVGInnerHTMLFix(doc, helper, "http://www.w3.org/2000/svg"
-  /* SVG */
-  );
-  var helper$1 = helper;
-  _exports.DOMChanges = helper$1;
-  var DOMTreeConstruction = DOM.DOMTreeConstruction;
-  _exports.DOMTreeConstruction = DOMTreeConstruction;
-
-  var PrimitiveReference = /*#__PURE__*/function (_ConstReference) {
-    (0, _emberBabel.inheritsLoose)(PrimitiveReference, _ConstReference);
-
-    PrimitiveReference.create = function create(value) {
-      if (value === undefined) {
-        return UNDEFINED_REFERENCE;
-      } else if (value === null) {
-        return NULL_REFERENCE;
-      } else if (value === true) {
-        return TRUE_REFERENCE;
-      } else if (value === false) {
-        return FALSE_REFERENCE;
-      } else if (typeof value === 'number') {
-        return new ValueReference(value);
-      } else {
-        return new StringReference(value);
-      }
-    };
-
-    function PrimitiveReference(value) {
-      return _ConstReference.call(this, value) || this;
-    }
-
-    var _proto15 = PrimitiveReference.prototype;
-
-    _proto15.get = function get(_key) {
-      return UNDEFINED_REFERENCE;
-    };
-
-    return PrimitiveReference;
-  }(_reference.ConstReference);
-
-  _exports.PrimitiveReference = PrimitiveReference;
-
-  var StringReference = /*#__PURE__*/function (_PrimitiveReference) {
-    (0, _emberBabel.inheritsLoose)(StringReference, _PrimitiveReference);
-
-    function StringReference() {
-      var _this3;
-
-      _this3 = _PrimitiveReference.apply(this, arguments) || this;
-      _this3.lengthReference = null;
-      return _this3;
-    }
-
-    var _proto16 = StringReference.prototype;
-
-    _proto16.get = function get(key) {
-      if (key === 'length') {
-        var lengthReference = this.lengthReference;
-
-        if (lengthReference === null) {
-          lengthReference = this.lengthReference = new ValueReference(this.inner.length);
-        }
-
-        return lengthReference;
-      } else {
-        return _PrimitiveReference.prototype.get.call(this, key);
-      }
-    };
-
-    return StringReference;
-  }(PrimitiveReference);
-
-  var ValueReference = /*#__PURE__*/function (_PrimitiveReference2) {
-    (0, _emberBabel.inheritsLoose)(ValueReference, _PrimitiveReference2);
-
-    function ValueReference(value) {
-      return _PrimitiveReference2.call(this, value) || this;
-    }
-
-    return ValueReference;
-  }(PrimitiveReference);
-
-  var UNDEFINED_REFERENCE = new ValueReference(undefined);
-  _exports.UNDEFINED_REFERENCE = UNDEFINED_REFERENCE;
-  var NULL_REFERENCE = new ValueReference(null);
-  _exports.NULL_REFERENCE = NULL_REFERENCE;
-  var TRUE_REFERENCE = new ValueReference(true);
-  var FALSE_REFERENCE = new ValueReference(false);
-
-  var ConditionalReference = /*#__PURE__*/function () {
-    function ConditionalReference(inner, toBool) {
-      if (toBool === void 0) {
-        toBool = defaultToBool;
-      }
-
-      this.inner = inner;
-      this.toBool = toBool;
-      this.tag = inner.tag;
-    }
-
-    var _proto17 = ConditionalReference.prototype;
-
-    _proto17.value = function value() {
-      return this.toBool(this.inner.value());
-    };
-
-    return ConditionalReference;
-  }();
-
-  _exports.ConditionalReference = ConditionalReference;
-
-  function defaultToBool(value) {
-    return !!value;
   }
 
   function normalizeStringValue(value) {
@@ -49734,7 +49573,53 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return checkURI(tagName, attribute) || checkDataURI(tagName, attribute);
   }
 
-  function sanitizeAttributeValue(env, element, attribute, value) {
+  var protocolForUrl;
+
+  if (typeof URL === 'object' && URL !== null && // this is super annoying, TS thinks that URL **must** be a function so `URL.parse` check
+  // thinks it is `never` without this `as unknown as any`
+  typeof URL.parse === 'function') {
+    // In Ember-land the `fastboot` package sets the `URL` global to `require('url')`
+    // ultimately, this should be changed (so that we can either rely on the natural `URL` global
+    // that exists) but for now we have to detect the specifc `FastBoot` case first
+    //
+    // a future version of `fastboot` will detect if this legacy URL setup is required (by
+    // inspecting Ember version) and if new enough, it will avoid shadowing the `URL` global
+    // constructor with `require('url')`.
+    var nodeURL = URL;
+
+    protocolForUrl = function protocolForUrl(url) {
+      var protocol = null;
+
+      if (typeof url === 'string') {
+        protocol = nodeURL.parse(url).protocol;
+      }
+
+      return protocol === null ? ':' : protocol;
+    };
+  } else if (typeof URL === 'function') {
+    protocolForUrl = function protocolForUrl(_url) {
+      try {
+        var url = new URL(_url);
+        return url.protocol;
+      } catch (error) {
+        // any non-fully qualified url string will trigger an error (because there is no
+        // baseURI that we can provide; in that case we **know** that the protocol is
+        // "safe" because it isn't specifically one of the `badProtocols` listed above
+        // (and those protocols can never be the default baseURI)
+        return ':';
+      }
+    };
+  } else {
+    // fallback for IE11 support
+    var parsingNode = document.createElement('a');
+
+    protocolForUrl = function protocolForUrl(url) {
+      parsingNode.href = url;
+      return parsingNode.protocol;
+    };
+  }
+
+  function sanitizeAttributeValue(element, attribute, value) {
     var tagName = null;
 
     if (value === null || value === undefined) {
@@ -49754,7 +49639,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var str = normalizeStringValue(value);
 
     if (checkURI(tagName, attribute)) {
-      var protocol = env.protocolForURL(str);
+      var protocol = protocolForUrl(str);
 
       if (has(badProtocols, protocol)) {
         return "unsafe:" + str;
@@ -49768,7 +49653,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return str;
   }
 
-  function dynamicAttribute(element, attr, namespace) {
+  function dynamicAttribute(element, attr, namespace, isTrusting) {
+    if (isTrusting === void 0) {
+      isTrusting = false;
+    }
+
     var tagName = element.tagName,
         namespaceURI = element.namespaceURI;
     var attribute = {
@@ -49776,6 +49665,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       name: attr,
       namespace: namespace
     };
+
+    if (true
+    /* DEBUG */
+    && attr === 'style' && !isTrusting) {
+      return new DebugStyleAttributeManager(attribute);
+    }
 
     if (namespaceURI === "http://www.w3.org/2000/svg"
     /* SVG */
@@ -49831,9 +49726,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _DynamicAttribute.apply(this, arguments) || this;
     }
 
-    var _proto18 = SimpleDynamicAttribute.prototype;
+    var _proto3 = SimpleDynamicAttribute.prototype;
 
-    _proto18.set = function set(dom, value, _env) {
+    _proto3.set = function set(dom, value, _env) {
       var normalizedValue = normalizeValue(value);
 
       if (normalizedValue !== null) {
@@ -49845,7 +49740,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto18.update = function update(value, _env) {
+    _proto3.update = function update(value, _env) {
       var normalizedValue = normalizeValue(value);
       var _this$attribute2 = this.attribute,
           element = _this$attribute2.element,
@@ -49867,16 +49762,16 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     (0, _emberBabel.inheritsLoose)(DefaultDynamicProperty, _DynamicAttribute2);
 
     function DefaultDynamicProperty(normalizedName, attribute) {
-      var _this4;
+      var _this;
 
-      _this4 = _DynamicAttribute2.call(this, attribute) || this;
-      _this4.normalizedName = normalizedName;
-      return _this4;
+      _this = _DynamicAttribute2.call(this, attribute) || this;
+      _this.normalizedName = normalizedName;
+      return _this;
     }
 
-    var _proto19 = DefaultDynamicProperty.prototype;
+    var _proto4 = DefaultDynamicProperty.prototype;
 
-    _proto19.set = function set(dom, value, _env) {
+    _proto4.set = function set(dom, value, _env) {
       if (value !== null && value !== undefined) {
         this.value = value;
 
@@ -49884,7 +49779,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto19.update = function update(value, _env) {
+    _proto4.update = function update(value, _env) {
       var element = this.attribute.element;
 
       if (this.value !== value) {
@@ -49896,7 +49791,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto19.removeAttribute = function removeAttribute() {
+    _proto4.removeAttribute = function removeAttribute() {
       // TODO this sucks but to preserve properties first and to meet current
       // semantics we must do this.
       var _this$attribute3 = this.attribute,
@@ -49920,22 +49815,22 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _DefaultDynamicProper.apply(this, arguments) || this;
     }
 
-    var _proto20 = SafeDynamicProperty.prototype;
+    var _proto5 = SafeDynamicProperty.prototype;
 
-    _proto20.set = function set(dom, value, env) {
+    _proto5.set = function set(dom, value, env) {
       var _this$attribute4 = this.attribute,
           element = _this$attribute4.element,
           name = _this$attribute4.name;
-      var sanitized = sanitizeAttributeValue(env, element, name, value);
+      var sanitized = sanitizeAttributeValue(element, name, value);
 
       _DefaultDynamicProper.prototype.set.call(this, dom, sanitized, env);
     };
 
-    _proto20.update = function update(value, env) {
+    _proto5.update = function update(value, env) {
       var _this$attribute5 = this.attribute,
           element = _this$attribute5.element,
           name = _this$attribute5.name;
-      var sanitized = sanitizeAttributeValue(env, element, name, value);
+      var sanitized = sanitizeAttributeValue(element, name, value);
 
       _DefaultDynamicProper.prototype.update.call(this, sanitized, env);
     };
@@ -49950,22 +49845,22 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _SimpleDynamicAttribu.apply(this, arguments) || this;
     }
 
-    var _proto21 = SafeDynamicAttribute.prototype;
+    var _proto6 = SafeDynamicAttribute.prototype;
 
-    _proto21.set = function set(dom, value, env) {
+    _proto6.set = function set(dom, value, env) {
       var _this$attribute6 = this.attribute,
           element = _this$attribute6.element,
           name = _this$attribute6.name;
-      var sanitized = sanitizeAttributeValue(env, element, name, value);
+      var sanitized = sanitizeAttributeValue(element, name, value);
 
       _SimpleDynamicAttribu.prototype.set.call(this, dom, sanitized, env);
     };
 
-    _proto21.update = function update(value, env) {
+    _proto6.update = function update(value, env) {
       var _this$attribute7 = this.attribute,
           element = _this$attribute7.element,
           name = _this$attribute7.name;
-      var sanitized = sanitizeAttributeValue(env, element, name, value);
+      var sanitized = sanitizeAttributeValue(element, name, value);
 
       _SimpleDynamicAttribu.prototype.update.call(this, sanitized, env);
     };
@@ -49980,13 +49875,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _DefaultDynamicProper2.apply(this, arguments) || this;
     }
 
-    var _proto22 = InputValueDynamicAttribute.prototype;
+    var _proto7 = InputValueDynamicAttribute.prototype;
 
-    _proto22.set = function set(dom, value) {
+    _proto7.set = function set(dom, value) {
       dom.__setProperty('value', normalizeStringValue(value));
     };
 
-    _proto22.update = function update(value) {
+    _proto7.update = function update(value) {
       var input = this.attribute.element;
       var currentValue = input.value;
       var normalizedValue = normalizeStringValue(value);
@@ -50006,15 +49901,15 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _DefaultDynamicProper3.apply(this, arguments) || this;
     }
 
-    var _proto23 = OptionSelectedDynamicAttribute.prototype;
+    var _proto8 = OptionSelectedDynamicAttribute.prototype;
 
-    _proto23.set = function set(dom, value) {
+    _proto8.set = function set(dom, value) {
       if (value !== null && value !== undefined && value !== false) {
         dom.__setProperty('selected', true);
       }
     };
 
-    _proto23.update = function update(value) {
+    _proto8.update = function update(value) {
       var option = this.attribute.element;
 
       if (value) {
@@ -50052,10 +49947,908 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return String(value);
   }
 
-  var _a$1;
+  var DebugStyleAttributeManager;
 
-  var ScopeImpl = /*#__PURE__*/function () {
-    function ScopeImpl( // the 0th slot is `self`
+  if (true
+  /* DEBUG */
+  ) {
+    DebugStyleAttributeManager = /*#__PURE__*/function (_SimpleDynamicAttribu2) {
+      (0, _emberBabel.inheritsLoose)(DebugStyleAttributeManager, _SimpleDynamicAttribu2);
+
+      function DebugStyleAttributeManager() {
+        return _SimpleDynamicAttribu2.apply(this, arguments) || this;
+      }
+
+      var _proto9 = DebugStyleAttributeManager.prototype;
+
+      _proto9.set = function set(dom, value, env) {
+        (0, _globalContext.warnIfStyleNotTrusted)(value);
+
+        _SimpleDynamicAttribu2.prototype.set.call(this, dom, value, env);
+      };
+
+      _proto9.update = function update(value, env) {
+        (0, _globalContext.warnIfStyleNotTrusted)(value);
+
+        _SimpleDynamicAttribu2.prototype.update.call(this, value, env);
+      };
+
+      return DebugStyleAttributeManager;
+    }(SimpleDynamicAttribute);
+  }
+
+  var DESTROYABLE_META = new WeakMap();
+
+  function push(collection, newItem) {
+    if (collection === null) {
+      return newItem;
+    } else if (Array.isArray(collection)) {
+      collection.push(newItem);
+      return collection;
+    } else {
+      return [collection, newItem];
+    }
+  }
+
+  function iterate(collection, fn) {
+    if (Array.isArray(collection)) {
+      for (var i = 0; i < collection.length; i++) {
+        fn(collection[i]);
+      }
+    } else if (collection !== null) {
+      fn(collection);
+    }
+  }
+
+  function remove(collection, item, message) {
+    if (true
+    /* DEBUG */
+    ) {
+      var collectionIsItem = collection === item;
+      var collectionContainsItem = Array.isArray(collection) && collection.indexOf(item) !== -1;
+
+      if (!collectionIsItem && !collectionContainsItem) {
+        throw new Error(String(message));
+      }
+    }
+
+    if (Array.isArray(collection) && collection.length > 1) {
+      var index = collection.indexOf(item);
+      collection.splice(index, 1);
+      return collection;
+    } else {
+      return null;
+    }
+  }
+
+  function getDestroyableMeta(destroyable) {
+    var meta = DESTROYABLE_META.get(destroyable);
+
+    if (meta === undefined) {
+      meta = {
+        parents: null,
+        children: null,
+        eagerDestructors: null,
+        destructors: null,
+        state: 0
+        /* Live */
+
+      };
+
+      if (true
+      /* DEBUG */
+      ) {
+        meta.source = destroyable;
+      }
+
+      DESTROYABLE_META.set(destroyable, meta);
+    }
+
+    return meta;
+  }
+
+  function associateDestroyableChild(parent, child) {
+    if (true
+    /* DEBUG */
+    && isDestroying(parent)) {
+      throw new Error('Attempted to associate a destroyable child with an object that is already destroying or destroyed');
+    }
+
+    var parentMeta = getDestroyableMeta(parent);
+    var childMeta = getDestroyableMeta(child);
+    parentMeta.children = push(parentMeta.children, child);
+    childMeta.parents = push(childMeta.parents, parent);
+    return child;
+  }
+
+  function registerDestructor(destroyable, destructor, eager) {
+    if (eager === void 0) {
+      eager = false;
+    }
+
+    if (true
+    /* DEBUG */
+    && isDestroying(destroyable)) {
+      throw new Error('Attempted to register a destructor with an object that is already destroying or destroyed');
+    }
+
+    var meta = getDestroyableMeta(destroyable);
+    var destructorsKey = eager === true ? 'eagerDestructors' : 'destructors';
+    meta[destructorsKey] = push(meta[destructorsKey], destructor);
+    return destructor;
+  }
+
+  function unregisterDestructor(destroyable, destructor, eager) {
+    if (eager === void 0) {
+      eager = false;
+    }
+
+    if (true
+    /* DEBUG */
+    && isDestroying(destroyable)) {
+      throw new Error('Attempted to unregister a destructor with an object that is already destroying or destroyed');
+    }
+
+    var meta = getDestroyableMeta(destroyable);
+    var destructorsKey = eager === true ? 'eagerDestructors' : 'destructors';
+    meta[destructorsKey] = remove(meta[destructorsKey], destructor, true
+    /* DEBUG */
+    && 'attempted to remove a destructor that was not registered with the destroyable');
+  } ////////////
+
+
+  function destroy(destroyable) {
+    var meta = getDestroyableMeta(destroyable);
+    if (meta.state >= 1
+    /* Destroying */
+    ) return;
+    var parents = meta.parents,
+        children = meta.children,
+        eagerDestructors = meta.eagerDestructors,
+        destructors = meta.destructors;
+    meta.state = 1
+    /* Destroying */
+    ;
+    iterate(children, destroy);
+    iterate(eagerDestructors, function (destructor) {
+      return destructor(destroyable);
+    });
+    iterate(destructors, function (destructor) {
+      return (0, _globalContext.scheduleDestroy)(destroyable, destructor);
+    });
+    (0, _globalContext.scheduleDestroyed)(function () {
+      iterate(parents, function (parent) {
+        return removeChildFromParent(destroyable, parent);
+      });
+      meta.state = 2
+      /* Destroyed */
+      ;
+    });
+  }
+
+  function removeChildFromParent(child, parent) {
+    var parentMeta = getDestroyableMeta(parent);
+
+    if (parentMeta.state === 0
+    /* Live */
+    ) {
+        parentMeta.children = remove(parentMeta.children, child, true
+        /* DEBUG */
+        && "attempted to remove child from parent, but the parent's children did not contain the child. This is likely a bug with destructors.");
+      }
+  }
+
+  function destroyChildren(destroyable) {
+    var _getDestroyableMeta = getDestroyableMeta(destroyable),
+        children = _getDestroyableMeta.children;
+
+    iterate(children, destroy);
+  }
+
+  function isDestroying(destroyable) {
+    var meta = DESTROYABLE_META.get(destroyable);
+    return meta === undefined ? false : meta.state >= 1
+    /* Destroying */
+    ;
+  }
+
+  function isDestroyed(destroyable) {
+    var meta = DESTROYABLE_META.get(destroyable);
+    return meta === undefined ? false : meta.state >= 2
+    /* Destroyed */
+    ;
+  } ////////////
+
+
+  var enableDestroyableTracking;
+  _exports.enableDestroyableTracking = enableDestroyableTracking;
+  var assertDestroyablesDestroyed;
+  _exports.assertDestroyablesDestroyed = assertDestroyablesDestroyed;
+
+  if (true
+  /* DEBUG */
+  ) {
+    var isTesting = false;
+
+    _exports.enableDestroyableTracking = enableDestroyableTracking = function enableDestroyableTracking() {
+      if (isTesting) {
+        throw new Error('Attempted to start destroyable testing, but you did not end the previous destroyable test. Did you forget to call `assertDestroyablesDestroyed()`');
+      }
+
+      isTesting = true;
+      DESTROYABLE_META = new Map();
+    };
+
+    _exports.assertDestroyablesDestroyed = assertDestroyablesDestroyed = function assertDestroyablesDestroyed() {
+      if (!isTesting) {
+        throw new Error('Attempted to assert destroyables destroyed, but you did not start a destroyable test. Did you forget to call `enableDestroyableTracking()`');
+      }
+
+      isTesting = false;
+      var map = DESTROYABLE_META;
+      DESTROYABLE_META = new WeakMap();
+      var undestroyed = [];
+      map.forEach(function (meta) {
+        if (meta.state !== 2
+        /* Destroyed */
+        ) {
+            undestroyed.push(meta.source);
+          }
+      });
+
+      if (undestroyed.length > 0) {
+        var objectsToString = undestroyed.map(_util.debugToString).join('\n    ');
+        var error = new Error("Some destroyables were not destroyed during this test:\n    " + objectsToString);
+        error.destroyables = undestroyed;
+        throw error;
+      }
+    };
+  }
+
+  var _a;
+
+  var First = /*#__PURE__*/function () {
+    function First(node) {
+      this.node = node;
+    }
+
+    var _proto10 = First.prototype;
+
+    _proto10.firstNode = function firstNode() {
+      return this.node;
+    };
+
+    return First;
+  }();
+
+  var Last = /*#__PURE__*/function () {
+    function Last(node) {
+      this.node = node;
+    }
+
+    var _proto11 = Last.prototype;
+
+    _proto11.lastNode = function lastNode() {
+      return this.node;
+    };
+
+    return Last;
+  }();
+
+  var CURSOR_STACK = (0, _util.symbol)('CURSOR_STACK');
+
+  var NewElementBuilder = /*#__PURE__*/function () {
+    function NewElementBuilder(env, parentNode, nextSibling) {
+      this.constructing = null;
+      this.operations = null;
+      this[_a] = new _util.Stack();
+      this.modifierStack = new _util.Stack();
+      this.blockStack = new _util.Stack();
+      this.pushElement(parentNode, nextSibling);
+      this.env = env;
+      this.dom = env.getAppendOperations();
+      this.updateOperations = env.getDOM();
+    }
+
+    NewElementBuilder.forInitialRender = function forInitialRender(env, cursor) {
+      return new this(env, cursor.element, cursor.nextSibling).initialize();
+    };
+
+    NewElementBuilder.resume = function resume(env, block) {
+      var parentNode = block.parentElement();
+      var nextSibling = block.reset(env);
+      var stack = new this(env, parentNode, nextSibling).initialize();
+      stack.pushLiveBlock(block);
+      return stack;
+    };
+
+    var _proto12 = NewElementBuilder.prototype;
+
+    _proto12.initialize = function initialize() {
+      this.pushSimpleBlock();
+      return this;
+    };
+
+    _proto12.debugBlocks = function debugBlocks() {
+      return this.blockStack.toArray();
+    };
+
+    _proto12.block = function block() {
+      return this.blockStack.current;
+    };
+
+    _proto12.popElement = function popElement() {
+      this[CURSOR_STACK].pop();
+      this[CURSOR_STACK].current;
+    };
+
+    _proto12.pushSimpleBlock = function pushSimpleBlock() {
+      return this.pushLiveBlock(new SimpleLiveBlock(this.element));
+    };
+
+    _proto12.pushUpdatableBlock = function pushUpdatableBlock() {
+      return this.pushLiveBlock(new UpdatableBlockImpl(this.element));
+    };
+
+    _proto12.pushBlockList = function pushBlockList(list) {
+      return this.pushLiveBlock(new LiveBlockList(this.element, list));
+    };
+
+    _proto12.pushLiveBlock = function pushLiveBlock(block, isRemote) {
+      if (isRemote === void 0) {
+        isRemote = false;
+      }
+
+      var current = this.blockStack.current;
+
+      if (current !== null) {
+        if (!isRemote) {
+          current.didAppendBounds(block);
+        }
+      }
+
+      this.__openBlock();
+
+      this.blockStack.push(block);
+      return block;
+    };
+
+    _proto12.popBlock = function popBlock() {
+      this.block().finalize(this);
+
+      this.__closeBlock();
+
+      return this.blockStack.pop();
+    };
+
+    _proto12.__openBlock = function __openBlock() {};
+
+    _proto12.__closeBlock = function __closeBlock() {} // todo return seems unused
+    ;
+
+    _proto12.openElement = function openElement(tag) {
+      var element = this.__openElement(tag);
+
+      this.constructing = element;
+      return element;
+    };
+
+    _proto12.__openElement = function __openElement(tag) {
+      return this.dom.createElement(tag, this.element);
+    };
+
+    _proto12.flushElement = function flushElement(modifiers) {
+      var parent = this.element;
+      var element = this.constructing;
+
+      this.__flushElement(parent, element);
+
+      this.constructing = null;
+      this.operations = null;
+      this.pushModifiers(modifiers);
+      this.pushElement(element, null);
+      this.didOpenElement(element);
+    };
+
+    _proto12.__flushElement = function __flushElement(parent, constructing) {
+      this.dom.insertBefore(parent, constructing, this.nextSibling);
+    };
+
+    _proto12.closeElement = function closeElement() {
+      this.willCloseElement();
+      this.popElement();
+      return this.popModifiers();
+    };
+
+    _proto12.pushRemoteElement = function pushRemoteElement(element, guid, insertBefore) {
+      return this.__pushRemoteElement(element, guid, insertBefore);
+    };
+
+    _proto12.__pushRemoteElement = function __pushRemoteElement(element, _guid, insertBefore) {
+      this.pushElement(element, insertBefore);
+
+      if (insertBefore === undefined) {
+        while (element.lastChild) {
+          element.removeChild(element.lastChild);
+        }
+      }
+
+      var block = new RemoteLiveBlock(element);
+      return this.pushLiveBlock(block, true);
+    };
+
+    _proto12.popRemoteElement = function popRemoteElement() {
+      this.popBlock();
+      this.popElement();
+    };
+
+    _proto12.pushElement = function pushElement(element, nextSibling) {
+      if (nextSibling === void 0) {
+        nextSibling = null;
+      }
+
+      this[CURSOR_STACK].push(new CursorImpl(element, nextSibling));
+    };
+
+    _proto12.pushModifiers = function pushModifiers(modifiers) {
+      this.modifierStack.push(modifiers);
+    };
+
+    _proto12.popModifiers = function popModifiers() {
+      return this.modifierStack.pop();
+    };
+
+    _proto12.didAppendBounds = function didAppendBounds(bounds) {
+      this.block().didAppendBounds(bounds);
+      return bounds;
+    };
+
+    _proto12.didAppendNode = function didAppendNode(node) {
+      this.block().didAppendNode(node);
+      return node;
+    };
+
+    _proto12.didOpenElement = function didOpenElement(element) {
+      this.block().openElement(element);
+      return element;
+    };
+
+    _proto12.willCloseElement = function willCloseElement() {
+      this.block().closeElement();
+    };
+
+    _proto12.appendText = function appendText(string) {
+      return this.didAppendNode(this.__appendText(string));
+    };
+
+    _proto12.__appendText = function __appendText(text) {
+      var dom = this.dom,
+          element = this.element,
+          nextSibling = this.nextSibling;
+      var node = dom.createTextNode(text);
+      dom.insertBefore(element, node, nextSibling);
+      return node;
+    };
+
+    _proto12.__appendNode = function __appendNode(node) {
+      this.dom.insertBefore(this.element, node, this.nextSibling);
+      return node;
+    };
+
+    _proto12.__appendFragment = function __appendFragment(fragment) {
+      var first = fragment.firstChild;
+
+      if (first) {
+        var ret = new ConcreteBounds(this.element, first, fragment.lastChild);
+        this.dom.insertBefore(this.element, fragment, this.nextSibling);
+        return ret;
+      } else {
+        return new SingleNodeBounds(this.element, this.__appendComment(''));
+      }
+    };
+
+    _proto12.__appendHTML = function __appendHTML(html) {
+      return this.dom.insertHTMLBefore(this.element, this.nextSibling, html);
+    };
+
+    _proto12.appendDynamicHTML = function appendDynamicHTML(value) {
+      var bounds = this.trustedContent(value);
+      this.didAppendBounds(bounds);
+    };
+
+    _proto12.appendDynamicText = function appendDynamicText(value) {
+      var node = this.untrustedContent(value);
+      this.didAppendNode(node);
+      return node;
+    };
+
+    _proto12.appendDynamicFragment = function appendDynamicFragment(value) {
+      var bounds = this.__appendFragment(value);
+
+      this.didAppendBounds(bounds);
+    };
+
+    _proto12.appendDynamicNode = function appendDynamicNode(value) {
+      var node = this.__appendNode(value);
+
+      var bounds = new SingleNodeBounds(this.element, node);
+      this.didAppendBounds(bounds);
+    };
+
+    _proto12.trustedContent = function trustedContent(value) {
+      return this.__appendHTML(value);
+    };
+
+    _proto12.untrustedContent = function untrustedContent(value) {
+      return this.__appendText(value);
+    };
+
+    _proto12.appendComment = function appendComment(string) {
+      return this.didAppendNode(this.__appendComment(string));
+    };
+
+    _proto12.__appendComment = function __appendComment(string) {
+      var dom = this.dom,
+          element = this.element,
+          nextSibling = this.nextSibling;
+      var node = dom.createComment(string);
+      dom.insertBefore(element, node, nextSibling);
+      return node;
+    };
+
+    _proto12.__setAttribute = function __setAttribute(name, value, namespace) {
+      this.dom.setAttribute(this.constructing, name, value, namespace);
+    };
+
+    _proto12.__setProperty = function __setProperty(name, value) {
+      this.constructing[name] = value;
+    };
+
+    _proto12.setStaticAttribute = function setStaticAttribute(name, value, namespace) {
+      this.__setAttribute(name, value, namespace);
+    };
+
+    _proto12.setDynamicAttribute = function setDynamicAttribute(name, value, trusting, namespace) {
+      var element = this.constructing;
+      var attribute = dynamicAttribute(element, name, namespace, trusting);
+      attribute.set(this, value, this.env);
+      return attribute;
+    };
+
+    (0, _emberBabel.createClass)(NewElementBuilder, [{
+      key: "element",
+      get: function get() {
+        return this[CURSOR_STACK].current.element;
+      }
+    }, {
+      key: "nextSibling",
+      get: function get() {
+        return this[CURSOR_STACK].current.nextSibling;
+      }
+    }, {
+      key: "hasBlocks",
+      get: function get() {
+        return this.blockStack.size > 0;
+      }
+    }]);
+    return NewElementBuilder;
+  }();
+
+  _exports.NewElementBuilder = NewElementBuilder;
+  _a = CURSOR_STACK;
+
+  var SimpleLiveBlock = /*#__PURE__*/function () {
+    function SimpleLiveBlock(parent) {
+      this.parent = parent;
+      this.first = null;
+      this.last = null;
+      this.nesting = 0;
+    }
+
+    var _proto13 = SimpleLiveBlock.prototype;
+
+    _proto13.parentElement = function parentElement() {
+      return this.parent;
+    };
+
+    _proto13.firstNode = function firstNode() {
+      var first = this.first;
+      return first.firstNode();
+    };
+
+    _proto13.lastNode = function lastNode() {
+      var last = this.last;
+      return last.lastNode();
+    };
+
+    _proto13.openElement = function openElement(element) {
+      this.didAppendNode(element);
+      this.nesting++;
+    };
+
+    _proto13.closeElement = function closeElement() {
+      this.nesting--;
+    };
+
+    _proto13.didAppendNode = function didAppendNode(node) {
+      if (this.nesting !== 0) return;
+
+      if (!this.first) {
+        this.first = new First(node);
+      }
+
+      this.last = new Last(node);
+    };
+
+    _proto13.didAppendBounds = function didAppendBounds(bounds) {
+      if (this.nesting !== 0) return;
+
+      if (!this.first) {
+        this.first = bounds;
+      }
+
+      this.last = bounds;
+    };
+
+    _proto13.finalize = function finalize(stack) {
+      if (this.first === null) {
+        stack.appendComment('');
+      }
+    };
+
+    return SimpleLiveBlock;
+  }();
+
+  var RemoteLiveBlock = /*#__PURE__*/function (_SimpleLiveBlock) {
+    (0, _emberBabel.inheritsLoose)(RemoteLiveBlock, _SimpleLiveBlock);
+
+    function RemoteLiveBlock(parent) {
+      var _this2;
+
+      _this2 = _SimpleLiveBlock.call(this, parent) || this;
+      registerDestructor((0, _emberBabel.assertThisInitialized)(_this2), function () {
+        // In general, you only need to clear the root of a hierarchy, and should never
+        // need to clear any child nodes. This is an important constraint that gives us
+        // a strong guarantee that clearing a subtree is a single DOM operation.
+        //
+        // Because remote blocks are not normally physically nested inside of the tree
+        // that they are logically nested inside, we manually clear remote blocks when
+        // a logical parent is cleared.
+        //
+        // HOWEVER, it is currently possible for a remote block to be physically nested
+        // inside of the block it is logically contained inside of. This happens when
+        // the remote block is appended to the end of the application's entire element.
+        //
+        // The problem with that scenario is that Glimmer believes that it owns more of
+        // the DOM than it actually does. The code is attempting to write past the end
+        // of the Glimmer-managed root, but Glimmer isn't aware of that.
+        //
+        // The correct solution to that problem is for Glimmer to be aware of the end
+        // of the bounds that it owns, and once we make that change, this check could
+        // be removed.
+        //
+        // For now, a more targeted fix is to check whether the node was already removed
+        // and avoid clearing the node if it was. In most cases this shouldn't happen,
+        // so this might hide bugs where the code clears nested nodes unnecessarily,
+        // so we should eventually try to do the correct fix.
+        if (_this2.parentElement() === _this2.firstNode().parentNode) {
+          clear((0, _emberBabel.assertThisInitialized)(_this2));
+        }
+      });
+      return _this2;
+    }
+
+    return RemoteLiveBlock;
+  }(SimpleLiveBlock);
+
+  _exports.RemoteLiveBlock = RemoteLiveBlock;
+
+  var UpdatableBlockImpl = /*#__PURE__*/function (_SimpleLiveBlock2) {
+    (0, _emberBabel.inheritsLoose)(UpdatableBlockImpl, _SimpleLiveBlock2);
+
+    function UpdatableBlockImpl() {
+      return _SimpleLiveBlock2.apply(this, arguments) || this;
+    }
+
+    var _proto14 = UpdatableBlockImpl.prototype;
+
+    _proto14.reset = function reset() {
+      destroy(this);
+      var nextSibling = clear(this);
+      this.first = null;
+      this.last = null;
+      this.nesting = 0;
+      return nextSibling;
+    };
+
+    return UpdatableBlockImpl;
+  }(SimpleLiveBlock); // FIXME: All the noops in here indicate a modelling problem
+
+
+  _exports.UpdatableBlockImpl = UpdatableBlockImpl;
+
+  var LiveBlockList = /*#__PURE__*/function () {
+    function LiveBlockList(parent, boundList) {
+      this.parent = parent;
+      this.boundList = boundList;
+      this.parent = parent;
+      this.boundList = boundList;
+    }
+
+    var _proto15 = LiveBlockList.prototype;
+
+    _proto15.parentElement = function parentElement() {
+      return this.parent;
+    };
+
+    _proto15.firstNode = function firstNode() {
+      var head = this.boundList[0];
+      return head.firstNode();
+    };
+
+    _proto15.lastNode = function lastNode() {
+      var boundList = this.boundList;
+      var tail = boundList[boundList.length - 1];
+      return tail.lastNode();
+    };
+
+    _proto15.openElement = function openElement(_element) {};
+
+    _proto15.closeElement = function closeElement() {};
+
+    _proto15.didAppendNode = function didAppendNode(_node) {};
+
+    _proto15.didAppendBounds = function didAppendBounds(_bounds) {};
+
+    _proto15.finalize = function finalize(_stack) {};
+
+    return LiveBlockList;
+  }();
+
+  function clientBuilder(env, cursor) {
+    return NewElementBuilder.forInitialRender(env, cursor);
+  }
+
+  var PrimitiveReference = /*#__PURE__*/function (_ConstReference) {
+    (0, _emberBabel.inheritsLoose)(PrimitiveReference, _ConstReference);
+
+    PrimitiveReference.create = function create(value) {
+      if (value === undefined) {
+        return UNDEFINED_REFERENCE;
+      } else if (value === null) {
+        return NULL_REFERENCE;
+      } else if (value === true) {
+        return TRUE_REFERENCE;
+      } else if (value === false) {
+        return FALSE_REFERENCE;
+      } else if (typeof value === 'number') {
+        return new ValueReference(value);
+      } else {
+        return new StringReference(value);
+      }
+    };
+
+    function PrimitiveReference(value) {
+      return _ConstReference.call(this, value) || this;
+    }
+
+    var _proto16 = PrimitiveReference.prototype;
+
+    _proto16.get = function get(_key) {
+      return UNDEFINED_REFERENCE;
+    };
+
+    return PrimitiveReference;
+  }(_reference.ConstReference);
+
+  _exports.PrimitiveReference = PrimitiveReference;
+
+  var StringReference = /*#__PURE__*/function (_PrimitiveReference) {
+    (0, _emberBabel.inheritsLoose)(StringReference, _PrimitiveReference);
+
+    function StringReference() {
+      var _this3;
+
+      _this3 = _PrimitiveReference.apply(this, arguments) || this;
+      _this3.lengthReference = null;
+      return _this3;
+    }
+
+    var _proto17 = StringReference.prototype;
+
+    _proto17.get = function get(key) {
+      if (key === 'length') {
+        var lengthReference = this.lengthReference;
+
+        if (lengthReference === null) {
+          lengthReference = this.lengthReference = new ValueReference(this.inner.length);
+        }
+
+        return lengthReference;
+      } else {
+        return _PrimitiveReference.prototype.get.call(this, key);
+      }
+    };
+
+    return StringReference;
+  }(PrimitiveReference);
+
+  var ValueReference = /*#__PURE__*/function (_PrimitiveReference2) {
+    (0, _emberBabel.inheritsLoose)(ValueReference, _PrimitiveReference2);
+
+    function ValueReference(value) {
+      return _PrimitiveReference2.call(this, value) || this;
+    }
+
+    return ValueReference;
+  }(PrimitiveReference);
+
+  var UNDEFINED_REFERENCE = new ValueReference(undefined);
+  _exports.UNDEFINED_REFERENCE = UNDEFINED_REFERENCE;
+  var NULL_REFERENCE = new ValueReference(null);
+  _exports.NULL_REFERENCE = NULL_REFERENCE;
+  var TRUE_REFERENCE = new ValueReference(true);
+  var FALSE_REFERENCE = new ValueReference(false);
+
+  var ConditionalReference = /*#__PURE__*/function (_CachedReference) {
+    (0, _emberBabel.inheritsLoose)(ConditionalReference, _CachedReference);
+
+    function ConditionalReference(inner, toBool$$1) {
+      var _this4;
+
+      if (toBool$$1 === void 0) {
+        toBool$$1 = _globalContext.toBool;
+      }
+
+      _this4 = _CachedReference.call(this) || this;
+      _this4.inner = inner;
+      _this4.toBool = toBool$$1;
+      return _this4;
+    }
+
+    var _proto18 = ConditionalReference.prototype;
+
+    _proto18.compute = function compute() {
+      var inner = this.inner,
+          toBool$$1 = this.toBool;
+      return toBool$$1(inner.value());
+    };
+
+    return ConditionalReference;
+  }(_reference.CachedReference);
+
+  _exports.ConditionalReference = ConditionalReference;
+
+  var DynamicScopeImpl = /*#__PURE__*/function () {
+    function DynamicScopeImpl(bucket) {
+      if (bucket) {
+        this.bucket = (0, _util.assign)({}, bucket);
+      } else {
+        this.bucket = {};
+      }
+    }
+
+    var _proto19 = DynamicScopeImpl.prototype;
+
+    _proto19.get = function get(key) {
+      return this.bucket[key];
+    };
+
+    _proto19.set = function set(key, reference) {
+      return this.bucket[key] = reference;
+    };
+
+    _proto19.child = function child() {
+      return new DynamicScopeImpl(this.bucket);
+    };
+
+    return DynamicScopeImpl;
+  }();
+
+  _exports.DynamicScopeImpl = DynamicScopeImpl;
+
+  var PartialScopeImpl = /*#__PURE__*/function () {
+    function PartialScopeImpl( // the 0th slot is `self`
     slots, callerScope, // named arguments and blocks passed to a layout that uses eval
     evalScope, // locals in scope when the partial was invoked
     partialMap) {
@@ -50065,7 +50858,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.partialMap = partialMap;
     }
 
-    ScopeImpl.root = function root(self, size) {
+    PartialScopeImpl.root = function root(self, size) {
       if (size === void 0) {
         size = 0;
       }
@@ -50076,12 +50869,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         refs[i] = UNDEFINED_REFERENCE;
       }
 
-      return new ScopeImpl(refs, null, null, null).init({
+      return new PartialScopeImpl(refs, null, null, null).init({
         self: self
       });
     };
 
-    ScopeImpl.sized = function sized(size) {
+    PartialScopeImpl.sized = function sized(size) {
       if (size === void 0) {
         size = 0;
       }
@@ -50092,75 +50885,75 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         refs[i] = UNDEFINED_REFERENCE;
       }
 
-      return new ScopeImpl(refs, null, null, null);
+      return new PartialScopeImpl(refs, null, null, null);
     };
 
-    var _proto24 = ScopeImpl.prototype;
+    var _proto20 = PartialScopeImpl.prototype;
 
-    _proto24.init = function init(_ref) {
+    _proto20.init = function init(_ref) {
       var self = _ref.self;
       this.slots[0] = self;
       return this;
     };
 
-    _proto24.getSelf = function getSelf() {
+    _proto20.getSelf = function getSelf() {
       return this.get(0);
     };
 
-    _proto24.getSymbol = function getSymbol(symbol$$1) {
+    _proto20.getSymbol = function getSymbol(symbol$$1) {
       return this.get(symbol$$1);
     };
 
-    _proto24.getBlock = function getBlock(symbol$$1) {
+    _proto20.getBlock = function getBlock(symbol$$1) {
       var block = this.get(symbol$$1);
       return block === UNDEFINED_REFERENCE ? null : block;
     };
 
-    _proto24.getEvalScope = function getEvalScope() {
+    _proto20.getEvalScope = function getEvalScope() {
       return this.evalScope;
     };
 
-    _proto24.getPartialMap = function getPartialMap() {
+    _proto20.getPartialMap = function getPartialMap() {
       return this.partialMap;
     };
 
-    _proto24.bind = function bind(symbol$$1, value) {
+    _proto20.bind = function bind(symbol$$1, value) {
       this.set(symbol$$1, value);
     };
 
-    _proto24.bindSelf = function bindSelf(self) {
+    _proto20.bindSelf = function bindSelf(self) {
       this.set(0, self);
     };
 
-    _proto24.bindSymbol = function bindSymbol(symbol$$1, value) {
+    _proto20.bindSymbol = function bindSymbol(symbol$$1, value) {
       this.set(symbol$$1, value);
     };
 
-    _proto24.bindBlock = function bindBlock(symbol$$1, value) {
+    _proto20.bindBlock = function bindBlock(symbol$$1, value) {
       this.set(symbol$$1, value);
     };
 
-    _proto24.bindEvalScope = function bindEvalScope(map) {
+    _proto20.bindEvalScope = function bindEvalScope(map) {
       this.evalScope = map;
     };
 
-    _proto24.bindPartialMap = function bindPartialMap(map) {
+    _proto20.bindPartialMap = function bindPartialMap(map) {
       this.partialMap = map;
     };
 
-    _proto24.bindCallerScope = function bindCallerScope(scope) {
+    _proto20.bindCallerScope = function bindCallerScope(scope) {
       this.callerScope = scope;
     };
 
-    _proto24.getCallerScope = function getCallerScope() {
+    _proto20.getCallerScope = function getCallerScope() {
       return this.callerScope;
     };
 
-    _proto24.child = function child() {
-      return new ScopeImpl(this.slots.slice(), this.callerScope, this.evalScope, this.partialMap);
+    _proto20.child = function child() {
+      return new PartialScopeImpl(this.slots.slice(), this.callerScope, this.evalScope, this.partialMap);
     };
 
-    _proto24.get = function get(index) {
+    _proto20.get = function get(index) {
       if (index >= this.slots.length) {
         throw new RangeError("BUG: cannot get $" + index + " from scope; length=" + this.slots.length);
       }
@@ -50168,7 +50961,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return this.slots[index];
     };
 
-    _proto24.set = function set(index, value) {
+    _proto20.set = function set(index, value) {
       if (index >= this.slots.length) {
         throw new RangeError("BUG: cannot get $" + index + " from scope; length=" + this.slots.length);
       }
@@ -50176,411 +50969,10 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.slots[index] = value;
     };
 
-    return ScopeImpl;
+    return PartialScopeImpl;
   }();
 
-  _exports.ScopeImpl = ScopeImpl;
-  var TRANSACTION = (0, _util.symbol)('TRANSACTION');
-
-  var TransactionImpl = /*#__PURE__*/function () {
-    function TransactionImpl() {
-      this.scheduledInstallManagers = [];
-      this.scheduledInstallModifiers = [];
-      this.scheduledUpdateModifierManagers = [];
-      this.scheduledUpdateModifiers = [];
-      this.createdComponents = [];
-      this.createdManagers = [];
-      this.updatedComponents = [];
-      this.updatedManagers = [];
-      this.destructors = [];
-    }
-
-    var _proto25 = TransactionImpl.prototype;
-
-    _proto25.didCreate = function didCreate(component, manager) {
-      this.createdComponents.push(component);
-      this.createdManagers.push(manager);
-    };
-
-    _proto25.didUpdate = function didUpdate(component, manager) {
-      this.updatedComponents.push(component);
-      this.updatedManagers.push(manager);
-    };
-
-    _proto25.scheduleInstallModifier = function scheduleInstallModifier(modifier, manager) {
-      this.scheduledInstallModifiers.push(modifier);
-      this.scheduledInstallManagers.push(manager);
-    };
-
-    _proto25.scheduleUpdateModifier = function scheduleUpdateModifier(modifier, manager) {
-      this.scheduledUpdateModifiers.push(modifier);
-      this.scheduledUpdateModifierManagers.push(manager);
-    };
-
-    _proto25.willDestroy = function willDestroy(d) {
-      d[_util.WILL_DROP]();
-    };
-
-    _proto25.didDestroy = function didDestroy(d) {
-      this.destructors.push(d);
-    };
-
-    _proto25.commit = function commit() {
-      var createdComponents = this.createdComponents,
-          createdManagers = this.createdManagers;
-
-      for (var i = 0; i < createdComponents.length; i++) {
-        var component = createdComponents[i];
-        var manager = createdManagers[i];
-        manager.didCreate(component);
-      }
-
-      var updatedComponents = this.updatedComponents,
-          updatedManagers = this.updatedManagers;
-
-      for (var _i = 0; _i < updatedComponents.length; _i++) {
-        var _component = updatedComponents[_i];
-        var _manager2 = updatedManagers[_i];
-
-        _manager2.didUpdate(_component);
-      }
-
-      var destructors = this.destructors;
-
-      for (var _i2 = 0; _i2 < destructors.length; _i2++) {
-        destructors[_i2][_util.DID_DROP]();
-      }
-
-      var scheduledInstallManagers = this.scheduledInstallManagers,
-          scheduledInstallModifiers = this.scheduledInstallModifiers;
-
-      for (var _i3 = 0; _i3 < scheduledInstallManagers.length; _i3++) {
-        var modifier = scheduledInstallModifiers[_i3];
-        var _manager3 = scheduledInstallManagers[_i3];
-
-        _manager3.install(modifier);
-      }
-
-      var scheduledUpdateModifierManagers = this.scheduledUpdateModifierManagers,
-          scheduledUpdateModifiers = this.scheduledUpdateModifiers;
-
-      for (var _i4 = 0; _i4 < scheduledUpdateModifierManagers.length; _i4++) {
-        var _modifier = scheduledUpdateModifiers[_i4];
-        var _manager4 = scheduledUpdateModifierManagers[_i4];
-
-        _manager4.update(_modifier);
-      }
-    };
-
-    return TransactionImpl;
-  }();
-
-  function defaultDelegateFn(delegateFn, delegateDefault) {
-    var defaultFn = delegateFn !== undefined ? delegateFn : delegateDefault;
-
-    if (true
-    /* DEBUG */
-    ) {
-      // Bind to `null` in DEBUG since these methods are assumed to be pure
-      // functions, so we can reassign them.
-      return defaultFn.bind(null);
-    }
-
-    return defaultFn;
-  }
-
-  var EnvironmentImpl = /*#__PURE__*/function () {
-    function EnvironmentImpl(options, delegate) {
-      this.delegate = delegate;
-      this[_a$1] = null; // Delegate methods and values
-
-      this.extra = this.delegate.extra;
-      this.isInteractive = typeof this.delegate.isInteractive === 'boolean' ? this.delegate.isInteractive : true;
-      this.protocolForURL = defaultDelegateFn(this.delegate.protocolForURL, defaultGetProtocolForURL);
-      this.attributeFor = defaultDelegateFn(this.delegate.attributeFor, defaultAttributeFor);
-      this.getPath = defaultDelegateFn(this.delegate.getPath, defaultGetPath);
-      this.setPath = defaultDelegateFn(this.delegate.setPath, defaultSetPath);
-      this.toBool = defaultDelegateFn(this.delegate.toBool, defaultToBool$1);
-      this.toIterator = defaultDelegateFn(this.delegate.toIterator, defaultToIterator);
-
-      if (options.appendOperations) {
-        this.appendOperations = options.appendOperations;
-        this.updateOperations = options.updateOperations;
-      } else if (options.document) {
-        this.appendOperations = new DOMTreeConstruction(options.document);
-        this.updateOperations = new DOMChangesImpl(options.document);
-      } else if (true
-      /* DEBUG */
-      ) {
-        throw new Error('you must pass document or appendOperations to a new runtime');
-      }
-    }
-
-    var _proto26 = EnvironmentImpl.prototype;
-
-    _proto26.getTemplatePathDebugContext = function getTemplatePathDebugContext(ref) {
-      if (this.delegate.getTemplatePathDebugContext !== undefined) {
-        return this.delegate.getTemplatePathDebugContext(ref);
-      }
-
-      return '';
-    };
-
-    _proto26.setTemplatePathDebugContext = function setTemplatePathDebugContext(ref, desc, parentRef) {
-      if (this.delegate.setTemplatePathDebugContext !== undefined) {
-        this.delegate.setTemplatePathDebugContext(ref, desc, parentRef);
-      }
-    };
-
-    _proto26.iterableFor = function iterableFor(ref, inputKey) {
-      // TODO: We should add an assertion here to verify that we are passed a
-      // TemplatePathReference, but we can only do that once we remove
-      // or significantly rewrite @glimmer/object-reference
-      var key = inputKey === null ? '@identity' : String(inputKey);
-      return new _reference.IterableImpl(ref, key, this);
-    };
-
-    _proto26.toConditionalReference = function toConditionalReference(input) {
-      return new ConditionalReference(input, this.delegate.toBool);
-    };
-
-    _proto26.getAppendOperations = function getAppendOperations() {
-      return this.appendOperations;
-    };
-
-    _proto26.getDOM = function getDOM() {
-      return this.updateOperations;
-    };
-
-    _proto26.begin = function begin() {
-      if (this.delegate.onTransactionBegin !== undefined) {
-        this.delegate.onTransactionBegin();
-      }
-
-      this[TRANSACTION] = new TransactionImpl();
-    };
-
-    _proto26.didCreate = function didCreate(component, manager) {
-      this.transaction.didCreate(component, manager);
-    };
-
-    _proto26.didUpdate = function didUpdate(component, manager) {
-      this.transaction.didUpdate(component, manager);
-    };
-
-    _proto26.scheduleInstallModifier = function scheduleInstallModifier(modifier, manager) {
-      if (this.isInteractive) {
-        this.transaction.scheduleInstallModifier(modifier, manager);
-      }
-    };
-
-    _proto26.scheduleUpdateModifier = function scheduleUpdateModifier(modifier, manager) {
-      if (this.isInteractive) {
-        this.transaction.scheduleUpdateModifier(modifier, manager);
-      }
-    };
-
-    _proto26.willDestroy = function willDestroy(d) {
-      this.transaction.willDestroy(d);
-    };
-
-    _proto26.didDestroy = function didDestroy(d) {
-      this.transaction.didDestroy(d);
-    };
-
-    _proto26.commit = function commit() {
-      var transaction = this.transaction;
-      this[TRANSACTION] = null;
-      transaction.commit();
-
-      if (this.delegate.onTransactionCommit !== undefined) {
-        this.delegate.onTransactionCommit();
-      }
-    };
-
-    (0, _emberBabel.createClass)(EnvironmentImpl, [{
-      key: "transaction",
-      get: function get() {
-        return this[TRANSACTION];
-      }
-    }]);
-    return EnvironmentImpl;
-  }();
-
-  _exports.EnvironmentImpl = EnvironmentImpl;
-  _a$1 = TRANSACTION;
-
-  function defaultGetProtocolForURL(url) {
-    if (typeof URL === 'object' || typeof URL === 'undefined') {
-      return legacyProtocolForURL(url);
-    } else if (typeof document !== 'undefined') {
-      return new URL(url, document.baseURI).protocol;
-    } else {
-      return new URL(url, 'https://www.example.com').protocol;
-    }
-  }
-
-  function defaultAttributeFor(element, attr, _isTrusting, namespace) {
-    return dynamicAttribute(element, attr, namespace);
-  }
-
-  function defaultGetPath(obj, key) {
-    return obj[key];
-  }
-
-  function defaultSetPath(obj, key, value) {
-    return obj[key] = value;
-  }
-
-  function defaultToBool$1(value) {
-    return Boolean(value);
-  }
-
-  function defaultToIterator(value) {
-    if (value && value[Symbol.iterator]) {
-      return value[Symbol.iterator]();
-    }
-
-    return null;
-  }
-
-  function legacyProtocolForURL(url) {
-    if (typeof window === 'undefined') {
-      var match = /^([a-z][a-z0-9.+-]*:)?(\/\/)?([\S\s]*)/i.exec(url);
-      return match && match[1] ? match[1].toLowerCase() : '';
-    }
-
-    var anchor = window.document.createElement('a');
-    anchor.href = url;
-    return anchor.protocol;
-  }
-
-  var DefaultRuntimeResolver = /*#__PURE__*/function () {
-    function DefaultRuntimeResolver(inner) {
-      this.inner = inner;
-    }
-
-    var _proto27 = DefaultRuntimeResolver.prototype;
-
-    _proto27.lookupComponent = function lookupComponent(name, referrer) {
-      if (this.inner.lookupComponent) {
-        var component = this.inner.lookupComponent(name, referrer);
-
-        if (component === undefined) {
-          throw new Error("Unexpected component " + name + " (from " + referrer + ") (lookupComponent returned undefined)");
-        }
-
-        return component;
-      } else {
-        throw new Error('lookupComponent not implemented on RuntimeResolver.');
-      }
-    };
-
-    _proto27.lookupPartial = function lookupPartial(name, referrer) {
-      if (this.inner.lookupPartial) {
-        var partial = this.inner.lookupPartial(name, referrer);
-
-        if (partial === undefined) {
-          throw new Error("Unexpected partial " + name + " (from " + referrer + ") (lookupPartial returned undefined)");
-        }
-
-        return partial;
-      } else {
-        throw new Error('lookupPartial not implemented on RuntimeResolver.');
-      }
-    };
-
-    _proto27.resolve = function resolve(handle) {
-      if (this.inner.resolve) {
-        var resolved = this.inner.resolve(handle);
-
-        if (resolved === undefined) {
-          throw new Error("Unexpected handle " + handle + " (resolve returned undefined)");
-        }
-
-        return resolved;
-      } else {
-        throw new Error('resolve not implemented on RuntimeResolver.');
-      }
-    };
-
-    _proto27.compilable = function compilable(locator) {
-      if (this.inner.compilable) {
-        var resolved = this.inner.compilable(locator);
-
-        if (resolved === undefined) {
-          throw new Error("Unable to compile " + name + " (compilable returned undefined)");
-        }
-
-        return resolved;
-      } else {
-        throw new Error('compilable not implemented on RuntimeResolver.');
-      }
-    };
-
-    _proto27.getInvocation = function getInvocation(locator) {
-      if (this.inner.getInvocation) {
-        var invocation = this.inner.getInvocation(locator);
-
-        if (invocation === undefined) {
-          throw new Error("Unable to get invocation for " + JSON.stringify(locator) + " (getInvocation returned undefined)");
-        }
-
-        return invocation;
-      } else {
-        throw new Error('getInvocation not implemented on RuntimeResolver.');
-      }
-    };
-
-    return DefaultRuntimeResolver;
-  }();
-
-  function AotRuntime(options, program, resolver, delegate) {
-    if (resolver === void 0) {
-      resolver = {};
-    }
-
-    if (delegate === void 0) {
-      delegate = {};
-    }
-
-    var env = new EnvironmentImpl(options, delegate);
-    return {
-      env: env,
-      resolver: new DefaultRuntimeResolver(resolver),
-      program: _program.RuntimeProgramImpl.hydrate(program)
-    };
-  }
-
-  function JitRuntime(options, delegate, context, resolver) {
-    if (delegate === void 0) {
-      delegate = {};
-    }
-
-    if (resolver === void 0) {
-      resolver = {};
-    }
-
-    return {
-      env: new EnvironmentImpl(options, delegate),
-      program: new _program.RuntimeProgramImpl(context.program.constants, context.program.heap),
-      resolver: new DefaultRuntimeResolver(resolver)
-    };
-  }
-
-  function inTransaction(env, cb) {
-    if (!env[TRANSACTION]) {
-      env.begin();
-
-      try {
-        cb();
-      } finally {
-        env.commit();
-      }
-    } else {
-      cb();
-    }
-  }
+  _exports.PartialScopeImpl = PartialScopeImpl;
 
   var AppendOpcodes = /*#__PURE__*/function () {
     function AppendOpcodes() {
@@ -50589,9 +50981,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       ).slice();
     }
 
-    var _proto28 = AppendOpcodes.prototype;
+    var _proto21 = AppendOpcodes.prototype;
 
-    _proto28.add = function add(name, evaluate, kind) {
+    _proto21.add = function add(name, evaluate, kind) {
       if (kind === void 0) {
         kind = 'syscall';
       }
@@ -50602,7 +50994,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       };
     };
 
-    _proto28.debugBefore = function debugBefore(vm, opcode) {
+    _proto21.debugBefore = function debugBefore(vm, opcode) {
       var params = undefined;
       var opName = undefined;
       var sp;
@@ -50618,9 +51010,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       };
     };
 
-    _proto28.debugAfter = function debugAfter(vm, pre) {};
+    _proto21.debugAfter = function debugAfter(vm, pre) {};
 
-    _proto28.evaluate = function evaluate(vm, opcode, type) {
+    _proto21.evaluate = function evaluate(vm, opcode, type) {
       var operation = this.evaluateOpcode[type];
 
       if (operation.syscall) {
@@ -50643,65 +51035,26 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     (0, _emberBabel.inheritsLoose)(UpdatingOpcode, _AbstractOpcode);
 
     function UpdatingOpcode() {
-      var _this5;
-
-      _this5 = _AbstractOpcode.apply(this, arguments) || this;
-      _this5.next = null;
-      _this5.prev = null;
-      return _this5;
+      return _AbstractOpcode.apply(this, arguments) || this;
     }
 
     return UpdatingOpcode;
   }(AbstractOpcode);
-  /**
-   * These utility functions are related to @glimmer/validator, but they aren't
-   * meant to be consumed publicly. They exist as an optimization, and pull in
-   * types that are otherwise unrelated to the validation system. Keeping them
-   * here keeps the validation system isolated, and allows it to avoid pulling in
-   * extra type information (which can lead to issues in public types).
-   */
 
-
-  function combineTagged(tagged) {
-    var optimized = [];
-
-    for (var i = 0, l = tagged.length; i < l; i++) {
-      var tag = tagged[i].tag;
-      if (tag === _validator.CONSTANT_TAG) continue;
-      optimized.push(tag);
-    }
-
-    return (0, _validator.createCombinatorTag)(optimized);
-  }
-
-  function combineSlice(slice) {
-    var optimized = [];
-    var node = slice.head();
-
-    while (node !== null) {
-      var tag = node.tag;
-      if (tag !== _validator.CONSTANT_TAG) optimized.push(tag);
-      node = slice.nextNode(node);
-    }
-
-    return (0, _validator.createCombinatorTag)(optimized);
-  }
-
-  var ConcatReference = /*#__PURE__*/function (_CachedReference) {
-    (0, _emberBabel.inheritsLoose)(ConcatReference, _CachedReference);
+  var ConcatReference = /*#__PURE__*/function (_CachedReference2) {
+    (0, _emberBabel.inheritsLoose)(ConcatReference, _CachedReference2);
 
     function ConcatReference(parts) {
-      var _this6;
+      var _this5;
 
-      _this6 = _CachedReference.call(this) || this;
-      _this6.parts = parts;
-      _this6.tag = combineTagged(parts);
-      return _this6;
+      _this5 = _CachedReference2.call(this) || this;
+      _this5.parts = parts;
+      return _this5;
     }
 
-    var _proto29 = ConcatReference.prototype;
+    var _proto22 = ConcatReference.prototype;
 
-    _proto29.compute = function compute() {
+    _proto22.compute = function compute() {
       var parts = new Array();
 
       for (var i = 0; i < this.parts.length; i++) {
@@ -50736,7 +51089,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var handle = _ref2.op1;
     var stack = vm.stack;
     var helper = vm.runtime.resolver.resolve(handle);
-    var args = stack.pop();
+    var args = stack.popJs();
     var value = helper(args, vm);
     vm.loadValue(_vm2.$v0, value);
   });
@@ -50745,7 +51098,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   , function (vm, _ref3) {
     var symbol$$1 = _ref3.op1;
     var expr = vm.referenceForSymbol(symbol$$1);
-    vm.stack.push(expr);
+    vm.stack.pushJs(expr);
   });
   APPEND_OPCODES.add(19
   /* SetVariable */
@@ -50758,9 +51111,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* SetJitBlock */
   , function (vm, _ref5) {
     var symbol$$1 = _ref5.op1;
-    var handle = vm.stack.pop();
-    var scope = vm.stack.pop();
-    var table = vm.stack.pop();
+    var handle = vm.stack.popJs();
+    var scope = vm.stack.popJs();
+    var table = vm.stack.popJs();
     var block = table ? [handle, scope, table] : null;
     vm.scope().bindBlock(symbol$$1, block);
   }, 'jit');
@@ -50768,9 +51121,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* SetAotBlock */
   , function (vm, _ref6) {
     var symbol$$1 = _ref6.op1;
-    var handle = vm.stack.pop();
-    var scope = vm.stack.pop();
-    var table = vm.stack.pop();
+    // In DEBUG handles could be ErrHandle objects
+    var handle = true
+    /* DEBUG */
+    ? vm.stack.pop() : vm.stack.popSmallInt();
+    var scope = vm.stack.popJs();
+    var table = vm.stack.popJs();
     var block = table ? [handle, scope, table] : null;
     vm.scope().bindBlock(symbol$$1, block);
   });
@@ -50778,7 +51134,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* ResolveMaybeLocal */
   , function (vm, _ref7) {
     var _name = _ref7.op1;
-    var name = vm[CONSTANTS].getString(_name);
+    var name = vm[CONSTANTS].getValue(_name);
     var locals = vm.scope().getPartialMap();
     var ref = locals[name];
 
@@ -50786,7 +51142,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       ref = vm.getSelf().get(name);
     }
 
-    vm.stack.push(ref);
+    vm.stack.pushJs(ref);
   });
   APPEND_OPCODES.add(37
   /* RootScope */
@@ -50798,9 +51154,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* GetProperty */
   , function (vm, _ref9) {
     var _key = _ref9.op1;
-    var key = vm[CONSTANTS].getString(_key);
-    var expr = vm.stack.pop();
-    vm.stack.push(expr.get(key));
+    var key = vm[CONSTANTS].getValue(_key);
+    var expr = vm.stack.popJs();
+    vm.stack.pushJs(expr.get(key));
   });
   APPEND_OPCODES.add(24
   /* GetBlock */
@@ -50808,22 +51164,35 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var _block = _ref10.op1;
     var stack = vm.stack;
     var block = vm.scope().getBlock(_block);
-    stack.push(block);
+
+    if (block === null) {
+      stack.pushNull();
+    } else {
+      stack.pushJs(block);
+    }
   });
   APPEND_OPCODES.add(25
   /* JitSpreadBlock */
   , function (vm) {
     var stack = vm.stack;
-    var block = stack.pop();
+    var block = stack.popJs();
 
     if (block && !isUndefinedReference(block)) {
-      stack.push(block[2]);
-      stack.push(block[1]);
-      stack.push(block[0]);
+      var handleOrCompilable = block[0],
+          scope = block[1],
+          table = block[2];
+      stack.pushJs(table);
+      stack.pushJs(scope);
+
+      if (typeof handleOrCompilable === 'number') {
+        stack.pushSmallInt(handleOrCompilable);
+      } else {
+        stack.pushJs(handleOrCompilable);
+      }
     } else {
-      stack.push(null);
-      stack.push(null);
-      stack.push(null);
+      stack.pushNull();
+      stack.pushNull();
+      stack.pushNull();
     }
   });
 
@@ -50838,9 +51207,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var block = stack.pop();
 
     if (block && !isUndefinedReference(block)) {
-      stack.push(TRUE_REFERENCE);
+      stack.pushJs(TRUE_REFERENCE);
     } else {
-      stack.push(FALSE_REFERENCE);
+      stack.pushJs(FALSE_REFERENCE);
     }
   });
   APPEND_OPCODES.add(27
@@ -50848,10 +51217,10 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   , function (vm) {
     // FIXME(mmun): should only need to push the symbol table
     var block = vm.stack.pop();
-    var scope = vm.stack.pop();
-    var table = vm.stack.pop();
+    var scope = vm.stack.popJs();
+    var table = vm.stack.popJs();
     var hasBlockParams = table && table.parameters.length;
-    vm.stack.push(hasBlockParams ? TRUE_REFERENCE : FALSE_REFERENCE);
+    vm.stack.pushJs(hasBlockParams ? TRUE_REFERENCE : FALSE_REFERENCE);
   });
   APPEND_OPCODES.add(28
   /* Concat */
@@ -50864,7 +51233,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       out[offset] = vm.stack.pop();
     }
 
-    vm.stack.push(new ConcatReference(out));
+    vm.stack.pushJs(new ConcatReference(out));
   });
   /**
    * Converts a ComponentCapabilities object into a 32-bit integer representation.
@@ -50906,7 +51275,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return !!(capabilities & capability);
   }
 
-  var _a$2;
+  var _a$1;
 
   var CURRIED_COMPONENT_DEFINITION_BRAND = (0, _util.symbol)('CURRIED COMPONENT DEFINITION');
 
@@ -50923,12 +51292,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     function CurriedComponentDefinition(inner, args) {
       this.inner = inner;
       this.args = args;
-      this[_a$2] = true;
+      this[_a$1] = true;
     }
 
-    var _proto30 = CurriedComponentDefinition.prototype;
+    var _proto23 = CurriedComponentDefinition.prototype;
 
-    _proto30.unwrap = function unwrap(args) {
+    _proto23.unwrap = function unwrap(args) {
       args.realloc(this.offset);
       var definition = this;
 
@@ -50965,7 +51334,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   }();
 
   _exports.CurriedComponentDefinition = CurriedComponentDefinition;
-  _a$2 = CURRIED_COMPONENT_DEFINITION_BRAND;
+  _a$1 = CURRIED_COMPONENT_DEFINITION_BRAND;
 
   function curry(spec, args) {
     if (args === void 0) {
@@ -50980,16 +51349,21 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return definition;
   }
 
-  var ClassListReference = /*#__PURE__*/function () {
+  var ClassListReference = /*#__PURE__*/function (_CachedReference3) {
+    (0, _emberBabel.inheritsLoose)(ClassListReference, _CachedReference3);
+
     function ClassListReference(list) {
-      this.list = list;
-      this.tag = combineTagged(list);
-      this.list = list;
+      var _this6;
+
+      _this6 = _CachedReference3.call(this) || this;
+      _this6.list = list;
+      _this6.list = list;
+      return _this6;
     }
 
-    var _proto31 = ClassListReference.prototype;
+    var _proto24 = ClassListReference.prototype;
 
-    _proto31.value = function value() {
+    _proto24.compute = function compute() {
       var ret = [];
       var list = this.list;
 
@@ -51002,7 +51376,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     };
 
     return ClassListReference;
-  }();
+  }(_reference.CachedReference);
 
   var CurryComponentReference = /*#__PURE__*/function () {
     function CurryComponentReference(inner, resolver, meta, args) {
@@ -51010,14 +51384,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.resolver = resolver;
       this.meta = meta;
       this.args = args;
-      this.tag = inner.tag;
       this.lastValue = null;
       this.lastDefinition = null;
     }
 
-    var _proto32 = CurryComponentReference.prototype;
+    var _proto25 = CurryComponentReference.prototype;
 
-    _proto32.value = function value() {
+    _proto25.value = function value() {
       var inner = this.inner,
           lastValue = this.lastValue;
       var value = inner.value();
@@ -51042,11 +51415,15 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return definition;
     };
 
-    _proto32.get = function get() {
+    _proto25.isConst = function isConst() {
+      return false;
+    };
+
+    _proto25.get = function get() {
       return UNDEFINED_REFERENCE;
     };
 
-    _proto32.curry = function curry(definition) {
+    _proto25.curry = function curry(definition) {
       var args = this.args;
 
       if (!args && isCurriedComponentDefinition(definition)) {
@@ -51072,24 +51449,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       _this7.reference = reference;
       _this7.lastValue = lastValue;
       _this7.type = 'dynamic-text';
-      _this7.tag = reference.tag;
-      _this7.lastRevision = (0, _validator.valueForTag)(_this7.tag);
       return _this7;
     }
 
-    var _proto33 = DynamicTextContent.prototype;
+    var _proto26 = DynamicTextContent.prototype;
 
-    _proto33.evaluate = function evaluate() {
-      var reference = this.reference,
-          tag = this.tag;
-
-      if (!(0, _validator.validateTag)(tag, this.lastRevision)) {
-        this.lastRevision = (0, _validator.valueForTag)(tag);
-        this.update(reference.value());
-      }
-    };
-
-    _proto33.update = function update(value) {
+    _proto26.evaluate = function evaluate() {
+      var value = this.reference.value();
       var lastValue = this.lastValue;
       if (value === lastValue) return;
       var normalized;
@@ -51114,12 +51480,15 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   var ContentTypeReference = /*#__PURE__*/function () {
     function ContentTypeReference(inner) {
       this.inner = inner;
-      this.tag = inner.tag;
     }
 
-    var _proto34 = ContentTypeReference.prototype;
+    var _proto27 = ContentTypeReference.prototype;
 
-    _proto34.value = function value() {
+    _proto27.isConst = function isConst() {
+      return false;
+    };
+
+    _proto27.value = function value() {
       var value = this.inner.value();
 
       if (shouldCoerce(value)) {
@@ -51155,7 +51524,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   APPEND_OPCODES.add(43
   /* AppendHTML */
   , function (vm) {
-    var reference = vm.stack.pop();
+    var reference = vm.stack.popJs();
     var rawValue = reference.value();
     var value = isEmpty(rawValue) ? '' : String(rawValue);
     vm.elements().appendDynamicHTML(value);
@@ -51163,7 +51532,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   APPEND_OPCODES.add(44
   /* AppendSafeHTML */
   , function (vm) {
-    var reference = vm.stack.pop();
+    var reference = vm.stack.popJs();
     var rawValue = reference.value().toHTML();
     var value = isEmpty(rawValue) ? '' : rawValue;
     vm.elements().appendDynamicHTML(value);
@@ -51171,26 +51540,26 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   APPEND_OPCODES.add(47
   /* AppendText */
   , function (vm) {
-    var reference = vm.stack.pop();
+    var reference = vm.stack.popJs();
     var rawValue = reference.value();
     var value = isEmpty(rawValue) ? '' : String(rawValue);
     var node = vm.elements().appendDynamicText(value);
 
-    if (!(0, _validator.isConst)(reference)) {
+    if (!reference.isConst()) {
       vm.updateWith(new DynamicTextContent(node, reference, value));
     }
   });
   APPEND_OPCODES.add(45
   /* AppendDocumentFragment */
   , function (vm) {
-    var reference = vm.stack.pop();
+    var reference = vm.stack.popJs();
     var value = reference.value();
     vm.elements().appendDynamicFragment(value);
   });
   APPEND_OPCODES.add(46
   /* AppendNode */
   , function (vm) {
-    var reference = vm.stack.pop();
+    var reference = vm.stack.popJs();
     var value = reference.value();
     vm.elements().appendDynamicNode(value);
   });
@@ -51218,7 +51587,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* Constant */
   , function (vm, _ref12) {
     var other = _ref12.op1;
-    vm.stack.push(vm[CONSTANTS].getOther(other));
+    vm.stack.pushJs(vm[CONSTANTS].getValue((0, _util.decodeHandle)(other)));
   });
   APPEND_OPCODES.add(30
   /* Primitive */
@@ -51226,24 +51595,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var primitive = _ref13.op1;
     var stack = vm.stack;
 
-    if ((0, _util.isHandle)(primitive)) {
-      var value;
-
-      if (primitive > -1073741825
-      /* NUMBER_MAX_HANDLE */
-      ) {
-          value = vm[CONSTANTS].getString((0, _util.decodeHandle)(primitive, -1
-          /* STRING_MAX_HANDLE */
-          ));
-        } else {
-        value = vm[CONSTANTS].getNumber((0, _util.decodeHandle)(primitive, -1073741825
-        /* NUMBER_MAX_HANDLE */
-        ));
-      }
-
+    if ((0, _util.isNonPrimitiveHandle)(primitive)) {
+      // it is a handle which does not already exist on the stack
+      var value = vm[CONSTANTS].getValue((0, _util.decodeHandle)(primitive));
       stack.pushJs(value);
     } else {
-      // is already an encoded immediate
+      // is already an encoded immediate or primitive handle
       stack.pushRaw(primitive);
     }
   });
@@ -51251,13 +51608,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* PrimitiveReference */
   , function (vm) {
     var stack = vm.stack;
-    stack.push(PrimitiveReference.create(stack.pop()));
+    stack.pushJs(PrimitiveReference.create(stack.pop()));
   });
   APPEND_OPCODES.add(32
   /* ReifyU32 */
   , function (vm) {
     var stack = vm.stack;
-    stack.push(stack.peek().value());
+    stack.pushSmallInt(stack.peekJs().value());
   });
   APPEND_OPCODES.add(33
   /* Dup */
@@ -51308,13 +51665,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   , function (vm, _ref20) {
     var _table = _ref20.op1;
     var stack = vm.stack;
-    stack.push(vm[CONSTANTS].getSerializable(_table));
+    stack.pushJs(vm[CONSTANTS].getSerializable(_table));
   });
   APPEND_OPCODES.add(62
   /* PushBlockScope */
   , function (vm) {
     var stack = vm.stack;
-    stack.push(vm.scope());
+    stack.pushJs(vm.scope());
   });
   APPEND_OPCODES.add(61
   /* CompileBlock */
@@ -51323,9 +51680,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var block = stack.pop();
 
     if (block) {
-      stack.push(vm.compile(block));
+      stack.pushSmallInt(vm.compile(block));
     } else {
-      stack.push(null);
+      stack.pushNull();
     }
   }, 'jit');
   APPEND_OPCODES.add(64
@@ -51333,8 +51690,8 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   , function (vm) {
     var stack = vm.stack;
     var handle = stack.pop();
-    var scope = stack.pop();
-    var table = stack.pop();
+    var scope = stack.popJs();
+    var table = stack.popJs();
     var args = stack.pop();
 
     if (table === null) {
@@ -51367,16 +51724,17 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* JumpIf */
   , function (vm, _ref21) {
     var target = _ref21.op1;
-    var reference = vm.stack.pop();
+    var reference = vm.stack.popJs();
+    var value = Boolean(reference.value());
 
-    if ((0, _validator.isConst)(reference)) {
-      if (reference.value()) {
+    if (reference.isConst()) {
+      if (value === true) {
         vm.goto(target);
       }
     } else {
       var cache = new _reference.ReferenceCache(reference);
 
-      if (cache.peek()) {
+      if (value === true) {
         vm.goto(target);
       }
 
@@ -51387,16 +51745,17 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* JumpUnless */
   , function (vm, _ref22) {
     var target = _ref22.op1;
-    var reference = vm.stack.pop();
+    var reference = vm.stack.popJs();
+    var value = Boolean(reference.value());
 
-    if ((0, _validator.isConst)(reference)) {
-      if (!reference.value()) {
+    if (reference.isConst()) {
+      if (value === false) {
         vm.goto(target);
       }
     } else {
       var cache = new _reference.ReferenceCache(reference);
 
-      if (!cache.peek()) {
+      if (value === false) {
         vm.goto(target);
       }
 
@@ -51408,7 +51767,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   , function (vm, _ref23) {
     var target = _ref23.op1,
         comparison = _ref23.op2;
-    var other = vm.stack.peek();
+    var other = vm.stack.peekSmallInt();
 
     if (other === comparison) {
       vm.goto(target);
@@ -51417,18 +51776,18 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   APPEND_OPCODES.add(68
   /* AssertSame */
   , function (vm) {
-    var reference = vm.stack.peek();
+    var reference = vm.stack.peekJs();
 
-    if (!(0, _validator.isConst)(reference)) {
-      vm.updateWith(Assert.initialize(new _reference.ReferenceCache(reference)));
+    if (!reference.isConst()) {
+      vm.updateWith(new Assert(new _reference.ReferenceCache(reference)));
     }
   });
   APPEND_OPCODES.add(71
   /* ToBoolean */
   , function (vm) {
-    var env = vm.env,
-        stack = vm.stack;
-    stack.push(env.toConditionalReference(stack.pop()));
+    var stack = vm.stack;
+    var inner = stack.popJs();
+    stack.pushJs(new ConditionalReference(inner));
   });
 
   var Assert = /*#__PURE__*/function (_UpdatingOpcode2) {
@@ -51438,21 +51797,14 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       var _this8;
 
       _this8 = _UpdatingOpcode2.call(this) || this;
-      _this8.type = 'assert';
-      _this8.tag = cache.tag;
       _this8.cache = cache;
+      _this8.type = 'assert';
       return _this8;
     }
 
-    Assert.initialize = function initialize(cache) {
-      var assert = new Assert(cache);
-      cache.peek();
-      return assert;
-    };
+    var _proto28 = Assert.prototype;
 
-    var _proto35 = Assert.prototype;
-
-    _proto35.evaluate = function evaluate(vm) {
+    _proto28.evaluate = function evaluate(vm) {
       var cache = this.cache;
 
       if ((0, _reference.isModified)(cache.revalidate())) {
@@ -51466,131 +51818,129 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   var JumpIfNotModifiedOpcode = /*#__PURE__*/function (_UpdatingOpcode3) {
     (0, _emberBabel.inheritsLoose)(JumpIfNotModifiedOpcode, _UpdatingOpcode3);
 
-    function JumpIfNotModifiedOpcode(tag, target) {
+    function JumpIfNotModifiedOpcode() {
       var _this9;
 
-      _this9 = _UpdatingOpcode3.call(this) || this;
-      _this9.target = target;
+      _this9 = _UpdatingOpcode3.apply(this, arguments) || this;
       _this9.type = 'jump-if-not-modified';
-      _this9.tag = tag;
-      _this9.lastRevision = (0, _validator.valueForTag)(tag);
+      _this9.tag = _validator.CONSTANT_TAG;
+      _this9.lastRevision = _validator.INITIAL;
       return _this9;
     }
 
-    var _proto36 = JumpIfNotModifiedOpcode.prototype;
+    var _proto29 = JumpIfNotModifiedOpcode.prototype;
 
-    _proto36.evaluate = function evaluate(vm) {
+    _proto29.finalize = function finalize(tag, target) {
+      this.target = target;
+      this.didModify(tag);
+    };
+
+    _proto29.evaluate = function evaluate(vm) {
       var tag = this.tag,
           target = this.target,
           lastRevision = this.lastRevision;
 
       if (!vm.alwaysRevalidate && (0, _validator.validateTag)(tag, lastRevision)) {
+        (0, _validator.consumeTag)(tag);
         vm.goto(target);
       }
     };
 
-    _proto36.didModify = function didModify() {
+    _proto29.didModify = function didModify(tag) {
+      this.tag = tag;
       this.lastRevision = (0, _validator.valueForTag)(this.tag);
+      (0, _validator.consumeTag)(tag);
     };
 
     return JumpIfNotModifiedOpcode;
   }(UpdatingOpcode);
 
-  var DidModifyOpcode = /*#__PURE__*/function (_UpdatingOpcode4) {
-    (0, _emberBabel.inheritsLoose)(DidModifyOpcode, _UpdatingOpcode4);
+  var BeginTrackFrameOpcode = /*#__PURE__*/function (_UpdatingOpcode4) {
+    (0, _emberBabel.inheritsLoose)(BeginTrackFrameOpcode, _UpdatingOpcode4);
 
-    function DidModifyOpcode(target) {
+    function BeginTrackFrameOpcode(debugLabel) {
       var _this10;
 
       _this10 = _UpdatingOpcode4.call(this) || this;
-      _this10.target = target;
-      _this10.type = 'did-modify';
-      _this10.tag = _validator.CONSTANT_TAG;
+      _this10.debugLabel = debugLabel;
+      _this10.type = 'begin-track-frame';
       return _this10;
     }
 
-    var _proto37 = DidModifyOpcode.prototype;
+    var _proto30 = BeginTrackFrameOpcode.prototype;
 
-    _proto37.evaluate = function evaluate() {
-      this.target.didModify();
+    _proto30.evaluate = function evaluate() {
+      (0, _validator.beginTrackFrame)(this.debugLabel);
     };
 
-    return DidModifyOpcode;
+    return BeginTrackFrameOpcode;
   }(UpdatingOpcode);
 
-  var LabelOpcode = /*#__PURE__*/function () {
-    function LabelOpcode(label) {
-      this.tag = _validator.CONSTANT_TAG;
-      this.type = 'label';
-      this.label = null;
-      this.prev = null;
-      this.next = null;
-      (0, _util.initializeGuid)(this);
-      this.label = label;
+  var EndTrackFrameOpcode = /*#__PURE__*/function (_UpdatingOpcode5) {
+    (0, _emberBabel.inheritsLoose)(EndTrackFrameOpcode, _UpdatingOpcode5);
+
+    function EndTrackFrameOpcode(target) {
+      var _this11;
+
+      _this11 = _UpdatingOpcode5.call(this) || this;
+      _this11.target = target;
+      _this11.type = 'end-track-frame';
+      return _this11;
     }
 
-    var _proto38 = LabelOpcode.prototype;
+    var _proto31 = EndTrackFrameOpcode.prototype;
 
-    _proto38.evaluate = function evaluate() {};
-
-    _proto38.inspect = function inspect() {
-      return this.label + " [" + this._guid + "]";
+    _proto31.evaluate = function evaluate() {
+      var tag = (0, _validator.endTrackFrame)();
+      this.target.didModify(tag);
     };
 
-    return LabelOpcode;
-  }();
+    return EndTrackFrameOpcode;
+  }(UpdatingOpcode);
 
   APPEND_OPCODES.add(41
   /* Text */
   , function (vm, _ref24) {
     var text = _ref24.op1;
-    vm.elements().appendText(vm[CONSTANTS].getString(text));
+    vm.elements().appendText(vm[CONSTANTS].getValue(text));
   });
   APPEND_OPCODES.add(42
   /* Comment */
   , function (vm, _ref25) {
     var text = _ref25.op1;
-    vm.elements().appendComment(vm[CONSTANTS].getString(text));
+    vm.elements().appendComment(vm[CONSTANTS].getValue(text));
   });
   APPEND_OPCODES.add(48
   /* OpenElement */
   , function (vm, _ref26) {
     var tag = _ref26.op1;
-    vm.elements().openElement(vm[CONSTANTS].getString(tag));
+    vm.elements().openElement(vm[CONSTANTS].getValue(tag));
   });
   APPEND_OPCODES.add(49
   /* OpenDynamicElement */
   , function (vm) {
-    var tagName = vm.stack.pop().value();
+    var tagName = vm.stack.popJs().value();
     vm.elements().openElement(tagName);
   });
   APPEND_OPCODES.add(50
   /* PushRemoteElement */
   , function (vm) {
-    var elementRef = vm.stack.pop();
-    var insertBeforeRef = vm.stack.pop();
-    var guidRef = vm.stack.pop();
-    var element;
-    var insertBefore;
+    var elementRef = vm.stack.popJs();
+    var insertBeforeRef = vm.stack.popJs();
+    var guidRef = vm.stack.popJs();
+    var element = elementRef.value();
+    var insertBefore = insertBeforeRef.value();
     var guid = guidRef.value();
 
-    if ((0, _validator.isConst)(elementRef)) {
-      element = elementRef.value();
-    } else {
+    if (!elementRef.isConst()) {
       var cache = new _reference.ReferenceCache(elementRef);
-      element = cache.peek();
       vm.updateWith(new Assert(cache));
     }
 
-    if (insertBeforeRef.value() !== undefined) {
-      if ((0, _validator.isConst)(insertBeforeRef)) {
-        insertBefore = insertBeforeRef.value();
-      } else {
-        var _cache = new _reference.ReferenceCache(insertBeforeRef);
+    if (insertBefore !== undefined && !insertBeforeRef.isConst()) {
+      var _cache = new _reference.ReferenceCache(insertBeforeRef);
 
-        insertBefore = _cache.peek();
-        vm.updateWith(new Assert(_cache));
-      }
+      vm.updateWith(new Assert(_cache));
     }
 
     var block = vm.elements().pushRemoteElement(element, guid, insertBefore);
@@ -51624,7 +51974,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         var manager = _ref27[0],
             modifier = _ref27[1];
         vm.env.scheduleInstallModifier(modifier, manager);
-        var d = manager.getDestructor(modifier);
+        var d = manager.getDestroyable(modifier);
 
         if (d) {
           vm.associateDestroyable(d);
@@ -51642,7 +51992,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         state = _vm$runtime$resolver$.state;
 
     var stack = vm.stack;
-    var args = stack.pop();
+    var args = stack.popJs();
 
     var _vm$elements = vm.elements(),
         constructing = _vm$elements.constructing,
@@ -51654,33 +52004,35 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     operations.addModifier(manager, modifier);
     var tag = manager.getTag(modifier);
 
-    if (!(0, _validator.isConstTag)(tag)) {
+    if (tag !== null) {
+      (0, _validator.consumeTag)(tag);
       vm.updateWith(new UpdateModifierOpcode(tag, manager, modifier));
     }
   });
 
-  var UpdateModifierOpcode = /*#__PURE__*/function (_UpdatingOpcode5) {
-    (0, _emberBabel.inheritsLoose)(UpdateModifierOpcode, _UpdatingOpcode5);
+  var UpdateModifierOpcode = /*#__PURE__*/function (_UpdatingOpcode6) {
+    (0, _emberBabel.inheritsLoose)(UpdateModifierOpcode, _UpdatingOpcode6);
 
     function UpdateModifierOpcode(tag, manager, modifier) {
-      var _this11;
+      var _this12;
 
-      _this11 = _UpdatingOpcode5.call(this) || this;
-      _this11.tag = tag;
-      _this11.manager = manager;
-      _this11.modifier = modifier;
-      _this11.type = 'update-modifier';
-      _this11.lastUpdated = (0, _validator.valueForTag)(tag);
-      return _this11;
+      _this12 = _UpdatingOpcode6.call(this) || this;
+      _this12.tag = tag;
+      _this12.manager = manager;
+      _this12.modifier = modifier;
+      _this12.type = 'update-modifier';
+      _this12.lastUpdated = (0, _validator.valueForTag)(tag);
+      return _this12;
     }
 
-    var _proto39 = UpdateModifierOpcode.prototype;
+    var _proto32 = UpdateModifierOpcode.prototype;
 
-    _proto39.evaluate = function evaluate(vm) {
+    _proto32.evaluate = function evaluate(vm) {
       var manager = this.manager,
           modifier = this.modifier,
           tag = this.tag,
           lastUpdated = this.lastUpdated;
+      (0, _validator.consumeTag)(tag);
 
       if (!(0, _validator.validateTag)(tag, lastUpdated)) {
         vm.env.scheduleUpdateModifier(modifier, manager);
@@ -51697,9 +52049,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var _name = _ref29.op1,
         _value = _ref29.op2,
         _namespace = _ref29.op3;
-    var name = vm[CONSTANTS].getString(_name);
-    var value = vm[CONSTANTS].getString(_value);
-    var namespace = _namespace ? vm[CONSTANTS].getString(_namespace) : null;
+    var name = vm[CONSTANTS].getValue(_name);
+    var value = vm[CONSTANTS].getValue(_value);
+    var namespace = _namespace ? vm[CONSTANTS].getValue(_namespace) : null;
     vm.elements().setStaticAttribute(name, value, namespace);
   });
   APPEND_OPCODES.add(52
@@ -51708,43 +52060,42 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var _name = _ref30.op1,
         trusting = _ref30.op2,
         _namespace = _ref30.op3;
-    var name = vm[CONSTANTS].getString(_name);
-    var reference = vm.stack.pop();
+    var name = vm[CONSTANTS].getValue(_name);
+    var reference = vm.stack.popJs();
     var value = reference.value();
-    var namespace = _namespace ? vm[CONSTANTS].getString(_namespace) : null;
+    var namespace = _namespace ? vm[CONSTANTS].getValue(_namespace) : null;
     var attribute = vm.elements().setDynamicAttribute(name, value, !!trusting, namespace);
 
-    if (!(0, _validator.isConst)(reference)) {
+    if (!reference.isConst()) {
       vm.updateWith(new UpdateDynamicAttributeOpcode(reference, attribute));
     }
   });
 
-  var UpdateDynamicAttributeOpcode = /*#__PURE__*/function (_UpdatingOpcode6) {
-    (0, _emberBabel.inheritsLoose)(UpdateDynamicAttributeOpcode, _UpdatingOpcode6);
+  var UpdateDynamicAttributeOpcode = /*#__PURE__*/function (_UpdatingOpcode7) {
+    (0, _emberBabel.inheritsLoose)(UpdateDynamicAttributeOpcode, _UpdatingOpcode7);
 
     function UpdateDynamicAttributeOpcode(reference, attribute) {
-      var _this12;
+      var _this13;
 
-      _this12 = _UpdatingOpcode6.call(this) || this;
-      _this12.reference = reference;
-      _this12.attribute = attribute;
-      _this12.type = 'patch-element';
-      var tag = reference.tag;
-      _this12.tag = tag;
-      _this12.lastRevision = (0, _validator.valueForTag)(tag);
-      return _this12;
+      _this13 = _UpdatingOpcode7.call(this) || this;
+      _this13.reference = reference;
+      _this13.attribute = attribute;
+      _this13.type = 'patch-element';
+      _this13.lastValue = reference.value();
+      return _this13;
     }
 
-    var _proto40 = UpdateDynamicAttributeOpcode.prototype;
+    var _proto33 = UpdateDynamicAttributeOpcode.prototype;
 
-    _proto40.evaluate = function evaluate(vm) {
+    _proto33.evaluate = function evaluate(vm) {
       var attribute = this.attribute,
           reference = this.reference,
-          tag = this.tag;
+          lastValue = this.lastValue;
+      var currentValue = reference.value();
 
-      if (!(0, _validator.validateTag)(tag, this.lastRevision)) {
-        attribute.update(reference.value(), vm.env);
-        this.lastRevision = (0, _validator.valueForTag)(tag);
+      if (currentValue !== lastValue) {
+        attribute.update(currentValue, vm.env);
+        this.lastValue = currentValue;
       }
     };
 
@@ -51766,24 +52117,24 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* IsComponent */
   , function (vm) {
     var stack = vm.stack;
-    var ref = stack.pop();
-    stack.push(new ConditionalReference(ref, isCurriedComponentDefinition));
+    var ref = stack.popJs();
+    stack.pushJs(new ConditionalReference(ref, isCurriedComponentDefinition));
   });
   APPEND_OPCODES.add(78
   /* ContentType */
   , function (vm) {
     var stack = vm.stack;
-    var ref = stack.peek();
-    stack.push(new ContentTypeReference(ref));
+    var ref = stack.peekJs();
+    stack.pushJs(new ContentTypeReference(ref));
   });
   APPEND_OPCODES.add(79
   /* CurryComponent */
   , function (vm, _ref31) {
     var _meta = _ref31.op1;
     var stack = vm.stack;
-    var definition = stack.pop();
-    var capturedArgs = stack.pop();
-    var meta = vm[CONSTANTS].getTemplateMeta(_meta);
+    var definition = stack.popJs();
+    var capturedArgs = stack.popJs();
+    var meta = vm[CONSTANTS].getValue((0, _util.decodeHandle)(_meta));
     var resolver = vm.runtime.resolver;
     vm.loadValue(_vm2.$v0, new CurryComponentReference(definition, resolver, meta, capturedArgs)); // expectStackChange(vm.stack, -args.length - 1, 'CurryComponent');
   });
@@ -51797,15 +52148,15 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var manager = definition.manager;
     var capabilities = capabilityFlagsFrom(manager.getCapabilities(definition.state));
     var instance = (_instance = {}, _instance[COMPONENT_INSTANCE] = true, _instance.definition = definition, _instance.manager = manager, _instance.capabilities = capabilities, _instance.state = null, _instance.handle = null, _instance.table = null, _instance.lookup = null, _instance);
-    vm.stack.push(instance);
+    vm.stack.pushJs(instance);
   });
   APPEND_OPCODES.add(83
   /* ResolveDynamicComponent */
   , function (vm, _ref33) {
     var _meta = _ref33.op1;
     var stack = vm.stack;
-    var component = stack.pop().value();
-    var meta = vm[CONSTANTS].getTemplateMeta(_meta);
+    var component = stack.popJs().value();
+    var meta = vm[CONSTANTS].getValue((0, _util.decodeHandle)(_meta));
     vm.loadValue(_vm2.$t1, null); // Clear the temp register
 
     var definition;
@@ -51819,7 +52170,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       throw (0, _util.unreachable)();
     }
 
-    stack.push(definition);
+    stack.pushJs(definition);
   });
   APPEND_OPCODES.add(81
   /* PushDynamicComponentInstance */
@@ -51835,7 +52186,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       capabilities = capabilityFlagsFrom(manager.getCapabilities(definition.state));
     }
 
-    stack.push({
+    stack.pushJs({
       definition: definition,
       capabilities: capabilities,
       manager: manager,
@@ -51848,7 +52199,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   /* PushCurriedComponent */
   , function (vm) {
     var stack = vm.stack;
-    var component = stack.pop().value();
+    var component = stack.popJs().value();
     var definition;
 
     if (isCurriedComponentDefinition(component)) {
@@ -51857,7 +52208,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       throw (0, _util.unreachable)();
     }
 
-    stack.push(definition);
+    stack.pushJs(definition);
   });
   APPEND_OPCODES.add(84
   /* PushArgs */
@@ -51866,26 +52217,26 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         _blockNames = _ref34.op2,
         flags = _ref34.op3;
     var stack = vm.stack;
-    var names = vm[CONSTANTS].getStringArray(_names);
+    var names = vm[CONSTANTS].getArray(_names);
     var positionalCount = flags >> 4;
     var atNames = flags & 8;
-    var blockNames = flags & 7 ? vm[CONSTANTS].getStringArray(_blockNames) : _util.EMPTY_ARRAY;
+    var blockNames = flags & 7 ? vm[CONSTANTS].getArray(_blockNames) : _util.EMPTY_ARRAY;
     vm[ARGS].setup(stack, names, blockNames, positionalCount, !!atNames);
-    stack.push(vm[ARGS]);
+    stack.pushJs(vm[ARGS]);
   });
   APPEND_OPCODES.add(85
   /* PushEmptyArgs */
   , function (vm) {
     var stack = vm.stack;
-    stack.push(vm[ARGS].empty(stack));
+    stack.pushJs(vm[ARGS].empty(stack));
   });
   APPEND_OPCODES.add(88
   /* CaptureArgs */
   , function (vm) {
     var stack = vm.stack;
-    var args = stack.pop();
+    var args = stack.popJs();
     var capturedArgs = args.capture();
-    stack.push(capturedArgs);
+    stack.pushJs(capturedArgs);
   });
   APPEND_OPCODES.add(87
   /* PrepareArgs */
@@ -51893,7 +52244,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     var _state = _ref35.op1;
     var stack = vm.stack;
     var instance = vm.fetchValue(_state);
-    var args = stack.pop();
+    var args = stack.popJs();
     var definition = instance.definition;
 
     if (isCurriedComponentDefinition(definition)) {
@@ -51908,7 +52259,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     if (!managerHasCapability(manager, capabilities, 4
     /* PrepareArgs */
     )) {
-      stack.push(args);
+      stack.pushJs(args);
       return;
     }
 
@@ -51920,27 +52271,33 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       args.clear();
 
       for (var i = 0; i < blocks.length; i++) {
-        stack.push(blocks[i]);
+        var block = blocks[i];
+
+        if (typeof block === 'number') {
+          stack.pushSmallInt(block);
+        } else {
+          stack.pushJs(block);
+        }
       }
 
       var positional = preparedArgs.positional,
           named = preparedArgs.named;
       var positionalCount = positional.length;
 
-      for (var _i5 = 0; _i5 < positionalCount; _i5++) {
-        stack.push(positional[_i5]);
+      for (var _i = 0; _i < positionalCount; _i++) {
+        stack.pushJs(positional[_i]);
       }
 
       var names = Object.keys(named);
 
-      for (var _i6 = 0; _i6 < names.length; _i6++) {
-        stack.push(named[names[_i6]]);
+      for (var _i2 = 0; _i2 < names.length; _i2++) {
+        stack.pushJs(named[names[_i2]]);
       }
 
       args.setup(stack, names, blockNames, positionalCount, false);
     }
 
-    stack.push(args);
+    stack.pushJs(args);
   });
 
   function resolveCurriedComponentDefinition(instance, definition, args) {
@@ -51982,7 +52339,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     if (managerHasCapability(manager, capabilities, 8
     /* CreateArgs */
     )) {
-      args = vm.stack.peek();
+      args = vm.stack.peekJs();
     }
 
     var self = null;
@@ -51997,12 +52354,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     // only transition at exactly one place.
 
     instance.state = state;
-    var tag = manager.getTag(state);
 
     if (managerHasCapability(manager, capabilities, 256
     /* UpdateHook */
-    ) && !(0, _validator.isConstTag)(tag)) {
-      vm.updateWith(new UpdateComponentOpcode(tag, state, manager, dynamicScope));
+    )) {
+      vm.updateWith(new UpdateComponentOpcode(state, manager, dynamicScope));
     }
   });
   APPEND_OPCODES.add(90
@@ -52015,7 +52371,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         state = _vm$fetchValue.state,
         capabilities = _vm$fetchValue.capabilities;
 
-    var d = manager.getDestructor(state);
+    var d = manager.getDestroyable(state);
 
     if (true
     /* DEBUG */
@@ -52029,8 +52385,21 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   });
   APPEND_OPCODES.add(100
   /* BeginComponentTransaction */
-  , function (vm) {
-    vm.beginCacheGroup();
+  , function (vm, _ref38) {
+    var _state = _ref38.op1;
+    var name;
+
+    if (true
+    /* DEBUG */
+    ) {
+      var _vm$fetchValue2 = vm.fetchValue(_state),
+          definition = _vm$fetchValue2.definition,
+          manager = _vm$fetchValue2.manager;
+
+      name = manager.getDebugName(definition.state);
+    }
+
+    vm.beginCacheGroup(name);
     vm.elements().pushSimpleBlock();
   });
   APPEND_OPCODES.add(91
@@ -52040,24 +52409,24 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   });
   APPEND_OPCODES.add(53
   /* ComponentAttr */
-  , function (vm, _ref38) {
-    var _name = _ref38.op1,
-        trusting = _ref38.op2,
-        _namespace = _ref38.op3;
-    var name = vm[CONSTANTS].getString(_name);
-    var reference = vm.stack.pop();
-    var namespace = _namespace ? vm[CONSTANTS].getString(_namespace) : null;
+  , function (vm, _ref39) {
+    var _name = _ref39.op1,
+        trusting = _ref39.op2,
+        _namespace = _ref39.op3;
+    var name = vm[CONSTANTS].getValue(_name);
+    var reference = vm.stack.popJs();
+    var namespace = _namespace ? vm[CONSTANTS].getValue(_namespace) : null;
     vm.fetchValue(_vm2.$t0).setAttribute(name, reference, !!trusting, namespace);
   });
   APPEND_OPCODES.add(108
   /* StaticComponentAttr */
-  , function (vm, _ref39) {
-    var _name = _ref39.op1,
-        _value = _ref39.op2,
-        _namespace = _ref39.op3;
-    var name = vm[CONSTANTS].getString(_name);
-    var value = vm[CONSTANTS].getString(_value);
-    var namespace = _namespace ? vm[CONSTANTS].getString(_namespace) : null;
+  , function (vm, _ref40) {
+    var _name = _ref40.op1,
+        _value = _ref40.op2,
+        _namespace = _ref40.op3;
+    var name = vm[CONSTANTS].getValue(_name);
+    var value = vm[CONSTANTS].getValue(_value);
+    var namespace = _namespace ? vm[CONSTANTS].getValue(_namespace) : null;
     vm.fetchValue(_vm2.$t0).setStaticAttribute(name, value, namespace);
   });
 
@@ -52068,9 +52437,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.modifiers = [];
     }
 
-    var _proto41 = ComponentElementOperations.prototype;
+    var _proto34 = ComponentElementOperations.prototype;
 
-    _proto41.setAttribute = function setAttribute(name, value, trusting, namespace) {
+    _proto34.setAttribute = function setAttribute(name, value, trusting, namespace) {
       var deferred = {
         value: value,
         namespace: namespace,
@@ -52084,7 +52453,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.attributes[name] = deferred;
     };
 
-    _proto41.setStaticAttribute = function setStaticAttribute(name, value, namespace) {
+    _proto34.setStaticAttribute = function setStaticAttribute(name, value, namespace) {
       var deferred = {
         value: value,
         namespace: namespace
@@ -52097,11 +52466,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.attributes[name] = deferred;
     };
 
-    _proto41.addModifier = function addModifier(manager, state) {
+    _proto34.addModifier = function addModifier(manager, state) {
       this.modifiers.push([manager, state]);
     };
 
-    _proto41.flush = function flush(vm) {
+    _proto34.flush = function flush(vm) {
       var type;
       var attributes = this.attributes;
 
@@ -52178,7 +52547,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     } else {
       var attribute = vm.elements().setDynamicAttribute(name, value.value(), trusting, namespace);
 
-      if (!(0, _validator.isConst)(value)) {
+      if (!value.isConst()) {
         vm.updateWith(new UpdateDynamicAttributeOpcode(value, attribute));
       }
     }
@@ -52186,19 +52555,6 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
   APPEND_OPCODES.add(102
   /* DidCreateElement */
-  , function (vm, _ref40) {
-    var _state = _ref40.op1;
-
-    var _vm$fetchValue2 = vm.fetchValue(_state),
-        definition = _vm$fetchValue2.definition,
-        state = _vm$fetchValue2.state;
-
-    var manager = definition.manager;
-    var operations = vm.fetchValue(_vm2.$t0);
-    manager.didCreateElement(state, vm.elements().constructing, operations);
-  });
-  APPEND_OPCODES.add(92
-  /* GetComponentSelf */
   , function (vm, _ref41) {
     var _state = _ref41.op1;
 
@@ -52207,10 +52563,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         state = _vm$fetchValue3.state;
 
     var manager = definition.manager;
-    vm.stack.push(manager.getSelf(state));
+    var operations = vm.fetchValue(_vm2.$t0);
+    manager.didCreateElement(state, vm.elements().constructing, operations);
   });
-  APPEND_OPCODES.add(93
-  /* GetComponentTagName */
+  APPEND_OPCODES.add(92
+  /* GetComponentSelf */
   , function (vm, _ref42) {
     var _state = _ref42.op1;
 
@@ -52219,13 +52576,27 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         state = _vm$fetchValue4.state;
 
     var manager = definition.manager;
-    vm.stack.push(manager.getTagName(state));
+    vm.stack.pushJs(manager.getSelf(state));
+  });
+  APPEND_OPCODES.add(93
+  /* GetComponentTagName */
+  , function (vm, _ref43) {
+    var _state = _ref43.op1;
+
+    var _vm$fetchValue5 = vm.fetchValue(_state),
+        definition = _vm$fetchValue5.definition,
+        state = _vm$fetchValue5.state;
+
+    var manager = definition.manager;
+    var tagName = manager.getTagName(state); // User provided value from JS, so we don't bother to encode
+
+    vm.stack.pushJs(tagName);
   }); // Dynamic Invocation Only
 
   APPEND_OPCODES.add(95
   /* GetJitComponentLayout */
-  , function (vm, _ref43) {
-    var _state = _ref43.op1;
+  , function (vm, _ref44) {
+    var _state = _ref44.op1;
     var instance = vm.fetchValue(_state);
     var manager = instance.manager;
     var definition = instance.definition;
@@ -52251,14 +52622,21 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     }
 
     var handle = layout.compile(vm.context);
-    stack.push(layout.symbolTable);
-    stack.push(handle);
+    stack.pushJs(layout.symbolTable);
+
+    if (true
+    /* DEBUG */
+    && (0, _util.isErrHandle)(handle)) {
+      stack.pushJs(handle);
+    } else {
+      stack.pushSmallInt(handle);
+    }
   }, 'jit'); // Dynamic Invocation Only
 
   APPEND_OPCODES.add(94
   /* GetAotComponentLayout */
-  , function (vm, _ref44) {
-    var _state = _ref44.op1;
+  , function (vm, _ref45) {
+    var _state = _ref45.op1;
     var instance = vm.fetchValue(_state);
     var manager = instance.manager,
         definition = instance.definition;
@@ -52276,8 +52654,15 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       throw (0, _util.unreachable)();
     }
 
-    stack.push(invoke.symbolTable);
-    stack.push(invoke.handle);
+    stack.pushJs(invoke.symbolTable);
+
+    if (true
+    /* DEBUG */
+    && (0, _util.isErrHandle)(invoke.handle)) {
+      stack.pushJs(invoke.handle);
+    } else {
+      stack.pushSmallInt(invoke.handle);
+    }
   }); // These types are absurd here
 
   function hasStaticLayoutCapability(capabilities, _manager) {
@@ -52294,12 +52679,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
   APPEND_OPCODES.add(76
   /* Main */
-  , function (vm, _ref45) {
+  , function (vm, _ref46) {
     var _state2;
 
-    var register = _ref45.op1;
-    var definition = vm.stack.pop();
-    var invocation = vm.stack.pop();
+    var register = _ref46.op1;
+    var definition = vm.stack.popJs();
+    var invocation = vm.stack.popJs();
     var manager = definition.manager;
     var capabilities = capabilityFlagsFrom(manager.getCapabilities(definition.state));
     var state = (_state2 = {}, _state2[COMPONENT_INSTANCE] = true, _state2.definition = definition, _state2.manager = manager, _state2.capabilities = capabilities, _state2.state = null, _state2.handle = invocation.handle, _state2.table = invocation.symbolTable, _state2.lookup = null, _state2);
@@ -52307,26 +52692,29 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   });
   APPEND_OPCODES.add(98
   /* PopulateLayout */
-  , function (vm, _ref46) {
-    var _state = _ref46.op1;
-    var stack = vm.stack;
-    var handle = stack.pop();
-    var table = stack.pop();
+  , function (vm, _ref47) {
+    var _state = _ref47.op1;
+    var stack = vm.stack; // In DEBUG handles could be ErrHandle objects
+
+    var handle = true
+    /* DEBUG */
+    ? stack.pop() : stack.popSmallInt();
+    var table = stack.popJs();
     var state = vm.fetchValue(_state);
     state.handle = handle;
     state.table = table;
   });
   APPEND_OPCODES.add(38
   /* VirtualRootScope */
-  , function (vm, _ref47) {
-    var _state = _ref47.op1;
+  , function (vm, _ref48) {
+    var _state = _ref48.op1;
     var symbols = vm.fetchValue(_state).table.symbols;
     vm.pushRootScope(symbols.length + 1);
   });
   APPEND_OPCODES.add(97
   /* SetupForEval */
-  , function (vm, _ref48) {
-    var _state = _ref48.op1;
+  , function (vm, _ref49) {
+    var _state = _ref49.op1;
     var state = vm.fetchValue(_state);
 
     if (state.table.hasEval) {
@@ -52336,11 +52724,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   });
   APPEND_OPCODES.add(17
   /* SetNamedVariables */
-  , function (vm, _ref49) {
-    var _state = _ref49.op1;
+  , function (vm, _ref50) {
+    var _state = _ref50.op1;
     var state = vm.fetchValue(_state);
     var scope = vm.scope();
-    var args = vm.stack.peek();
+    var args = vm.stack.peekJs();
     var callerNames = args.named.atNames;
 
     for (var i = callerNames.length - 1; i >= 0; i--) {
@@ -52361,12 +52749,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
   APPEND_OPCODES.add(18
   /* SetBlocks */
-  , function (vm, _ref50) {
-    var _state = _ref50.op1;
+  , function (vm, _ref51) {
+    var _state = _ref51.op1;
     var state = vm.fetchValue(_state);
 
-    var _vm$stack$peek = vm.stack.peek(),
-        blocks = _vm$stack$peek.blocks;
+    var _vm$stack$peekJs = vm.stack.peekJs(),
+        blocks = _vm$stack$peekJs.blocks;
 
     for (var i = 0; i < blocks.names.length; i++) {
       bindBlock(blocks.symbolNames[i], blocks.names[i], state, blocks, vm);
@@ -52375,20 +52763,20 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
   APPEND_OPCODES.add(99
   /* InvokeComponentLayout */
-  , function (vm, _ref51) {
-    var _state = _ref51.op1;
+  , function (vm, _ref52) {
+    var _state = _ref52.op1;
     var state = vm.fetchValue(_state);
     vm.call(state.handle);
   });
   APPEND_OPCODES.add(103
   /* DidRenderLayout */
-  , function (vm, _ref52) {
-    var _state = _ref52.op1;
+  , function (vm, _ref53) {
+    var _state = _ref53.op1;
 
-    var _vm$fetchValue5 = vm.fetchValue(_state),
-        manager = _vm$fetchValue5.manager,
-        state = _vm$fetchValue5.state,
-        capabilities = _vm$fetchValue5.capabilities;
+    var _vm$fetchValue6 = vm.fetchValue(_state),
+        manager = _vm$fetchValue6.manager,
+        state = _vm$fetchValue6.state,
+        capabilities = _vm$fetchValue6.capabilities;
 
     var bounds = vm.elements().popBlock();
 
@@ -52409,24 +52797,23 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     vm.commitCacheGroup();
   });
 
-  var UpdateComponentOpcode = /*#__PURE__*/function (_UpdatingOpcode7) {
-    (0, _emberBabel.inheritsLoose)(UpdateComponentOpcode, _UpdatingOpcode7);
+  var UpdateComponentOpcode = /*#__PURE__*/function (_UpdatingOpcode8) {
+    (0, _emberBabel.inheritsLoose)(UpdateComponentOpcode, _UpdatingOpcode8);
 
-    function UpdateComponentOpcode(tag, component, manager, dynamicScope) {
-      var _this13;
+    function UpdateComponentOpcode(component, manager, dynamicScope) {
+      var _this14;
 
-      _this13 = _UpdatingOpcode7.call(this) || this;
-      _this13.tag = tag;
-      _this13.component = component;
-      _this13.manager = manager;
-      _this13.dynamicScope = dynamicScope;
-      _this13.type = 'update-component';
-      return _this13;
+      _this14 = _UpdatingOpcode8.call(this) || this;
+      _this14.component = component;
+      _this14.manager = manager;
+      _this14.dynamicScope = dynamicScope;
+      _this14.type = 'update-component';
+      return _this14;
     }
 
-    var _proto42 = UpdateComponentOpcode.prototype;
+    var _proto35 = UpdateComponentOpcode.prototype;
 
-    _proto42.evaluate = function evaluate(_vm) {
+    _proto35.evaluate = function evaluate(_vm) {
       var component = this.component,
           manager = this.manager,
           dynamicScope = this.dynamicScope;
@@ -52436,24 +52823,23 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return UpdateComponentOpcode;
   }(UpdatingOpcode);
 
-  var DidUpdateLayoutOpcode = /*#__PURE__*/function (_UpdatingOpcode8) {
-    (0, _emberBabel.inheritsLoose)(DidUpdateLayoutOpcode, _UpdatingOpcode8);
+  var DidUpdateLayoutOpcode = /*#__PURE__*/function (_UpdatingOpcode9) {
+    (0, _emberBabel.inheritsLoose)(DidUpdateLayoutOpcode, _UpdatingOpcode9);
 
     function DidUpdateLayoutOpcode(manager, component, bounds) {
-      var _this14;
+      var _this15;
 
-      _this14 = _UpdatingOpcode8.call(this) || this;
-      _this14.manager = manager;
-      _this14.component = component;
-      _this14.bounds = bounds;
-      _this14.type = 'did-update-layout';
-      _this14.tag = _validator.CONSTANT_TAG;
-      return _this14;
+      _this15 = _UpdatingOpcode9.call(this) || this;
+      _this15.manager = manager;
+      _this15.component = component;
+      _this15.bounds = bounds;
+      _this15.type = 'did-update-layout';
+      return _this15;
     }
 
-    var _proto43 = DidUpdateLayoutOpcode.prototype;
+    var _proto36 = DidUpdateLayoutOpcode.prototype;
 
-    _proto43.evaluate = function evaluate(vm) {
+    _proto36.evaluate = function evaluate(vm) {
       var manager = this.manager,
           component = this.component,
           bounds = this.bounds;
@@ -52496,9 +52882,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     }
 
-    var _proto44 = ScopeInspector.prototype;
+    var _proto37 = ScopeInspector.prototype;
 
-    _proto44.get = function get(path) {
+    _proto37.get = function get(path) {
       var scope = this.scope,
           locals = this.locals;
       var parts = path.split('.');
@@ -52531,11 +52917,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
   APPEND_OPCODES.add(106
   /* Debugger */
-  , function (vm, _ref53) {
-    var _symbols = _ref53.op1,
-        _evalInfo = _ref53.op2;
-    var symbols = vm[CONSTANTS].getStringArray(_symbols);
-    var evalInfo = vm[CONSTANTS].getArray(_evalInfo);
+  , function (vm, _ref54) {
+    var _symbols = _ref54.op1,
+        _evalInfo = _ref54.op2;
+    var symbols = vm[CONSTANTS].getArray(_symbols);
+    var evalInfo = vm[CONSTANTS].getValue((0, _util.decodeHandle)(_evalInfo));
     var inspector = new ScopeInspector(vm.scope(), symbols, evalInfo);
     callback(vm.getSelf().value(), function (path) {
       return inspector.get(path).value();
@@ -52543,16 +52929,16 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   });
   APPEND_OPCODES.add(104
   /* InvokePartial */
-  , function (vm, _ref54) {
-    var _meta = _ref54.op1,
-        _symbols = _ref54.op2,
-        _evalInfo = _ref54.op3;
-    var constants = vm[CONSTANTS],
+  , function (vm, _ref55) {
+    var _meta = _ref55.op1,
+        _symbols = _ref55.op2,
+        _evalInfo = _ref55.op3;
+    var constants$$1 = vm[CONSTANTS],
         stack = vm.stack;
-    var name = stack.pop().value();
-    var meta = constants.getTemplateMeta(_meta);
-    var outerSymbols = constants.getStringArray(_symbols);
-    var evalInfo = constants.getArray(_evalInfo);
+    var name = stack.popJs().value();
+    var meta = constants$$1.getValue((0, _util.decodeHandle)(_meta));
+    var outerSymbols = constants$$1.getArray(_symbols);
+    var evalInfo = constants$$1.getValue((0, _util.decodeHandle)(_evalInfo));
     var handle = vm.runtime.resolver.lookupPartial(name, meta);
     var definition = vm.runtime.resolver.resolve(handle);
 
@@ -52577,9 +52963,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
 
       if (evalScope) {
-        for (var _i7 = 0; _i7 < partialSymbols.length; _i7++) {
-          var _name6 = partialSymbols[_i7];
-          var symbol$$1 = _i7 + 1;
+        for (var _i3 = 0; _i3 < partialSymbols.length; _i3++) {
+          var _name6 = partialSymbols[_i3];
+          var symbol$$1 = _i3 + 1;
           var value = evalScope[_name6];
           if (value !== undefined) partialScope.bind(symbol$$1, value);
         }
@@ -52591,37 +52977,26 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       vm.call((0, _util.unwrapHandle)(vmHandle));
     }
   }, 'jit');
-
-  var IterablePresenceReference = /*#__PURE__*/function () {
-    function IterablePresenceReference(artifacts) {
-      this.tag = artifacts.tag;
-      this.artifacts = artifacts;
-    }
-
-    var _proto45 = IterablePresenceReference.prototype;
-
-    _proto45.value = function value() {
-      return !this.artifacts.isEmpty();
-    };
-
-    return IterablePresenceReference;
-  }();
-
   APPEND_OPCODES.add(74
   /* PutIterator */
   , function (vm) {
     var stack = vm.stack;
-    var listRef = stack.pop();
-    var key = stack.pop();
-    var iterable = vm.env.iterableFor(listRef, key.value());
-    var iterator = new _reference.ReferenceIterator(iterable);
-    stack.push(iterator);
-    stack.push(new IterablePresenceReference(iterator.artifacts));
+    var listRef = stack.popJs();
+    var keyRef = stack.popJs();
+    var keyValue = keyRef.value();
+    var key = keyValue === null ? '@identity' : String(keyValue);
+    var iterableRef = new _reference.IterableReference(listRef, key); // Push the first time to push the iterator onto the stack for iteration
+
+    stack.pushJs(iterableRef); // Push the second time to push it as a reference for presence in general
+    // (e.g whether or not it is empty). This reference will be used to skip
+    // iteration entirely.
+
+    stack.pushJs(iterableRef);
   });
   APPEND_OPCODES.add(72
   /* EnterList */
-  , function (vm, _ref55) {
-    var relativeStart = _ref55.op1;
+  , function (vm, _ref56) {
+    var relativeStart = _ref56.op1;
     vm.enterList(relativeStart);
   });
   APPEND_OPCODES.add(73
@@ -52631,14 +53006,15 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   });
   APPEND_OPCODES.add(75
   /* Iterate */
-  , function (vm, _ref56) {
-    var breaks = _ref56.op1;
+  , function (vm, _ref57) {
+    var breaks = _ref57.op1;
     var stack = vm.stack;
-    var item = stack.peek().next();
+    var iterable = stack.peekJs();
+    var item = iterable.next();
 
     if (item) {
-      var tryOpcode = vm.enterItem(item.memo, item.value);
-      vm.registerItem(item.key, tryOpcode);
+      var opcode = vm.enterItem(iterable, item);
+      vm.registerItem(opcode);
     } else {
       vm.goto(breaks);
     }
@@ -52679,49 +53055,49 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   var SimpleComponentManager = /*#__PURE__*/function () {
     function SimpleComponentManager() {}
 
-    var _proto46 = SimpleComponentManager.prototype;
+    var _proto38 = SimpleComponentManager.prototype;
 
-    _proto46.getCapabilities = function getCapabilities(_state) {
+    _proto38.getCapabilities = function getCapabilities(_state) {
       return MINIMAL_CAPABILITIES;
     };
 
-    _proto46.prepareArgs = function prepareArgs(_state, _args) {
+    _proto38.getDebugName = function getDebugName() {
+      return '';
+    };
+
+    _proto38.prepareArgs = function prepareArgs(_state, _args) {
       throw new Error("Unimplemented prepareArgs in SimpleComponentManager");
     };
 
-    _proto46.create = function create(_env, _state, _args, _dynamicScope, _caller, _hasDefaultBlock) {
+    _proto38.create = function create(_env, _state, _args, _dynamicScope, _caller, _hasDefaultBlock) {
       throw new Error("Unimplemented create in SimpleComponentManager");
     };
 
-    _proto46.getSelf = function getSelf(_state) {
+    _proto38.getSelf = function getSelf(_state) {
       return UNDEFINED_REFERENCE;
     };
 
-    _proto46.getTag = function getTag(_state) {
-      throw new Error("Unimplemented getTag in SimpleComponentManager");
-    };
-
-    _proto46.didRenderLayout = function didRenderLayout(_state, _bounds) {
+    _proto38.didRenderLayout = function didRenderLayout(_state, _bounds) {
       throw new Error("Unimplemented didRenderLayout in SimpleComponentManager");
     };
 
-    _proto46.didCreate = function didCreate(_state) {
+    _proto38.didCreate = function didCreate(_state) {
       throw new Error("Unimplemented didCreate in SimpleComponentManager");
     };
 
-    _proto46.update = function update(_state, _dynamicScope) {
+    _proto38.update = function update(_state, _dynamicScope) {
       throw new Error("Unimplemented update in SimpleComponentManager");
     };
 
-    _proto46.didUpdateLayout = function didUpdateLayout(_state, _bounds) {
+    _proto38.didUpdateLayout = function didUpdateLayout(_state, _bounds) {
       throw new Error("Unimplemented didUpdateLayout in SimpleComponentManager");
     };
 
-    _proto46.didUpdate = function didUpdate(_state) {
+    _proto38.didUpdate = function didUpdate(_state) {
       throw new Error("Unimplemented didUpdate in SimpleComponentManager");
     };
 
-    _proto46.getDestructor = function getDestructor(_state) {
+    _proto38.getDestroyable = function getDestroyable(_state) {
       return null;
     };
 
@@ -52732,60 +53108,714 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   var TEMPLATE_ONLY_COMPONENT = {
     state: null,
     manager: new SimpleComponentManager()
-  };
-  _exports.TEMPLATE_ONLY_COMPONENT = TEMPLATE_ONLY_COMPONENT;
+  }; // http://www.w3.org/TR/html/syntax.html#html-integration-point
 
-  var DefaultDynamicScope = /*#__PURE__*/function () {
-    function DefaultDynamicScope(bucket) {
-      if (bucket) {
-        this.bucket = (0, _util.assign)({}, bucket);
+  _exports.TEMPLATE_ONLY_COMPONENT = TEMPLATE_ONLY_COMPONENT;
+  var SVG_INTEGRATION_POINTS = {
+    foreignObject: 1,
+    desc: 1,
+    title: 1
+  }; // http://www.w3.org/TR/html/syntax.html#adjust-svg-attributes
+  // TODO: Adjust SVG attributes
+  // http://www.w3.org/TR/html/syntax.html#parsing-main-inforeign
+  // TODO: Adjust SVG elements
+  // http://www.w3.org/TR/html/syntax.html#parsing-main-inforeign
+
+  var BLACKLIST_TABLE = Object.create(null);
+
+  var DOMOperations = /*#__PURE__*/function () {
+    function DOMOperations(document) {
+      this.document = document;
+      this.setupUselessElement();
+    } // split into seperate method so that NodeDOMTreeConstruction
+    // can override it.
+
+
+    var _proto39 = DOMOperations.prototype;
+
+    _proto39.setupUselessElement = function setupUselessElement() {
+      this.uselessElement = this.document.createElement('div');
+    };
+
+    _proto39.createElement = function createElement(tag, context) {
+      var isElementInSVGNamespace, isHTMLIntegrationPoint;
+
+      if (context) {
+        isElementInSVGNamespace = context.namespaceURI === "http://www.w3.org/2000/svg"
+        /* SVG */
+        || tag === 'svg';
+        isHTMLIntegrationPoint = !!SVG_INTEGRATION_POINTS[context.tagName];
       } else {
-        this.bucket = {};
+        isElementInSVGNamespace = tag === 'svg';
+        isHTMLIntegrationPoint = false;
+      }
+
+      if (isElementInSVGNamespace && !isHTMLIntegrationPoint) {
+        // FIXME: This does not properly handle <font> with color, face, or
+        // size attributes, which is also disallowed by the spec. We should fix
+        // this.
+        if (BLACKLIST_TABLE[tag]) {
+          throw new Error("Cannot create a " + tag + " inside an SVG context");
+        }
+
+        return this.document.createElementNS("http://www.w3.org/2000/svg"
+        /* SVG */
+        , tag);
+      } else {
+        return this.document.createElement(tag);
+      }
+    };
+
+    _proto39.insertBefore = function insertBefore(parent, node, reference) {
+      parent.insertBefore(node, reference);
+    };
+
+    _proto39.insertHTMLBefore = function insertHTMLBefore(parent, nextSibling, html) {
+      if (html === '') {
+        var comment = this.createComment('');
+        parent.insertBefore(comment, nextSibling);
+        return new ConcreteBounds(parent, comment, comment);
+      }
+
+      var prev = nextSibling ? nextSibling.previousSibling : parent.lastChild;
+      var last;
+
+      if (nextSibling === null) {
+        parent.insertAdjacentHTML("beforeend"
+        /* beforeend */
+        , html);
+        last = parent.lastChild;
+      } else if (nextSibling instanceof HTMLElement) {
+        nextSibling.insertAdjacentHTML('beforebegin', html);
+        last = nextSibling.previousSibling;
+      } else {
+        // Non-element nodes do not support insertAdjacentHTML, so add an
+        // element and call it on that element. Then remove the element.
+        //
+        // This also protects Edge, IE and Firefox w/o the inspector open
+        // from merging adjacent text nodes. See ./compat/text-node-merging-fix.ts
+        var uselessElement = this.uselessElement;
+        parent.insertBefore(uselessElement, nextSibling);
+        uselessElement.insertAdjacentHTML("beforebegin"
+        /* beforebegin */
+        , html);
+        last = uselessElement.previousSibling;
+        parent.removeChild(uselessElement);
+      }
+
+      var first = prev ? prev.nextSibling : parent.firstChild;
+      return new ConcreteBounds(parent, first, last);
+    };
+
+    _proto39.createTextNode = function createTextNode(text) {
+      return this.document.createTextNode(text);
+    };
+
+    _proto39.createComment = function createComment(data) {
+      return this.document.createComment(data);
+    };
+
+    return DOMOperations;
+  }();
+
+  function moveNodesBefore(source, target, nextSibling) {
+    var first = source.firstChild;
+    var last = first;
+    var current = first;
+
+    while (current) {
+      var next = current.nextSibling;
+      target.insertBefore(current, nextSibling);
+      last = current;
+      current = next;
+    }
+
+    return new ConcreteBounds(target, first, last);
+  }
+
+  var SVG_NAMESPACE = "http://www.w3.org/2000/svg"
+  /* SVG */
+  ; // Patch:    insertAdjacentHTML on SVG Fix
+  // Browsers: Safari, IE, Edge, Firefox ~33-34
+  // Reason:   insertAdjacentHTML does not exist on SVG elements in Safari. It is
+  //           present but throws an exception on IE and Edge. Old versions of
+  //           Firefox create nodes in the incorrect namespace.
+  // Fix:      Since IE and Edge silently fail to create SVG nodes using
+  //           innerHTML, and because Firefox may create nodes in the incorrect
+  //           namespace using innerHTML on SVG elements, an HTML-string wrapping
+  //           approach is used. A pre/post SVG tag is added to the string, then
+  //           that whole string is added to a div. The created nodes are plucked
+  //           out and applied to the target location on DOM.
+
+  function applySVGInnerHTMLFix(document, DOMClass, svgNamespace) {
+    if (!document) return DOMClass;
+
+    if (!shouldApplyFix(document, svgNamespace)) {
+      return DOMClass;
+    }
+
+    var div = document.createElement('div');
+    return /*#__PURE__*/function (_DOMClass) {
+      (0, _emberBabel.inheritsLoose)(DOMChangesWithSVGInnerHTMLFix, _DOMClass);
+
+      function DOMChangesWithSVGInnerHTMLFix() {
+        return _DOMClass.apply(this, arguments) || this;
+      }
+
+      var _proto40 = DOMChangesWithSVGInnerHTMLFix.prototype;
+
+      _proto40.insertHTMLBefore = function insertHTMLBefore(parent, nextSibling, html) {
+        if (html === '') {
+          return _DOMClass.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
+        }
+
+        if (parent.namespaceURI !== svgNamespace) {
+          return _DOMClass.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
+        }
+
+        return fixSVG(parent, div, html, nextSibling);
+      };
+
+      return DOMChangesWithSVGInnerHTMLFix;
+    }(DOMClass);
+  }
+
+  function fixSVG(parent, div, html, reference) {
+    var source; // This is important, because decendants of the <foreignObject> integration
+    // point are parsed in the HTML namespace
+
+    if (parent.tagName.toUpperCase() === 'FOREIGNOBJECT') {
+      // IE, Edge: also do not correctly support using `innerHTML` on SVG
+      // namespaced elements. So here a wrapper is used.
+      var wrappedHtml = '<svg><foreignObject>' + html + '</foreignObject></svg>';
+      (0, _util.clearElement)(div);
+      div.insertAdjacentHTML("afterbegin"
+      /* afterbegin */
+      , wrappedHtml);
+      source = div.firstChild.firstChild;
+    } else {
+      // IE, Edge: also do not correctly support using `innerHTML` on SVG
+      // namespaced elements. So here a wrapper is used.
+      var _wrappedHtml = '<svg>' + html + '</svg>';
+
+      (0, _util.clearElement)(div);
+      div.insertAdjacentHTML("afterbegin"
+      /* afterbegin */
+      , _wrappedHtml);
+      source = div.firstChild;
+    }
+
+    return moveNodesBefore(source, parent, reference);
+  }
+
+  function shouldApplyFix(document, svgNamespace) {
+    var svg = document.createElementNS(svgNamespace, 'svg');
+
+    try {
+      svg.insertAdjacentHTML("beforeend"
+      /* beforeend */
+      , '<circle></circle>');
+    } catch (e) {// IE, Edge: Will throw, insertAdjacentHTML is unsupported on SVG
+      // Safari: Will throw, insertAdjacentHTML is not present on SVG
+    } finally {
+      // FF: Old versions will create a node in the wrong namespace
+      if (svg.childNodes.length === 1 && svg.firstChild.namespaceURI === SVG_NAMESPACE) {
+        // The test worked as expected, no fix required
+        return false;
+      }
+
+      return true;
+    }
+  } // Patch:    Adjacent text node merging fix
+  // Browsers: IE, Edge, Firefox w/o inspector open
+  // Reason:   These browsers will merge adjacent text nodes. For exmaple given
+  //           <div>Hello</div> with div.insertAdjacentHTML(' world') browsers
+  //           with proper behavior will populate div.childNodes with two items.
+  //           These browsers will populate it with one merged node instead.
+  // Fix:      Add these nodes to a wrapper element, then iterate the childNodes
+  //           of that wrapper and move the nodes to their target location. Note
+  //           that potential SVG bugs will have been handled before this fix.
+  //           Note that this fix must only apply to the previous text node, as
+  //           the base implementation of `insertHTMLBefore` already handles
+  //           following text nodes correctly.
+
+
+  function applyTextNodeMergingFix(document, DOMClass) {
+    if (!document) return DOMClass;
+
+    if (!shouldApplyFix$1(document)) {
+      return DOMClass;
+    }
+
+    return /*#__PURE__*/function (_DOMClass2) {
+      (0, _emberBabel.inheritsLoose)(DOMChangesWithTextNodeMergingFix, _DOMClass2);
+
+      function DOMChangesWithTextNodeMergingFix(document) {
+        var _this16;
+
+        _this16 = _DOMClass2.call(this, document) || this;
+        _this16.uselessComment = document.createComment('');
+        return _this16;
+      }
+
+      var _proto41 = DOMChangesWithTextNodeMergingFix.prototype;
+
+      _proto41.insertHTMLBefore = function insertHTMLBefore(parent, nextSibling, html) {
+        if (html === '') {
+          return _DOMClass2.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
+        }
+
+        var didSetUselessComment = false;
+        var nextPrevious = nextSibling ? nextSibling.previousSibling : parent.lastChild;
+
+        if (nextPrevious && nextPrevious instanceof Text) {
+          didSetUselessComment = true;
+          parent.insertBefore(this.uselessComment, nextSibling);
+        }
+
+        var bounds = _DOMClass2.prototype.insertHTMLBefore.call(this, parent, nextSibling, html);
+
+        if (didSetUselessComment) {
+          parent.removeChild(this.uselessComment);
+        }
+
+        return bounds;
+      };
+
+      return DOMChangesWithTextNodeMergingFix;
+    }(DOMClass);
+  }
+
+  function shouldApplyFix$1(document) {
+    var mergingTextDiv = document.createElement('div');
+    mergingTextDiv.appendChild(document.createTextNode('first'));
+    mergingTextDiv.insertAdjacentHTML("beforeend"
+    /* beforeend */
+    , 'second');
+
+    if (mergingTextDiv.childNodes.length === 2) {
+      // It worked as expected, no fix required
+      return false;
+    }
+
+    return true;
+  }
+
+  ['b', 'big', 'blockquote', 'body', 'br', 'center', 'code', 'dd', 'div', 'dl', 'dt', 'em', 'embed', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'hr', 'i', 'img', 'li', 'listing', 'main', 'meta', 'nobr', 'ol', 'p', 'pre', 'ruby', 's', 'small', 'span', 'strong', 'strike', 'sub', 'sup', 'table', 'tt', 'u', 'ul', 'var'].forEach(function (tag) {
+    return BLACKLIST_TABLE[tag] = 1;
+  });
+  var WHITESPACE = /[\t-\r \xA0\u1680\u180E\u2000-\u200A\u2028\u2029\u202F\u205F\u3000\uFEFF]/;
+  var doc = typeof document === 'undefined' ? null : document;
+
+  function isWhitespace(string) {
+    return WHITESPACE.test(string);
+  }
+
+  var DOM;
+
+  (function (DOM) {
+    var TreeConstruction = /*#__PURE__*/function (_DOMOperations) {
+      (0, _emberBabel.inheritsLoose)(TreeConstruction, _DOMOperations);
+
+      function TreeConstruction() {
+        return _DOMOperations.apply(this, arguments) || this;
+      }
+
+      var _proto42 = TreeConstruction.prototype;
+
+      _proto42.createElementNS = function createElementNS(namespace, tag) {
+        return this.document.createElementNS(namespace, tag);
+      };
+
+      _proto42.setAttribute = function setAttribute(element, name, value, namespace) {
+        if (namespace === void 0) {
+          namespace = null;
+        }
+
+        if (namespace) {
+          element.setAttributeNS(namespace, name, value);
+        } else {
+          element.setAttribute(name, value);
+        }
+      };
+
+      return TreeConstruction;
+    }(DOMOperations);
+
+    DOM.TreeConstruction = TreeConstruction;
+    var appliedTreeContruction = TreeConstruction;
+    appliedTreeContruction = applyTextNodeMergingFix(doc, appliedTreeContruction);
+    appliedTreeContruction = applySVGInnerHTMLFix(doc, appliedTreeContruction, "http://www.w3.org/2000/svg"
+    /* SVG */
+    );
+    DOM.DOMTreeConstruction = appliedTreeContruction;
+  })(DOM || (DOM = {}));
+
+  var DOMChangesImpl = /*#__PURE__*/function (_DOMOperations2) {
+    (0, _emberBabel.inheritsLoose)(DOMChangesImpl, _DOMOperations2);
+
+    function DOMChangesImpl(document) {
+      var _this17;
+
+      _this17 = _DOMOperations2.call(this, document) || this;
+      _this17.document = document;
+      _this17.namespace = null;
+      return _this17;
+    }
+
+    var _proto43 = DOMChangesImpl.prototype;
+
+    _proto43.setAttribute = function setAttribute(element, name, value) {
+      element.setAttribute(name, value);
+    };
+
+    _proto43.removeAttribute = function removeAttribute(element, name) {
+      element.removeAttribute(name);
+    };
+
+    _proto43.insertAfter = function insertAfter(element, node, reference) {
+      this.insertBefore(element, node, reference.nextSibling);
+    };
+
+    return DOMChangesImpl;
+  }(DOMOperations);
+
+  _exports.IDOMChanges = DOMChangesImpl;
+  var helper = DOMChangesImpl;
+  helper = applyTextNodeMergingFix(doc, helper);
+  helper = applySVGInnerHTMLFix(doc, helper, "http://www.w3.org/2000/svg"
+  /* SVG */
+  );
+  var helper$1 = helper;
+  _exports.DOMChanges = helper$1;
+  var DOMTreeConstruction = DOM.DOMTreeConstruction;
+  _exports.DOMTreeConstruction = DOMTreeConstruction;
+
+  var _a$2;
+
+  var TRANSACTION = (0, _util.symbol)('TRANSACTION');
+
+  var TransactionImpl = /*#__PURE__*/function () {
+    function TransactionImpl() {
+      this.scheduledInstallManagers = [];
+      this.scheduledInstallModifiers = [];
+      this.scheduledUpdateModifierManagers = [];
+      this.scheduledUpdateModifiers = [];
+      this.createdComponents = [];
+      this.createdManagers = [];
+      this.updatedComponents = [];
+      this.updatedManagers = [];
+    }
+
+    var _proto44 = TransactionImpl.prototype;
+
+    _proto44.didCreate = function didCreate(component, manager) {
+      this.createdComponents.push(component);
+      this.createdManagers.push(manager);
+    };
+
+    _proto44.didUpdate = function didUpdate(component, manager) {
+      this.updatedComponents.push(component);
+      this.updatedManagers.push(manager);
+    };
+
+    _proto44.scheduleInstallModifier = function scheduleInstallModifier(modifier, manager) {
+      this.scheduledInstallModifiers.push(modifier);
+      this.scheduledInstallManagers.push(manager);
+    };
+
+    _proto44.scheduleUpdateModifier = function scheduleUpdateModifier(modifier, manager) {
+      this.scheduledUpdateModifiers.push(modifier);
+      this.scheduledUpdateModifierManagers.push(manager);
+    };
+
+    _proto44.commit = function commit() {
+      var createdComponents = this.createdComponents,
+          createdManagers = this.createdManagers;
+
+      for (var i = 0; i < createdComponents.length; i++) {
+        var component = createdComponents[i];
+        var _manager2 = createdManagers[i];
+
+        _manager2.didCreate(component);
+      }
+
+      var updatedComponents = this.updatedComponents,
+          updatedManagers = this.updatedManagers;
+
+      for (var _i4 = 0; _i4 < updatedComponents.length; _i4++) {
+        var _component = updatedComponents[_i4];
+        var _manager3 = updatedManagers[_i4];
+
+        _manager3.didUpdate(_component);
+      }
+
+      var scheduledInstallManagers = this.scheduledInstallManagers,
+          scheduledInstallModifiers = this.scheduledInstallModifiers;
+      var manager, modifier;
+
+      for (var _i5 = 0; _i5 < scheduledInstallManagers.length; _i5++) {
+        modifier = scheduledInstallModifiers[_i5];
+        manager = scheduledInstallManagers[_i5];
+        var modifierTag = manager.getTag(modifier);
+
+        if (modifierTag !== null) {
+          var tag = (0, _validator.track)( // eslint-disable-next-line no-loop-func
+          function () {
+            return manager.install(modifier);
+          }, true
+          /* DEBUG */
+          && "- While rendering:\n\n  (instance of a `" + manager.getDebugName(modifier) + "` modifier)");
+          (0, _validator.updateTag)(modifierTag, tag);
+        } else {
+          manager.install(modifier);
+        }
+      }
+
+      var scheduledUpdateModifierManagers = this.scheduledUpdateModifierManagers,
+          scheduledUpdateModifiers = this.scheduledUpdateModifiers;
+
+      for (var _i6 = 0; _i6 < scheduledUpdateModifierManagers.length; _i6++) {
+        modifier = scheduledUpdateModifiers[_i6];
+        manager = scheduledUpdateModifierManagers[_i6];
+
+        var _modifierTag = manager.getTag(modifier);
+
+        if (_modifierTag !== null) {
+          var _tag = (0, _validator.track)( // eslint-disable-next-line no-loop-func
+          function () {
+            return manager.update(modifier);
+          }, true
+          /* DEBUG */
+          && "While rendering an instance of a `" + (0, _util.debugToString)(modifier) + "` modifier");
+
+          (0, _validator.updateTag)(_modifierTag, _tag);
+        } else {
+          manager.update(modifier);
+        }
+      }
+    };
+
+    return TransactionImpl;
+  }();
+
+  var EnvironmentImpl = /*#__PURE__*/function () {
+    function EnvironmentImpl(options, delegate) {
+      this.delegate = delegate;
+      this[_a$2] = null; // Delegate methods and values
+
+      this.extra = this.delegate.extra;
+      this.isInteractive = this.delegate.isInteractive;
+
+      if (options.appendOperations) {
+        this.appendOperations = options.appendOperations;
+        this.updateOperations = options.updateOperations;
+      } else if (options.document) {
+        this.appendOperations = new DOMTreeConstruction(options.document);
+        this.updateOperations = new DOMChangesImpl(options.document);
+      } else if (true
+      /* DEBUG */
+      ) {
+        throw new Error('you must pass document or appendOperations to a new runtime');
       }
     }
 
-    var _proto47 = DefaultDynamicScope.prototype;
+    var _proto45 = EnvironmentImpl.prototype;
 
-    _proto47.get = function get(key) {
-      return this.bucket[key];
+    _proto45.getAppendOperations = function getAppendOperations() {
+      return this.appendOperations;
     };
 
-    _proto47.set = function set(key, reference) {
-      return this.bucket[key] = reference;
+    _proto45.getDOM = function getDOM() {
+      return this.updateOperations;
     };
 
-    _proto47.child = function child() {
-      return new DefaultDynamicScope(this.bucket);
+    _proto45.begin = function begin() {
+      this.delegate.onTransactionBegin();
+      this[TRANSACTION] = new TransactionImpl();
     };
 
-    return DefaultDynamicScope;
+    _proto45.didCreate = function didCreate(component, manager) {
+      this.transaction.didCreate(component, manager);
+    };
+
+    _proto45.didUpdate = function didUpdate(component, manager) {
+      this.transaction.didUpdate(component, manager);
+    };
+
+    _proto45.scheduleInstallModifier = function scheduleInstallModifier(modifier, manager) {
+      if (this.isInteractive) {
+        this.transaction.scheduleInstallModifier(modifier, manager);
+      }
+    };
+
+    _proto45.scheduleUpdateModifier = function scheduleUpdateModifier(modifier, manager) {
+      if (this.isInteractive) {
+        this.transaction.scheduleUpdateModifier(modifier, manager);
+      }
+    };
+
+    _proto45.commit = function commit() {
+      var transaction = this.transaction;
+      this[TRANSACTION] = null;
+      transaction.commit();
+      this.delegate.onTransactionCommit();
+    };
+
+    (0, _emberBabel.createClass)(EnvironmentImpl, [{
+      key: "transaction",
+      get: function get() {
+        return this[TRANSACTION];
+      }
+    }]);
+    return EnvironmentImpl;
   }();
 
-  _exports.DefaultDynamicScope = DefaultDynamicScope;
+  _exports.EnvironmentImpl = EnvironmentImpl;
+  _a$2 = TRANSACTION;
+
+  var DefaultRuntimeResolver = /*#__PURE__*/function () {
+    function DefaultRuntimeResolver(inner) {
+      this.inner = inner;
+    }
+
+    var _proto46 = DefaultRuntimeResolver.prototype;
+
+    _proto46.lookupComponent = function lookupComponent(name, referrer) {
+      if (this.inner.lookupComponent) {
+        var component = this.inner.lookupComponent(name, referrer);
+
+        if (component === undefined) {
+          throw new Error("Unexpected component " + name + " (from " + referrer + ") (lookupComponent returned undefined)");
+        }
+
+        return component;
+      } else {
+        throw new Error('lookupComponent not implemented on RuntimeResolver.');
+      }
+    };
+
+    _proto46.lookupPartial = function lookupPartial(name, referrer) {
+      if (this.inner.lookupPartial) {
+        var partial = this.inner.lookupPartial(name, referrer);
+
+        if (partial === undefined) {
+          throw new Error("Unexpected partial " + name + " (from " + referrer + ") (lookupPartial returned undefined)");
+        }
+
+        return partial;
+      } else {
+        throw new Error('lookupPartial not implemented on RuntimeResolver.');
+      }
+    };
+
+    _proto46.resolve = function resolve(handle) {
+      if (this.inner.resolve) {
+        var resolved = this.inner.resolve(handle);
+
+        if (resolved === undefined) {
+          throw new Error("Unexpected handle " + handle + " (resolve returned undefined)");
+        }
+
+        return resolved;
+      } else {
+        throw new Error('resolve not implemented on RuntimeResolver.');
+      }
+    };
+
+    _proto46.compilable = function compilable(locator) {
+      if (this.inner.compilable) {
+        var resolved = this.inner.compilable(locator);
+
+        if (resolved === undefined) {
+          throw new Error("Unable to compile " + name + " (compilable returned undefined)");
+        }
+
+        return resolved;
+      } else {
+        throw new Error('compilable not implemented on RuntimeResolver.');
+      }
+    };
+
+    _proto46.getInvocation = function getInvocation(locator) {
+      if (this.inner.getInvocation) {
+        var invocation = this.inner.getInvocation(locator);
+
+        if (invocation === undefined) {
+          throw new Error("Unable to get invocation for " + JSON.stringify(locator) + " (getInvocation returned undefined)");
+        }
+
+        return invocation;
+      } else {
+        throw new Error('getInvocation not implemented on RuntimeResolver.');
+      }
+    };
+
+    return DefaultRuntimeResolver;
+  }();
+
+  function AotRuntime(options, program, resolver, delegate) {
+    if (resolver === void 0) {
+      resolver = {};
+    }
+
+    var env = new EnvironmentImpl(options, delegate);
+    return {
+      env: env,
+      resolver: new DefaultRuntimeResolver(resolver),
+      program: _program.RuntimeProgramImpl.hydrate(program)
+    };
+  }
+
+  function JitRuntime(options, delegate, context, resolver) {
+    if (resolver === void 0) {
+      resolver = {};
+    }
+
+    return {
+      env: new EnvironmentImpl(options, delegate),
+      program: new _program.RuntimeProgramImpl(context.program.constants, context.program.heap),
+      resolver: new DefaultRuntimeResolver(resolver)
+    };
+  }
+
+  function inTransaction(env, cb) {
+    if (!env[TRANSACTION]) {
+      env.begin();
+
+      try {
+        cb();
+      } finally {
+        env.commit();
+      }
+    } else {
+      cb();
+    }
+  }
 
   var DynamicVarReference = /*#__PURE__*/function () {
     function DynamicVarReference(scope, nameRef) {
       this.scope = scope;
       this.nameRef = nameRef;
-      var varTag = this.varTag = (0, _validator.createUpdatableTag)();
-      this.tag = (0, _validator.combine)([nameRef.tag, varTag]);
     }
 
-    var _proto48 = DynamicVarReference.prototype;
+    var _proto47 = DynamicVarReference.prototype;
 
-    _proto48.value = function value() {
+    _proto47.value = function value() {
       return this.getVar().value();
     };
 
-    _proto48.get = function get(key) {
+    _proto47.isConst = function isConst() {
+      return false;
+    };
+
+    _proto47.get = function get(key) {
       return this.getVar().get(key);
     };
 
-    _proto48.getVar = function getVar() {
+    _proto47.getVar = function getVar() {
       var name = String(this.nameRef.value());
-      var ref = this.scope.get(name);
-      (0, _validator.updateTag)(this.varTag, ref.tag);
-      return ref;
+      return this.scope.get(name);
     };
 
     return DynamicVarReference;
@@ -52813,9 +53843,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.blocks = new BlockArgumentsImpl();
     }
 
-    var _proto49 = VMArgumentsImpl.prototype;
+    var _proto48 = VMArgumentsImpl.prototype;
 
-    _proto49.empty = function empty(stack) {
+    _proto48.empty = function empty(stack) {
       var base = stack[REGISTERS][_vm2.$sp] + 1;
       this.named.empty(stack, base);
       this.positional.empty(stack, base);
@@ -52823,7 +53853,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return this;
     };
 
-    _proto49.setup = function setup(stack, names, blockNames, positionalCount, atNames) {
+    _proto48.setup = function setup(stack, names, blockNames, positionalCount, atNames) {
       this.stack = stack;
       /*
              | ... | blocks      | positional  | named |
@@ -52846,11 +53876,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       blocks.setup(stack, blocksBase, blocksCount, blockNames);
     };
 
-    _proto49.at = function at(pos) {
+    _proto48.at = function at(pos) {
       return this.positional.at(pos);
     };
 
-    _proto49.realloc = function realloc(offset) {
+    _proto48.realloc = function realloc(offset) {
       var stack = this.stack;
 
       if (offset > 0 && stack !== null) {
@@ -52869,24 +53899,22 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto49.capture = function capture() {
+    _proto48.capture = function capture() {
       var positional = this.positional.length === 0 ? EMPTY_POSITIONAL : this.positional.capture();
       var named = this.named.length === 0 ? EMPTY_NAMED : this.named.capture();
-      return new CapturedArgumentsImpl(this.tag, positional, named, this.length);
+      return {
+        named: named,
+        positional: positional
+      };
     };
 
-    _proto49.clear = function clear() {
+    _proto48.clear = function clear() {
       var stack = this.stack,
           length = this.length;
       if (length > 0 && stack !== null) stack.pop(length);
     };
 
     (0, _emberBabel.createClass)(VMArgumentsImpl, [{
-      key: "tag",
-      get: function get() {
-        return combineTagged([this.positional, this.named]);
-      }
-    }, {
       key: "base",
       get: function get() {
         return this.blocks.base;
@@ -52905,35 +53933,31 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.base = 0;
       this.length = 0;
       this.stack = null;
-      this._tag = null;
       this._references = null;
     }
 
-    var _proto50 = PositionalArgumentsImpl.prototype;
+    var _proto49 = PositionalArgumentsImpl.prototype;
 
-    _proto50.empty = function empty(stack, base) {
+    _proto49.empty = function empty(stack, base) {
       this.stack = stack;
       this.base = base;
       this.length = 0;
-      this._tag = _validator.CONSTANT_TAG;
       this._references = _util.EMPTY_ARRAY;
     };
 
-    _proto50.setup = function setup(stack, base, length) {
+    _proto49.setup = function setup(stack, base, length) {
       this.stack = stack;
       this.base = base;
       this.length = length;
 
       if (length === 0) {
-        this._tag = _validator.CONSTANT_TAG;
         this._references = _util.EMPTY_ARRAY;
       } else {
-        this._tag = null;
         this._references = null;
       }
     };
 
-    _proto50.at = function at(position) {
+    _proto49.at = function at(position) {
       var base = this.base,
           length = this.length,
           stack = this.stack;
@@ -52945,11 +53969,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return stack.get(position, base);
     };
 
-    _proto50.capture = function capture() {
-      return new CapturedPositionalArgumentsImpl(this.tag, this.references);
+    _proto49.capture = function capture() {
+      return this.references;
     };
 
-    _proto50.prepend = function prepend(other) {
+    _proto49.prepend = function prepend(other) {
       var additions = other.length;
 
       if (additions > 0) {
@@ -52960,26 +53984,14 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         this.length = length + additions;
 
         for (var i = 0; i < additions; i++) {
-          stack.set(other.at(i), i, base);
+          stack.set(other[i], i, base);
         }
 
-        this._tag = null;
         this._references = null;
       }
     };
 
     (0, _emberBabel.createClass)(PositionalArgumentsImpl, [{
-      key: "tag",
-      get: function get() {
-        var tag = this._tag;
-
-        if (!tag) {
-          tag = this._tag = combineTagged(this.references);
-        }
-
-        return tag;
-      }
-    }, {
       key: "references",
       get: function get() {
         var references = this._references;
@@ -52988,7 +54000,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
           var stack = this.stack,
               base = this.base,
               length = this.length;
-          references = this._references = stack.sliceArray(base, base + length);
+          references = this._references = stack.slice(base, base + length);
         }
 
         return references;
@@ -52996,57 +54008,6 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     }]);
     return PositionalArgumentsImpl;
   }();
-
-  var CapturedPositionalArgumentsImpl = /*#__PURE__*/function () {
-    function CapturedPositionalArgumentsImpl(tag, references, length) {
-      if (length === void 0) {
-        length = references.length;
-      }
-
-      this.tag = tag;
-      this.references = references;
-      this.length = length;
-    }
-
-    CapturedPositionalArgumentsImpl.empty = function empty() {
-      return new CapturedPositionalArgumentsImpl(_validator.CONSTANT_TAG, _util.EMPTY_ARRAY, 0);
-    };
-
-    var _proto51 = CapturedPositionalArgumentsImpl.prototype;
-
-    _proto51.at = function at(position) {
-      return this.references[position];
-    };
-
-    _proto51.value = function value() {
-      return this.references.map(this.valueOf);
-    };
-
-    _proto51.get = function get(name) {
-      var references = this.references,
-          length = this.length;
-
-      if (name === 'length') {
-        return PrimitiveReference.create(length);
-      } else {
-        var idx = parseInt(name, 10);
-
-        if (idx < 0 || idx >= length) {
-          return UNDEFINED_REFERENCE;
-        } else {
-          return references[idx];
-        }
-      }
-    };
-
-    _proto51.valueOf = function valueOf(reference) {
-      return reference.value();
-    };
-
-    return CapturedPositionalArgumentsImpl;
-  }();
-
-  _exports.CapturedPositionalArgumentsImpl = CapturedPositionalArgumentsImpl;
 
   var NamedArgumentsImpl = /*#__PURE__*/function () {
     function NamedArgumentsImpl() {
@@ -53057,9 +54018,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this._atNames = _util.EMPTY_ARRAY;
     }
 
-    var _proto52 = NamedArgumentsImpl.prototype;
+    var _proto50 = NamedArgumentsImpl.prototype;
 
-    _proto52.empty = function empty(stack, base) {
+    _proto50.empty = function empty(stack, base) {
       this.stack = stack;
       this.base = base;
       this.length = 0;
@@ -53068,7 +54029,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this._atNames = _util.EMPTY_ARRAY;
     };
 
-    _proto52.setup = function setup(stack, base, length, names, atNames) {
+    _proto50.setup = function setup(stack, base, length, names, atNames) {
       this.stack = stack;
       this.base = base;
       this.length = length;
@@ -53090,11 +54051,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto52.has = function has(name) {
+    _proto50.has = function has(name) {
       return this.names.indexOf(name) !== -1;
     };
 
-    _proto52.get = function get(name, atNames) {
+    _proto50.get = function get(name, atNames) {
       if (atNames === void 0) {
         atNames = false;
       }
@@ -53111,54 +54072,54 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return stack.get(idx, base);
     };
 
-    _proto52.capture = function capture() {
-      return new CapturedNamedArgumentsImpl(this.tag, this.names, this.references);
+    _proto50.capture = function capture() {
+      var names = this.names,
+          references = this.references;
+      var map = (0, _util.dict)();
+
+      for (var i = 0; i < names.length; i++) {
+        var _name7 = names[i];
+        map[_name7] = references[i];
+      }
+
+      return map;
     };
 
-    _proto52.merge = function merge(other) {
-      var extras = other.length;
+    _proto50.merge = function merge(other) {
+      var keys = Object.keys(other);
 
-      if (extras > 0) {
+      if (keys.length > 0) {
         var names = this.names,
             length = this.length,
             stack = this.stack;
-        var extraNames = other.names;
+        var newNames = names.slice();
 
-        if (Object.isFrozen(names) && names.length === 0) {
-          names = [];
-        }
-
-        for (var i = 0; i < extras; i++) {
-          var _name7 = extraNames[i];
-          var idx = names.indexOf(_name7);
+        for (var i = 0; i < keys.length; i++) {
+          var _name8 = keys[i];
+          var idx = newNames.indexOf(_name8);
 
           if (idx === -1) {
-            length = names.push(_name7);
-            stack.push(other.references[i]);
+            length = newNames.push(_name8);
+            stack.pushJs(other[_name8]);
           }
         }
 
         this.length = length;
         this._references = null;
-        this._names = names;
+        this._names = newNames;
         this._atNames = null;
       }
     };
 
-    _proto52.toSyntheticName = function toSyntheticName(name) {
+    _proto50.toSyntheticName = function toSyntheticName(name) {
       return name.slice(1);
     };
 
-    _proto52.toAtName = function toAtName(name) {
+    _proto50.toAtName = function toAtName(name) {
       return "@" + name;
     };
 
     (0, _emberBabel.createClass)(NamedArgumentsImpl, [{
-      key: "tag",
-      get: function get() {
-        return combineTagged(this.references);
-      }
-    }, {
       key: "names",
       get: function get() {
         var names = this._names;
@@ -53189,7 +54150,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
           var base = this.base,
               length = this.length,
               stack = this.stack;
-          references = this._references = stack.sliceArray(base, base + length);
+          references = this._references = stack.slice(base, base + length);
         }
 
         return references;
@@ -53197,70 +54158,6 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     }]);
     return NamedArgumentsImpl;
   }();
-
-  var CapturedNamedArgumentsImpl = /*#__PURE__*/function () {
-    function CapturedNamedArgumentsImpl(tag, names, references) {
-      this.tag = tag;
-      this.names = names;
-      this.references = references;
-      this.length = names.length;
-      this._map = null;
-    }
-
-    var _proto53 = CapturedNamedArgumentsImpl.prototype;
-
-    _proto53.has = function has(name) {
-      return this.names.indexOf(name) !== -1;
-    };
-
-    _proto53.get = function get(name) {
-      var names = this.names,
-          references = this.references;
-      var idx = names.indexOf(name);
-
-      if (idx === -1) {
-        return UNDEFINED_REFERENCE;
-      } else {
-        return references[idx];
-      }
-    };
-
-    _proto53.value = function value() {
-      var names = this.names,
-          references = this.references;
-      var out = (0, _util.dict)();
-
-      for (var i = 0; i < names.length; i++) {
-        var _name8 = names[i];
-        out[_name8] = references[i].value();
-      }
-
-      return out;
-    };
-
-    (0, _emberBabel.createClass)(CapturedNamedArgumentsImpl, [{
-      key: "map",
-      get: function get() {
-        var map = this._map;
-
-        if (!map) {
-          var names = this.names,
-              _references = this.references;
-          map = this._map = (0, _util.dict)();
-
-          for (var i = 0; i < names.length; i++) {
-            var _name9 = names[i];
-            map[_name9] = _references[i];
-          }
-        }
-
-        return map;
-      }
-    }]);
-    return CapturedNamedArgumentsImpl;
-  }();
-
-  _exports.CapturedNamedArgumentsImpl = CapturedNamedArgumentsImpl;
 
   function toSymbolName(name) {
     return "&" + name;
@@ -53276,9 +54173,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.base = 0;
     }
 
-    var _proto54 = BlockArgumentsImpl.prototype;
+    var _proto51 = BlockArgumentsImpl.prototype;
 
-    _proto54.empty = function empty(stack, base) {
+    _proto51.empty = function empty(stack, base) {
       this.stack = stack;
       this.names = _util.EMPTY_ARRAY;
       this.base = base;
@@ -53288,7 +54185,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.internalValues = _util.EMPTY_ARRAY;
     };
 
-    _proto54.setup = function setup(stack, base, length, names) {
+    _proto51.setup = function setup(stack, base, length, names) {
       this.stack = stack;
       this.names = names;
       this.base = base;
@@ -53304,11 +54201,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto54.has = function has(name) {
+    _proto51.has = function has(name) {
       return this.names.indexOf(name) !== -1;
     };
 
-    _proto54.get = function get(name) {
+    _proto51.get = function get(name) {
       var idx = this.names.indexOf(name);
 
       if (idx === -1) {
@@ -53323,7 +54220,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return handle === null ? null : [handle, scope, table];
     };
 
-    _proto54.capture = function capture() {
+    _proto51.capture = function capture() {
       return new CapturedBlockArgumentsImpl(this.names, this.values);
     };
 
@@ -53336,7 +54233,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
           var base = this.base,
               length = this.length,
               stack = this.stack;
-          values = this.internalValues = stack.sliceArray(base, base + length * 3);
+          values = this.internalValues = stack.slice(base, base + length * 3);
         }
 
         return values;
@@ -53363,13 +54260,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.length = names.length;
     }
 
-    var _proto55 = CapturedBlockArgumentsImpl.prototype;
+    var _proto52 = CapturedBlockArgumentsImpl.prototype;
 
-    _proto55.has = function has(name) {
+    _proto52.has = function has(name) {
       return this.names.indexOf(name) !== -1;
     };
 
-    _proto55.get = function get(name) {
+    _proto52.get = function get(name) {
       var idx = this.names.indexOf(name);
       if (idx === -1) return null;
       return [this.values[idx * 3 + 2], this.values[idx * 3 + 1], this.values[idx * 3]];
@@ -53378,30 +54275,101 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return CapturedBlockArgumentsImpl;
   }();
 
-  var CapturedArgumentsImpl = /*#__PURE__*/function () {
-    function CapturedArgumentsImpl(tag, positional, named, length) {
-      this.tag = tag;
-      this.positional = positional;
-      this.named = named;
-      this.length = length;
+  function createCapturedArgs(named, positional) {
+    return {
+      named: named,
+      positional: positional
+    };
+  }
+
+  function reifyNamed(named) {
+    var reified = (0, _util.dict)();
+
+    for (var key in named) {
+      reified[key] = named[key].value();
     }
 
-    var _proto56 = CapturedArgumentsImpl.prototype;
+    return reified;
+  }
 
-    _proto56.value = function value() {
-      return {
-        named: this.named.value(),
-        positional: this.positional.value()
-      };
+  function reifyPositional(positional) {
+    return positional.map(function (ref) {
+      return ref.value();
+    });
+  }
+
+  function reifyArgs(args) {
+    return {
+      named: reifyNamed(args.named),
+      positional: reifyPositional(args.positional)
+    };
+  }
+
+  var ReifyNamedReference = /*#__PURE__*/function (_CachedReference4) {
+    (0, _emberBabel.inheritsLoose)(ReifyNamedReference, _CachedReference4);
+
+    function ReifyNamedReference(named) {
+      var _this18;
+
+      _this18 = _CachedReference4.call(this) || this;
+      _this18.named = named;
+      return _this18;
+    }
+
+    var _proto53 = ReifyNamedReference.prototype;
+
+    _proto53.compute = function compute() {
+      return reifyNamed(this.named);
     };
 
-    return CapturedArgumentsImpl;
-  }();
+    _proto53.get = function get(key) {
+      var ref = this.named[key];
+      return ref === undefined ? UNDEFINED_REFERENCE : ref;
+    };
 
-  _exports.CapturedArgumentsImpl = CapturedArgumentsImpl;
-  var EMPTY_NAMED = new CapturedNamedArgumentsImpl(_validator.CONSTANT_TAG, _util.EMPTY_ARRAY, _util.EMPTY_ARRAY);
-  var EMPTY_POSITIONAL = new CapturedPositionalArgumentsImpl(_validator.CONSTANT_TAG, _util.EMPTY_ARRAY);
-  var EMPTY_ARGS = new CapturedArgumentsImpl(_validator.CONSTANT_TAG, EMPTY_POSITIONAL, EMPTY_NAMED, 0);
+    return ReifyNamedReference;
+  }(_reference.CachedReference);
+
+  _exports.ReifyNamedReference = ReifyNamedReference;
+
+  var ReifyPositionalReference = /*#__PURE__*/function (_CachedReference5) {
+    (0, _emberBabel.inheritsLoose)(ReifyPositionalReference, _CachedReference5);
+
+    function ReifyPositionalReference(positional) {
+      var _this19;
+
+      _this19 = _CachedReference5.call(this) || this;
+      _this19.positional = positional;
+      return _this19;
+    }
+
+    var _proto54 = ReifyPositionalReference.prototype;
+
+    _proto54.compute = function compute() {
+      return reifyPositional(this.positional);
+    };
+
+    _proto54.get = function get(key) {
+      var ref;
+
+      if (typeof key === 'number') {
+        ref = this.positional[key];
+      } else if (key === 'length') {
+        ref = new _reference.ConstReference(this.positional.length);
+      }
+
+      return ref === undefined ? UNDEFINED_REFERENCE : ref;
+    };
+
+    return ReifyPositionalReference;
+  }(_reference.CachedReference);
+
+  _exports.ReifyPositionalReference = ReifyPositionalReference;
+  var EMPTY_NAMED = Object.freeze(Object.create(null));
+  _exports.EMPTY_NAMED = EMPTY_NAMED;
+  var EMPTY_POSITIONAL = _util.EMPTY_ARRAY;
+  _exports.EMPTY_POSITIONAL = EMPTY_POSITIONAL;
+  var EMPTY_ARGS = createCapturedArgs(EMPTY_NAMED, EMPTY_POSITIONAL);
   _exports.EMPTY_ARGS = EMPTY_ARGS;
 
   function initializeRegistersWithSP(sp) {
@@ -53418,68 +54386,68 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.currentOpSize = 0;
     }
 
-    var _proto57 = LowLevelVM.prototype;
+    var _proto55 = LowLevelVM.prototype;
 
-    _proto57.fetchRegister = function fetchRegister(register) {
+    _proto55.fetchRegister = function fetchRegister(register) {
       return this.registers[register];
     };
 
-    _proto57.loadRegister = function loadRegister(register, value) {
+    _proto55.loadRegister = function loadRegister(register, value) {
       this.registers[register] = value;
     };
 
-    _proto57.setPc = function setPc(pc) {
+    _proto55.setPc = function setPc(pc) {
       this.registers[_vm2.$pc] = pc;
     } // Start a new frame and save $ra and $fp on the stack
     ;
 
-    _proto57.pushFrame = function pushFrame() {
-      this.stack.push(this.registers[_vm2.$ra]);
-      this.stack.push(this.registers[_vm2.$fp]);
+    _proto55.pushFrame = function pushFrame() {
+      this.stack.pushSmallInt(this.registers[_vm2.$ra]);
+      this.stack.pushSmallInt(this.registers[_vm2.$fp]);
       this.registers[_vm2.$fp] = this.registers[_vm2.$sp] - 1;
     } // Restore $ra, $sp and $fp
     ;
 
-    _proto57.popFrame = function popFrame() {
+    _proto55.popFrame = function popFrame() {
       this.registers[_vm2.$sp] = this.registers[_vm2.$fp] - 1;
       this.registers[_vm2.$ra] = this.stack.get(0);
       this.registers[_vm2.$fp] = this.stack.get(1);
     };
 
-    _proto57.pushSmallFrame = function pushSmallFrame() {
-      this.stack.push(this.registers[_vm2.$ra]);
+    _proto55.pushSmallFrame = function pushSmallFrame() {
+      this.stack.pushSmallInt(this.registers[_vm2.$ra]);
     };
 
-    _proto57.popSmallFrame = function popSmallFrame() {
-      this.registers[_vm2.$ra] = this.stack.pop();
+    _proto55.popSmallFrame = function popSmallFrame() {
+      this.registers[_vm2.$ra] = this.stack.popSmallInt();
     } // Jump to an address in `program`
     ;
 
-    _proto57.goto = function goto(offset) {
+    _proto55.goto = function goto(offset) {
       this.setPc(this.target(offset));
     };
 
-    _proto57.target = function target(offset) {
+    _proto55.target = function target(offset) {
       return this.registers[_vm2.$pc] + offset - this.currentOpSize;
     } // Save $pc into $ra, then jump to a new address in `program` (jal in MIPS)
     ;
 
-    _proto57.call = function call(handle) {
+    _proto55.call = function call(handle) {
       this.registers[_vm2.$ra] = this.registers[_vm2.$pc];
       this.setPc(this.heap.getaddr(handle));
     } // Put a specific `program` address in $ra
     ;
 
-    _proto57.returnTo = function returnTo(offset) {
+    _proto55.returnTo = function returnTo(offset) {
       this.registers[_vm2.$ra] = this.target(offset);
     } // Return to the `program` address stored in $ra
     ;
 
-    _proto57.return = function _return() {
+    _proto55.return = function _return() {
       this.setPc(this.registers[_vm2.$ra]);
     };
 
-    _proto57.nextStatement = function nextStatement() {
+    _proto55.nextStatement = function nextStatement() {
       var registers = this.registers,
           program = this.program;
       var pc = registers[_vm2.$pc];
@@ -53499,13 +54467,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return opcode;
     };
 
-    _proto57.evaluateOuter = function evaluateOuter(opcode, vm) {
+    _proto55.evaluateOuter = function evaluateOuter(opcode, vm) {
       {
         this.evaluateInner(opcode, vm);
       }
     };
 
-    _proto57.evaluateInner = function evaluateInner(opcode, vm) {
+    _proto55.evaluateInner = function evaluateInner(opcode, vm) {
       if (opcode.isMachine) {
         this.evaluateMachine(opcode);
       } else {
@@ -53513,7 +54481,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto57.evaluateMachine = function evaluateMachine(opcode) {
+    _proto55.evaluateMachine = function evaluateMachine(opcode) {
       switch (opcode.type) {
         case 0
         /* PushFrame */
@@ -53533,7 +54501,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         case 2
         /* InvokeVirtual */
         :
-          return this.call(this.stack.pop());
+          return this.call(this.stack.popSmallInt());
 
         case 4
         /* Jump */
@@ -53552,7 +54520,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto57.evaluateSyscall = function evaluateSyscall(opcode, vm) {
+    _proto55.evaluateSyscall = function evaluateSyscall(opcode, vm) {
       APPEND_OPCODES.evaluate(vm, opcode, opcode.type);
     };
 
@@ -53560,43 +54528,48 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   }();
 
   var UpdatingVM = /*#__PURE__*/function () {
-    function UpdatingVM(env, _ref57) {
-      var _ref57$alwaysRevalida = _ref57.alwaysRevalidate,
-          alwaysRevalidate = _ref57$alwaysRevalida === void 0 ? false : _ref57$alwaysRevalida;
+    function UpdatingVM(env, _ref58) {
+      var _ref58$alwaysRevalida = _ref58.alwaysRevalidate,
+          alwaysRevalidate = _ref58$alwaysRevalida === void 0 ? false : _ref58$alwaysRevalida;
       this.frameStack = new _util.Stack();
       this.env = env;
       this.dom = env.getDOM();
       this.alwaysRevalidate = alwaysRevalidate;
     }
 
-    var _proto58 = UpdatingVM.prototype;
+    var _proto56 = UpdatingVM.prototype;
 
-    _proto58.execute = function execute(opcodes, handler) {
+    _proto56.execute = function execute(opcodes, handler) {
       var frameStack = this.frameStack;
       this.try(opcodes, handler);
 
-      while (true) {
-        if (frameStack.isEmpty()) break;
-        var opcode = this.frame.nextStatement();
+      try {
+        while (true) {
+          if (frameStack.isEmpty()) break;
+          var opcode = this.frame.nextStatement();
 
-        if (opcode === null) {
-          frameStack.pop();
-          continue;
+          if (opcode === undefined) {
+            frameStack.pop();
+            continue;
+          }
+
+          opcode.evaluate(this);
         }
-
-        opcode.evaluate(this);
+      } catch (e) {
+        (0, _validator.resetTracking)();
+        throw e;
       }
     };
 
-    _proto58.goto = function goto(op) {
-      this.frame.goto(op);
+    _proto56.goto = function goto(index) {
+      this.frame.goto(index);
     };
 
-    _proto58.try = function _try(ops, handler) {
+    _proto56.try = function _try(ops, handler) {
       this.frameStack.push(new UpdatingVMFrame(ops, handler));
     };
 
-    _proto58.throw = function _throw() {
+    _proto56.throw = function _throw() {
       this.frame.handleException();
       this.frameStack.pop();
     };
@@ -53618,47 +54591,45 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.resumeCallback = resumeCallback;
     }
 
-    var _proto59 = ResumableVMStateImpl.prototype;
+    var _proto57 = ResumableVMStateImpl.prototype;
 
-    _proto59.resume = function resume(runtime, builder) {
+    _proto57.resume = function resume(runtime, builder) {
       return this.resumeCallback(runtime, this.state, builder);
     };
 
     return ResumableVMStateImpl;
   }();
 
-  var BlockOpcode = /*#__PURE__*/function (_UpdatingOpcode9) {
-    (0, _emberBabel.inheritsLoose)(BlockOpcode, _UpdatingOpcode9);
+  var BlockOpcode = /*#__PURE__*/function (_UpdatingOpcode10) {
+    (0, _emberBabel.inheritsLoose)(BlockOpcode, _UpdatingOpcode10);
 
     function BlockOpcode(state, runtime, bounds, children) {
-      var _this15;
+      var _this20;
 
-      _this15 = _UpdatingOpcode9.call(this) || this;
-      _this15.state = state;
-      _this15.runtime = runtime;
-      _this15.type = 'block';
-      _this15.next = null;
-      _this15.prev = null;
-      _this15.children = children;
-      _this15.bounds = bounds;
-      return _this15;
+      _this20 = _UpdatingOpcode10.call(this) || this;
+      _this20.state = state;
+      _this20.runtime = runtime;
+      _this20.type = 'block';
+      _this20.children = children;
+      _this20.bounds = bounds;
+      return _this20;
     }
 
-    var _proto60 = BlockOpcode.prototype;
+    var _proto58 = BlockOpcode.prototype;
 
-    _proto60.parentElement = function parentElement() {
+    _proto58.parentElement = function parentElement() {
       return this.bounds.parentElement();
     };
 
-    _proto60.firstNode = function firstNode() {
+    _proto58.firstNode = function firstNode() {
       return this.bounds.firstNode();
     };
 
-    _proto60.lastNode = function lastNode() {
+    _proto58.lastNode = function lastNode() {
       return this.bounds.lastNode();
     };
 
-    _proto60.evaluate = function evaluate(vm) {
+    _proto58.evaluate = function evaluate(vm) {
       vm.try(this.children, null);
     };
 
@@ -53668,188 +54639,246 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   var TryOpcode = /*#__PURE__*/function (_BlockOpcode) {
     (0, _emberBabel.inheritsLoose)(TryOpcode, _BlockOpcode);
 
-    function TryOpcode(state, runtime, bounds, children) {
-      var _this16;
+    function TryOpcode() {
+      var _this21;
 
-      _this16 = _BlockOpcode.call(this, state, runtime, bounds, children) || this;
-      _this16.type = 'try';
-      _this16.tag = _this16._tag = (0, _validator.createUpdatableTag)();
-      return _this16;
+      _this21 = _BlockOpcode.apply(this, arguments) || this;
+      _this21.type = 'try';
+      return _this21;
     }
 
-    var _proto61 = TryOpcode.prototype;
+    var _proto59 = TryOpcode.prototype;
 
-    _proto61.didInitializeChildren = function didInitializeChildren() {
-      (0, _validator.updateTag)(this._tag, combineSlice(this.children));
-    };
-
-    _proto61.evaluate = function evaluate(vm) {
+    _proto59.evaluate = function evaluate(vm) {
       vm.try(this.children, this);
     };
 
-    _proto61.handleException = function handleException() {
-      var _this17 = this;
+    _proto59.handleException = function handleException() {
+      var _this22 = this;
 
       var state = this.state,
           bounds = this.bounds,
-          children = this.children,
-          prev = this.prev,
-          next = this.next,
           runtime = this.runtime;
-      legacySyncReset(this, runtime.env);
-      children.clear();
-      asyncReset(this, runtime.env);
+      destroyChildren(this);
       var elementStack = NewElementBuilder.resume(runtime.env, bounds);
       var vm = state.resume(runtime, elementStack);
-      var updating = new _util.LinkedList();
+      var updating = [];
+      var children = this.children = [];
       var result = vm.execute(function (vm) {
         vm.pushUpdating(updating);
-        vm.updateWith(_this17);
+        vm.updateWith(_this22);
         vm.pushUpdating(children);
       });
-      (0, _util.associate)(this, result.drop);
-      this.prev = prev;
-      this.next = next;
+      associateDestroyableChild(this, result.drop);
     };
 
     return TryOpcode;
   }(BlockOpcode);
 
-  var ListRevalidationDelegate = /*#__PURE__*/function () {
-    function ListRevalidationDelegate(opcode, marker) {
-      this.opcode = opcode;
-      this.marker = marker;
-      this.didInsert = false;
-      this.didDelete = false;
-      this.map = opcode.map;
-      this.updating = opcode['children'];
+  var ListItemOpcode = /*#__PURE__*/function (_TryOpcode) {
+    (0, _emberBabel.inheritsLoose)(ListItemOpcode, _TryOpcode);
+
+    function ListItemOpcode(state, runtime, bounds, key, memo, value) {
+      var _this23;
+
+      _this23 = _TryOpcode.call(this, state, runtime, bounds, []) || this;
+      _this23.key = key;
+      _this23.memo = memo;
+      _this23.value = value;
+      _this23.retained = false;
+      _this23.index = -1;
+      return _this23;
     }
 
-    var _proto62 = ListRevalidationDelegate.prototype;
+    var _proto60 = ListItemOpcode.prototype;
 
-    _proto62.insert = function insert(_env, key, item, memo, before) {
-      var map = this.map,
-          opcode = this.opcode,
-          updating = this.updating;
-      var nextSibling = null;
-      var reference = null;
-      reference = map.get(before);
-      nextSibling = reference !== undefined ? reference['bounds'].firstNode() : this.marker;
-      var vm = opcode.vmForInsertion(nextSibling);
-      var tryOpcode = null;
-      var result = vm.execute(function (vm) {
-        vm.pushUpdating();
-        tryOpcode = vm.enterItem(memo, item);
-        map.set(key, tryOpcode);
-      });
-      updating.insertBefore(tryOpcode, reference);
-      (0, _util.associate)(opcode, result.drop);
-      this.didInsert = true;
+    _proto60.updateReferences = function updateReferences(item) {
+      this.retained = true;
+      this.value.update(item.value);
+      this.memo.update(item.memo);
     };
 
-    _proto62.retain = function retain(_env, _key, _item, _memo) {};
-
-    _proto62.move = function move(_env, key, _item, _memo, before) {
-      var map = this.map,
-          updating = this.updating;
-      var entry = map.get(key);
-
-      if (before === _reference.END) {
-        _move(entry, this.marker);
-
-        updating.remove(entry);
-        updating.append(entry);
-      } else {
-        var reference = map.get(before);
-
-        _move(entry, reference.firstNode());
-
-        updating.remove(entry);
-        updating.insertBefore(entry, reference);
-      }
+    _proto60.shouldRemove = function shouldRemove() {
+      return !this.retained;
     };
 
-    _proto62.delete = function _delete(env, key) {
-      var map = this.map,
-          updating = this.updating;
-      var opcode = map.get(key);
-      detach(opcode, env);
-      updating.remove(opcode);
-      map.delete(key);
-      this.didDelete = true;
+    _proto60.reset = function reset() {
+      this.retained = false;
     };
 
-    _proto62.done = function done() {
-      this.opcode.didInitializeChildren(this.didInsert || this.didDelete);
-    };
-
-    return ListRevalidationDelegate;
-  }();
+    return ListItemOpcode;
+  }(TryOpcode);
 
   var ListBlockOpcode = /*#__PURE__*/function (_BlockOpcode2) {
     (0, _emberBabel.inheritsLoose)(ListBlockOpcode, _BlockOpcode2);
 
-    function ListBlockOpcode(state, runtime, bounds, children, artifacts) {
-      var _this18;
+    function ListBlockOpcode(state, runtime, bounds, children, iterableRef) {
+      var _this24;
 
-      _this18 = _BlockOpcode2.call(this, state, runtime, bounds, children) || this;
-      _this18.type = 'list-block';
-      _this18.map = new Map();
-      _this18.lastIterated = _validator.INITIAL;
-      _this18.artifacts = artifacts;
-
-      var _tag = _this18._tag = (0, _validator.createUpdatableTag)();
-
-      _this18.tag = (0, _validator.combine)([artifacts.tag, _tag]);
-      return _this18;
+      _this24 = _BlockOpcode2.call(this, state, runtime, bounds, children) || this;
+      _this24.iterableRef = iterableRef;
+      _this24.type = 'list-block';
+      _this24.opcodeMap = new Map();
+      _this24.marker = null;
+      return _this24;
     }
 
-    var _proto63 = ListBlockOpcode.prototype;
+    var _proto61 = ListBlockOpcode.prototype;
 
-    _proto63.didInitializeChildren = function didInitializeChildren(listDidChange) {
-      if (listDidChange === void 0) {
-        listDidChange = true;
-      }
-
-      this.lastIterated = (0, _validator.valueForTag)(this.artifacts.tag);
-
-      if (listDidChange) {
-        (0, _validator.updateTag)(this._tag, combineSlice(this.children));
-      }
+    _proto61.initializeChild = function initializeChild(opcode) {
+      opcode.index = this.children.length - 1;
+      this.opcodeMap.set(opcode.key, opcode);
     };
 
-    _proto63.evaluate = function evaluate(vm) {
-      var artifacts = this.artifacts,
-          lastIterated = this.lastIterated;
-
-      if (!(0, _validator.validateTag)(artifacts.tag, lastIterated)) {
+    _proto61.evaluate = function evaluate(vm) {
+      if (this.iterableRef.isDone() === false) {
         var bounds = this.bounds;
         var dom = vm.dom;
-        var marker = dom.createComment('');
+        var marker = this.marker = dom.createComment('');
         dom.insertAfter(bounds.parentElement(), marker, bounds.lastNode());
-        var target = new ListRevalidationDelegate(this, marker);
-        var synchronizer = new _reference.IteratorSynchronizer({
-          target: target,
-          artifacts: artifacts,
-          env: vm.env
-        });
-        synchronizer.sync();
+        this.sync();
         this.parentElement().removeChild(marker);
+        this.marker = null;
       } // Run now-updated updating opcodes
 
 
       _BlockOpcode2.prototype.evaluate.call(this, vm);
     };
 
-    _proto63.vmForInsertion = function vmForInsertion(nextSibling) {
-      var bounds = this.bounds,
+    _proto61.sync = function sync() {
+      var iterableRef = this.iterableRef,
+          itemMap = this.opcodeMap,
+          children = this.children;
+      var currentOpcodeIndex = 0;
+      var seenIndex = 0;
+      this.children = this.bounds.boundList = [];
+
+      while (true) {
+        var item = iterableRef.next();
+        if (item === null) break;
+        var opcode = children[currentOpcodeIndex];
+        var key = item.key; // Items that have already been found and moved will already be retained,
+        // we can continue until we find the next unretained item
+
+        while (opcode !== undefined && opcode.retained === true) {
+          opcode = children[++currentOpcodeIndex];
+        }
+
+        if (opcode !== undefined && opcode.key === key) {
+          this.retainItem(opcode, item);
+          currentOpcodeIndex++;
+        } else if (itemMap.has(key)) {
+          var itemOpcode = itemMap.get(key); // The item opcode was seen already, so we should move it.
+
+          if (itemOpcode.index < seenIndex) {
+            this.moveItem(itemOpcode, item, opcode);
+          } else {
+            // Update the seen index, we are going to be moving this item around
+            // so any other items that come before it will likely need to move as
+            // well.
+            seenIndex = itemOpcode.index;
+            var seenUnretained = false; // iterate through all of the opcodes between the current position and
+            // the position of the item's opcode, and determine if they are all
+            // retained.
+
+            for (var i = currentOpcodeIndex + 1; i < seenIndex; i++) {
+              if (children[i].retained === false) {
+                seenUnretained = true;
+                break;
+              }
+            } // If we have seen only retained opcodes between this and the matching
+            // opcode, it means that all the opcodes in between have been moved
+            // already, and we can safely retain this item's opcode.
+
+
+            if (seenUnretained === false) {
+              this.retainItem(itemOpcode, item);
+              currentOpcodeIndex = seenIndex + 1;
+            } else {
+              this.moveItem(itemOpcode, item, opcode);
+              currentOpcodeIndex++;
+            }
+          }
+        } else {
+          this.insertItem(item, opcode);
+        }
+      }
+
+      for (var _i7 = 0; _i7 < children.length; _i7++) {
+        var _opcode = children[_i7];
+
+        if (_opcode.retained === false) {
+          this.deleteItem(_opcode);
+        } else {
+          _opcode.reset();
+        }
+      }
+    };
+
+    _proto61.retainItem = function retainItem(opcode, item) {
+      var children = this.children;
+      opcode.memo.update(item.memo);
+      opcode.value.update(item.value);
+      opcode.retained = true;
+      opcode.index = children.length;
+      children.push(opcode);
+    };
+
+    _proto61.insertItem = function insertItem(item, before) {
+      var _this25 = this;
+
+      var opcodeMap = this.opcodeMap,
+          bounds = this.bounds,
           state = this.state,
-          runtime = this.runtime;
+          runtime = this.runtime,
+          iterableRef = this.iterableRef,
+          children = this.children;
+      var key = item.key;
+      var nextSibling = before === undefined ? this.marker : before.firstNode();
       var elementStack = NewElementBuilder.forInitialRender(runtime.env, {
         element: bounds.parentElement(),
         nextSibling: nextSibling
       });
-      return state.resume(runtime, elementStack);
+      var vm = state.resume(runtime, elementStack);
+      vm.execute(function (vm) {
+        vm.pushUpdating();
+        var opcode = vm.enterItem(iterableRef, item);
+        opcode.index = children.length;
+        children.push(opcode);
+        opcodeMap.set(key, opcode);
+        associateDestroyableChild(_this25, opcode);
+      });
+    };
+
+    _proto61.moveItem = function moveItem(opcode, item, before) {
+      var children = this.children;
+      opcode.memo.update(item.memo);
+      opcode.value.update(item.value);
+      opcode.retained = true;
+      var currentSibling, nextSibling;
+
+      if (before === undefined) {
+        move(opcode, this.marker);
+      } else {
+        currentSibling = opcode.lastNode().nextSibling;
+        nextSibling = before.firstNode(); // Items are moved throughout the algorithm, so there are cases where the
+        // the items already happen to be siblings (e.g. an item in between was
+        // moved before this move happened). Check to see if they are siblings
+        // first before doing the move.
+
+        if (currentSibling !== nextSibling) {
+          move(opcode, nextSibling);
+        }
+      }
+
+      opcode.index = children.length;
+      children.push(opcode);
+    };
+
+    _proto61.deleteItem = function deleteItem(opcode) {
+      destroy(opcode);
+      clear(opcode);
+      this.opcodeMap.delete(opcode.key);
     };
 
     return ListBlockOpcode;
@@ -53859,23 +54888,20 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     function UpdatingVMFrame(ops, exceptionHandler) {
       this.ops = ops;
       this.exceptionHandler = exceptionHandler;
-      this.current = ops.head();
+      this.current = 0;
     }
 
-    var _proto64 = UpdatingVMFrame.prototype;
+    var _proto62 = UpdatingVMFrame.prototype;
 
-    _proto64.goto = function goto(op) {
-      this.current = op;
+    _proto62.goto = function goto(index) {
+      this.current = index;
     };
 
-    _proto64.nextStatement = function nextStatement() {
-      var current = this.current,
-          ops = this.ops;
-      if (current) this.current = ops.nextNode(current);
-      return current;
+    _proto62.nextStatement = function nextStatement() {
+      return this.ops[this.current++];
     };
 
-    _proto64.handleException = function handleException() {
+    _proto62.handleException = function handleException() {
       if (this.exceptionHandler) {
         this.exceptionHandler.handleException();
       }
@@ -53886,21 +54912,26 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
   var RenderResultImpl = /*#__PURE__*/function () {
     function RenderResultImpl(env, updating, bounds, drop) {
+      var _this26 = this;
+
       this.env = env;
       this.updating = updating;
       this.bounds = bounds;
       this.drop = drop;
-      (0, _util.associate)(this, drop);
+      associateDestroyableChild(this, drop);
+      registerDestructor(this, function () {
+        return clear(_this26.bounds);
+      });
     }
 
-    var _proto65 = RenderResultImpl.prototype;
+    var _proto63 = RenderResultImpl.prototype;
 
-    _proto65.rerender = function rerender(_temp) {
-      var _ref58 = _temp === void 0 ? {
+    _proto63.rerender = function rerender(_temp) {
+      var _ref59 = _temp === void 0 ? {
         alwaysRevalidate: false
       } : _temp,
-          _ref58$alwaysRevalida = _ref58.alwaysRevalidate,
-          alwaysRevalidate = _ref58$alwaysRevalida === void 0 ? false : _ref58$alwaysRevalida;
+          _ref59$alwaysRevalida = _ref59.alwaysRevalidate,
+          alwaysRevalidate = _ref59$alwaysRevalida === void 0 ? false : _ref59$alwaysRevalida;
 
       var env = this.env,
           updating = this.updating;
@@ -53910,34 +54941,20 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       vm.execute(updating, this);
     };
 
-    _proto65.parentElement = function parentElement() {
+    _proto63.parentElement = function parentElement() {
       return this.bounds.parentElement();
     };
 
-    _proto65.firstNode = function firstNode() {
+    _proto63.firstNode = function firstNode() {
       return this.bounds.firstNode();
     };
 
-    _proto65.lastNode = function lastNode() {
+    _proto63.lastNode = function lastNode() {
       return this.bounds.lastNode();
     };
 
-    _proto65.handleException = function handleException() {
+    _proto63.handleException = function handleException() {
       throw 'this should never happen';
-    };
-
-    _proto65[_util.DESTROY] = function () {
-      clear(this.bounds);
-    } // compat, as this is a user-exposed API
-    ;
-
-    _proto65.destroy = function destroy() {
-      var _this19 = this;
-
-      inTransaction(this.env, function () {
-        legacySyncDestroy(_this19, _this19.env);
-        asyncDestroy(_this19, _this19.env);
-      });
     };
 
     return RenderResultImpl;
@@ -53949,31 +54966,17 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         inner = new _lowLevel.Stack();
       }
 
-      if (js === void 0) {
-        js = [];
-      }
-
       this.inner = inner;
-      this.js = js;
+      this.js = (0, _util.constants)();
+
+      if (js !== undefined) {
+        this.js = this.js.concat(js);
+      }
     }
 
-    var _proto66 = InnerStack.prototype;
+    var _proto64 = InnerStack.prototype;
 
-    _proto66.slice = function slice(start, end) {
-      var inner;
-
-      if (typeof start === 'number' && typeof end === 'number') {
-        inner = this.inner.slice(start, end);
-      } else if (typeof start === 'number' && end === undefined) {
-        inner = this.inner.sliceFrom(start);
-      } else {
-        inner = this.inner.clone();
-      }
-
-      return new InnerStack(inner, this.js.slice(start, end));
-    };
-
-    _proto66.sliceInner = function sliceInner(start, end) {
+    _proto64.slice = function slice(start, end) {
       var out = [];
 
       if (start === -1) {
@@ -53987,46 +54990,60 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return out;
     };
 
-    _proto66.copy = function copy(from, to) {
+    _proto64.copy = function copy(from, to) {
       this.inner.copy(from, to);
     };
 
-    _proto66.write = function write(pos, value) {
-      switch (typeof value) {
-        case 'boolean':
-        case 'undefined':
-          this.writeRaw(pos, (0, _util.encodeImmediate)(value));
-          break;
-
-        case 'number':
-          if ((0, _util.isSmallInt)(value)) {
-            this.writeRaw(pos, (0, _util.encodeImmediate)(value));
-            break;
-          }
-
-        case 'object':
-          if (value === null) {
-            this.writeRaw(pos, (0, _util.encodeImmediate)(value));
-            break;
-          }
-
-        default:
-          this.writeJs(pos, value);
-      }
-    };
-
-    _proto66.writeJs = function writeJs(pos, value) {
+    _proto64.writeJs = function writeJs(pos, value) {
       var idx = this.js.length;
       this.js.push(value);
       this.inner.writeRaw(pos, (0, _util.encodeHandle)(idx));
     };
 
-    _proto66.writeRaw = function writeRaw(pos, value) {
+    _proto64.writeSmallInt = function writeSmallInt(pos, value) {
+      this.inner.writeRaw(pos, (0, _util.encodeImmediate)(value));
+    };
+
+    _proto64.writeTrue = function writeTrue(pos) {
+      this.inner.writeRaw(pos, 1
+      /* ENCODED_TRUE_HANDLE */
+      );
+    };
+
+    _proto64.writeFalse = function writeFalse(pos) {
+      this.inner.writeRaw(pos, 0
+      /* ENCODED_FALSE_HANDLE */
+      );
+    };
+
+    _proto64.writeNull = function writeNull(pos) {
+      this.inner.writeRaw(pos, 2
+      /* ENCODED_NULL_HANDLE */
+      );
+    };
+
+    _proto64.writeUndefined = function writeUndefined(pos) {
+      this.inner.writeRaw(pos, 3
+      /* ENCODED_UNDEFINED_HANDLE */
+      );
+    };
+
+    _proto64.writeRaw = function writeRaw(pos, value) {
       this.inner.writeRaw(pos, value);
     };
 
-    _proto66.get = function get(pos) {
+    _proto64.getJs = function getJs(pos) {
       var value = this.inner.getRaw(pos);
+      return this.js[(0, _util.decodeHandle)(value)];
+    };
+
+    _proto64.getSmallInt = function getSmallInt(pos) {
+      var value = this.inner.getRaw(pos);
+      return (0, _util.decodeImmediate)(value);
+    };
+
+    _proto64.get = function get(pos) {
+      var value = this.inner.getRaw(pos) | 0;
 
       if ((0, _util.isHandle)(value)) {
         return this.js[(0, _util.decodeHandle)(value)];
@@ -54035,7 +55052,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto66.reset = function reset() {
+    _proto64.reset = function reset() {
       this.inner.reset();
       this.js.length = 0;
     };
@@ -54056,31 +55073,61 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this[REGISTERS] = registers;
     }
 
-    EvaluationStackImpl.restore = function restore(snapshot$$1) {
+    EvaluationStackImpl.restore = function restore(snapshot) {
       var stack = new InnerStack();
 
-      for (var i = 0; i < snapshot$$1.length; i++) {
-        stack.write(i, snapshot$$1[i]);
+      for (var i = 0; i < snapshot.length; i++) {
+        var value = snapshot[i];
+
+        if (typeof value === 'number' && (0, _util.isSmallInt)(value)) {
+          stack.writeRaw(i, (0, _util.encodeImmediate)(value));
+        } else if (value === true) {
+          stack.writeTrue(i);
+        } else if (value === false) {
+          stack.writeFalse(i);
+        } else if (value === null) {
+          stack.writeNull(i);
+        } else if (value === undefined) {
+          stack.writeUndefined(i);
+        } else {
+          stack.writeJs(i, value);
+        }
       }
 
-      return new this(stack, initializeRegistersWithSP(snapshot$$1.length - 1));
+      return new this(stack, initializeRegistersWithSP(snapshot.length - 1));
     };
 
-    var _proto67 = EvaluationStackImpl.prototype;
+    var _proto65 = EvaluationStackImpl.prototype;
 
-    _proto67.push = function push(value) {
-      this.stack.write(++this[REGISTERS][_vm2.$sp], value);
-    };
-
-    _proto67.pushJs = function pushJs(value) {
+    _proto65.pushJs = function pushJs(value) {
       this.stack.writeJs(++this[REGISTERS][_vm2.$sp], value);
     };
 
-    _proto67.pushRaw = function pushRaw(value) {
+    _proto65.pushSmallInt = function pushSmallInt(value) {
+      this.stack.writeSmallInt(++this[REGISTERS][_vm2.$sp], value);
+    };
+
+    _proto65.pushTrue = function pushTrue() {
+      this.stack.writeTrue(++this[REGISTERS][_vm2.$sp]);
+    };
+
+    _proto65.pushFalse = function pushFalse() {
+      this.stack.writeFalse(++this[REGISTERS][_vm2.$sp]);
+    };
+
+    _proto65.pushNull = function pushNull() {
+      this.stack.writeNull(++this[REGISTERS][_vm2.$sp]);
+    };
+
+    _proto65.pushUndefined = function pushUndefined() {
+      this.stack.writeUndefined(++this[REGISTERS][_vm2.$sp]);
+    };
+
+    _proto65.pushRaw = function pushRaw(value) {
       this.stack.writeRaw(++this[REGISTERS][_vm2.$sp], value);
     };
 
-    _proto67.dup = function dup(position) {
+    _proto65.dup = function dup(position) {
       if (position === void 0) {
         position = this[REGISTERS][_vm2.$sp];
       }
@@ -54088,11 +55135,31 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.stack.copy(position, ++this[REGISTERS][_vm2.$sp]);
     };
 
-    _proto67.copy = function copy(from, to) {
+    _proto65.copy = function copy(from, to) {
       this.stack.copy(from, to);
     };
 
-    _proto67.pop = function pop(n) {
+    _proto65.popJs = function popJs(n) {
+      if (n === void 0) {
+        n = 1;
+      }
+
+      var top = this.stack.getJs(this[REGISTERS][_vm2.$sp]);
+      this[REGISTERS][_vm2.$sp] -= n;
+      return top;
+    };
+
+    _proto65.popSmallInt = function popSmallInt(n) {
+      if (n === void 0) {
+        n = 1;
+      }
+
+      var top = this.stack.getSmallInt(this[REGISTERS][_vm2.$sp]);
+      this[REGISTERS][_vm2.$sp] -= n;
+      return top;
+    };
+
+    _proto65.pop = function pop(n) {
       if (n === void 0) {
         n = 1;
       }
@@ -54102,7 +55169,23 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return top;
     };
 
-    _proto67.peek = function peek(offset) {
+    _proto65.peekJs = function peekJs(offset) {
+      if (offset === void 0) {
+        offset = 0;
+      }
+
+      return this.stack.getJs(this[REGISTERS][_vm2.$sp] - offset);
+    };
+
+    _proto65.peekSmallInt = function peekSmallInt(offset) {
+      if (offset === void 0) {
+        offset = 0;
+      }
+
+      return this.stack.getSmallInt(this[REGISTERS][_vm2.$sp] - offset);
+    };
+
+    _proto65.peek = function peek(offset) {
       if (offset === void 0) {
         offset = 0;
       }
@@ -54110,7 +55193,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return this.stack.get(this[REGISTERS][_vm2.$sp] - offset);
     };
 
-    _proto67.get = function get(offset, base) {
+    _proto65.get = function get(offset, base) {
       if (base === void 0) {
         base = this[REGISTERS][_vm2.$fp];
       }
@@ -54118,35 +55201,31 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return this.stack.get(base + offset);
     };
 
-    _proto67.set = function set(value, offset, base) {
+    _proto65.set = function set(value, offset, base) {
       if (base === void 0) {
         base = this[REGISTERS][_vm2.$fp];
       }
 
-      this.stack.write(base + offset, value);
+      this.stack.writeJs(base + offset, value);
     };
 
-    _proto67.slice = function slice(start, end) {
+    _proto65.slice = function slice(start, end) {
       return this.stack.slice(start, end);
     };
 
-    _proto67.sliceArray = function sliceArray(start, end) {
-      return this.stack.sliceInner(start, end);
-    };
-
-    _proto67.capture = function capture(items) {
+    _proto65.capture = function capture(items) {
       var end = this[REGISTERS][_vm2.$sp] + 1;
       var start = end - items;
-      return this.stack.sliceInner(start, end);
+      return this.stack.slice(start, end);
     };
 
-    _proto67.reset = function reset() {
+    _proto65.reset = function reset() {
       this.stack.reset();
     };
 
-    _proto67.toArray = function toArray() {
+    _proto65.toArray = function toArray() {
       console.log(this[REGISTERS]);
-      return this.stack.sliceInner(this[REGISTERS][_vm2.$fp], this[REGISTERS][_vm2.$sp] + 1);
+      return this.stack.slice(this[REGISTERS][_vm2.$fp], this[REGISTERS][_vm2.$sp] + 1);
     };
 
     return EvaluationStackImpl;
@@ -54166,13 +55245,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     /**
      * End of migrated.
      */
-    function VM(runtime, _ref59, elementStack) {
-      var _this20 = this;
+    function VM(runtime, _ref60, elementStack) {
+      var _this27 = this;
 
-      var pc = _ref59.pc,
-          scope = _ref59.scope,
-          dynamicScope = _ref59.dynamicScope,
-          stack = _ref59.stack;
+      var pc = _ref60.pc,
+          scope = _ref60.scope,
+          dynamicScope = _ref60.dynamicScope,
+          stack = _ref60.stack;
       this.runtime = runtime;
       this.elementStack = elementStack;
       this[_a$3] = new Stacks();
@@ -54182,6 +55261,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.t0 = null;
       this.t1 = null;
       this.v0 = null;
+
+      if (true
+      /* DEBUG */
+      ) {
+        (0, _globalContext.assertGlobalContextWasSet)();
+      }
+
       var evalStack = EvaluationStackImpl.restore(stack);
       evalStack[REGISTERS][_vm2.$pc] = pc;
       evalStack[REGISTERS][_vm2.$sp] = stack.length - 1;
@@ -54194,30 +55280,31 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this[ARGS] = new VMArgumentsImpl();
       this[INNER_VM] = new LowLevelVM(evalStack, this[HEAP], runtime.program, {
         debugBefore: function debugBefore(opcode) {
-          return APPEND_OPCODES.debugBefore(_this20, opcode);
+          return APPEND_OPCODES.debugBefore(_this27, opcode);
         },
         debugAfter: function debugAfter(state) {
-          APPEND_OPCODES.debugAfter(_this20, state);
+          APPEND_OPCODES.debugAfter(_this27, state);
         }
       }, evalStack[REGISTERS]);
       this.destructor = {};
-      this[DESTRUCTOR_STACK].push(this.destructor);
+      this[DESTROYABLE_STACK].push(this.destructor);
     }
 
-    var _proto68 = VM.prototype;
+    var _proto66 = VM.prototype;
 
     // Fetch a value from a register onto the stack
-    _proto68.fetch = function fetch(register) {
-      this.stack.push(this.fetchValue(register));
+    _proto66.fetch = function fetch(register) {
+      var value = this.fetchValue(register);
+      this.stack.pushJs(value);
     } // Load a value from the stack into a register
     ;
 
-    _proto68.load = function load(register) {
+    _proto66.load = function load(register) {
       var value = this.stack.pop();
       this.loadValue(register, value);
     };
 
-    _proto68.fetchValue = function fetchValue(register) {
+    _proto66.fetchValue = function fetchValue(register) {
       if ((0, _vm2.isLowLevelRegister)(register)) {
         return this[INNER_VM].fetchRegister(register);
       }
@@ -54241,7 +55328,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     } // Load a value into a register
     ;
 
-    _proto68.loadValue = function loadValue(register, value) {
+    _proto66.loadValue = function loadValue(register, value) {
       if ((0, _vm2.isLowLevelRegister)(register)) {
         this[INNER_VM].loadRegister(register, value);
       }
@@ -54274,36 +55361,36 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     // Start a new frame and save $ra and $fp on the stack
     ;
 
-    _proto68.pushFrame = function pushFrame() {
+    _proto66.pushFrame = function pushFrame() {
       this[INNER_VM].pushFrame();
     } // Restore $ra, $sp and $fp
     ;
 
-    _proto68.popFrame = function popFrame() {
+    _proto66.popFrame = function popFrame() {
       this[INNER_VM].popFrame();
     } // Jump to an address in `program`
     ;
 
-    _proto68.goto = function goto(offset) {
+    _proto66.goto = function goto(offset) {
       this[INNER_VM].goto(offset);
     } // Save $pc into $ra, then jump to a new address in `program` (jal in MIPS)
     ;
 
-    _proto68.call = function call(handle) {
+    _proto66.call = function call(handle) {
       this[INNER_VM].call(handle);
     } // Put a specific `program` address in $ra
     ;
 
-    _proto68.returnTo = function returnTo(offset) {
+    _proto66.returnTo = function returnTo(offset) {
       this[INNER_VM].returnTo(offset);
     } // Return to the `program` address stored in $ra
     ;
 
-    _proto68.return = function _return() {
+    _proto66.return = function _return() {
       this[INNER_VM].return();
     };
 
-    _proto68.captureState = function captureState(args, pc) {
+    _proto66.captureState = function captureState(args, pc) {
       if (pc === void 0) {
         pc = this[INNER_VM].fetchRegister(_vm2.$pc);
       }
@@ -54316,169 +55403,164 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       };
     };
 
-    _proto68.beginCacheGroup = function beginCacheGroup() {
-      this[STACKS].cache.push(this.updating().tail());
-    };
-
-    _proto68.commitCacheGroup = function commitCacheGroup() {
-      var END$$1 = new LabelOpcode('END');
+    _proto66.beginCacheGroup = function beginCacheGroup(name) {
       var opcodes = this.updating();
-      var marker = this[STACKS].cache.pop();
-      var head = marker ? opcodes.nextNode(marker) : opcodes.head();
-      var tail = opcodes.tail();
-      var tag = combineSlice(new _util.ListSlice(head, tail));
-      var guard = new JumpIfNotModifiedOpcode(tag, END$$1);
-      opcodes.insertBefore(guard, head);
-      opcodes.append(new DidModifyOpcode(guard));
-      opcodes.append(END$$1);
+      var guard = new JumpIfNotModifiedOpcode();
+      opcodes.push(guard);
+      opcodes.push(new BeginTrackFrameOpcode(name));
+      this[STACKS].cache.push(guard);
+      (0, _validator.beginTrackFrame)(name);
     };
 
-    _proto68.enter = function enter(args) {
-      var updating = new _util.LinkedList();
+    _proto66.commitCacheGroup = function commitCacheGroup() {
+      var opcodes = this.updating();
+      var guard = this[STACKS].cache.pop();
+      var tag = (0, _validator.endTrackFrame)();
+      opcodes.push(new EndTrackFrameOpcode(guard));
+      guard.finalize(tag, opcodes.length);
+    };
+
+    _proto66.enter = function enter(args) {
+      var updating = [];
       var state = this.capture(args);
       var block = this.elements().pushUpdatableBlock();
       var tryOpcode = new TryOpcode(state, this.runtime, block, updating);
       this.didEnter(tryOpcode);
     };
 
-    _proto68.enterItem = function enterItem(memo, value) {
+    _proto66.enterItem = function enterItem(iterableRef, _ref61) {
+      var key = _ref61.key,
+          value = _ref61.value,
+          memo = _ref61.memo;
       var stack = this.stack;
-      stack.push(value);
-      stack.push(memo);
+      var valueRef = iterableRef.childRefFor(key, value);
+      var memoRef = iterableRef.childRefFor(key, memo);
+      stack.pushJs(valueRef);
+      stack.pushJs(memoRef);
       var state = this.capture(2);
-      var block = this.elements().pushUpdatableBlock(); // let ip = this.ip;
-      // this.ip = end + 4;
-      // this.frames.push(ip);
-
-      var opcode = new TryOpcode(state, this.runtime, block, new _util.LinkedList());
+      var block = this.elements().pushUpdatableBlock();
+      var opcode = new ListItemOpcode(state, this.runtime, block, key, memoRef, valueRef);
       this.didEnter(opcode);
       return opcode;
     };
 
-    _proto68.registerItem = function registerItem(key, opcode) {
-      this.listBlock().map.set(key, opcode);
+    _proto66.registerItem = function registerItem(opcode) {
+      this.listBlock().initializeChild(opcode);
     };
 
-    _proto68.enterList = function enterList(offset) {
-      var updating = new _util.LinkedList();
+    _proto66.enterList = function enterList(offset) {
+      var updating = [];
       var addr = this[INNER_VM].target(offset);
       var state = this.capture(0, addr);
       var list = this.elements().pushBlockList(updating);
-      var artifacts = this.stack.peek().artifacts;
-      var opcode = new ListBlockOpcode(state, this.runtime, list, updating, artifacts);
+      var iterableRef = this.stack.peekJs();
+      var opcode = new ListBlockOpcode(state, this.runtime, list, updating, iterableRef);
       this[STACKS].list.push(opcode);
       this.didEnter(opcode);
     };
 
-    _proto68.didEnter = function didEnter(opcode) {
-      this.associateDestructor((0, _util.destructor)(opcode));
-      this[DESTRUCTOR_STACK].push(opcode);
+    _proto66.didEnter = function didEnter(opcode) {
+      this.associateDestroyable(opcode);
+      this[DESTROYABLE_STACK].push(opcode);
       this.updateWith(opcode);
       this.pushUpdating(opcode.children);
     };
 
-    _proto68.exit = function exit() {
-      this[DESTRUCTOR_STACK].pop();
+    _proto66.exit = function exit() {
+      this[DESTROYABLE_STACK].pop();
       this.elements().popBlock();
       this.popUpdating();
-      var parent = this.updating().tail();
-      parent.didInitializeChildren();
     };
 
-    _proto68.exitList = function exitList() {
+    _proto66.exitList = function exitList() {
       this.exit();
       this[STACKS].list.pop();
     };
 
-    _proto68.pushUpdating = function pushUpdating(list) {
+    _proto66.pushUpdating = function pushUpdating(list) {
       if (list === void 0) {
-        list = new _util.LinkedList();
+        list = [];
       }
 
       this[STACKS].updating.push(list);
     };
 
-    _proto68.popUpdating = function popUpdating() {
+    _proto66.popUpdating = function popUpdating() {
       return this[STACKS].updating.pop();
     };
 
-    _proto68.updateWith = function updateWith(opcode) {
-      this.updating().append(opcode);
+    _proto66.updateWith = function updateWith(opcode) {
+      this.updating().push(opcode);
     };
 
-    _proto68.listBlock = function listBlock() {
+    _proto66.listBlock = function listBlock() {
       return this[STACKS].list.current;
     };
 
-    _proto68.associateDestructor = function associateDestructor(child) {
-      if (!(0, _util.isDrop)(child)) return;
-      var parent = this[DESTRUCTOR_STACK].current;
-      (0, _util.associateDestructor)(parent, child);
+    _proto66.associateDestroyable = function associateDestroyable(child) {
+      var parent = this[DESTROYABLE_STACK].current;
+      associateDestroyableChild(parent, child);
     };
 
-    _proto68.associateDestroyable = function associateDestroyable(child) {
-      this.associateDestructor((0, _util.destructor)(child));
-    };
-
-    _proto68.tryUpdating = function tryUpdating() {
+    _proto66.tryUpdating = function tryUpdating() {
       return this[STACKS].updating.current;
     };
 
-    _proto68.updating = function updating() {
+    _proto66.updating = function updating() {
       return this[STACKS].updating.current;
     };
 
-    _proto68.elements = function elements() {
+    _proto66.elements = function elements() {
       return this.elementStack;
     };
 
-    _proto68.scope = function scope() {
+    _proto66.scope = function scope() {
       return this[STACKS].scope.current;
     };
 
-    _proto68.dynamicScope = function dynamicScope() {
+    _proto66.dynamicScope = function dynamicScope() {
       return this[STACKS].dynamicScope.current;
     };
 
-    _proto68.pushChildScope = function pushChildScope() {
+    _proto66.pushChildScope = function pushChildScope() {
       this[STACKS].scope.push(this.scope().child());
     };
 
-    _proto68.pushDynamicScope = function pushDynamicScope() {
+    _proto66.pushDynamicScope = function pushDynamicScope() {
       var child = this.dynamicScope().child();
       this[STACKS].dynamicScope.push(child);
       return child;
     };
 
-    _proto68.pushRootScope = function pushRootScope(size) {
-      var scope = ScopeImpl.sized(size);
+    _proto66.pushRootScope = function pushRootScope(size) {
+      var scope = PartialScopeImpl.sized(size);
       this[STACKS].scope.push(scope);
       return scope;
     };
 
-    _proto68.pushScope = function pushScope(scope) {
+    _proto66.pushScope = function pushScope(scope) {
       this[STACKS].scope.push(scope);
     };
 
-    _proto68.popScope = function popScope() {
+    _proto66.popScope = function popScope() {
       this[STACKS].scope.pop();
     };
 
-    _proto68.popDynamicScope = function popDynamicScope() {
+    _proto66.popDynamicScope = function popDynamicScope() {
       this[STACKS].dynamicScope.pop();
     } /// SCOPE HELPERS
     ;
 
-    _proto68.getSelf = function getSelf() {
+    _proto66.getSelf = function getSelf() {
       return this.scope().getSelf();
     };
 
-    _proto68.referenceForSymbol = function referenceForSymbol(symbol$$1) {
+    _proto66.referenceForSymbol = function referenceForSymbol(symbol$$1) {
       return this.scope().getSymbol(symbol$$1);
     } /// EXECUTION
     ;
 
-    _proto68.execute = function execute(initialize) {
+    _proto66.execute = function execute(initialize) {
       if (initialize) initialize(this);
       var result;
 
@@ -54487,7 +55569,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
           result = this.next();
           if (result.done) break;
         }
-      } finally {
+      } catch (e) {
         // If any existing blocks are open, due to an error or something like
         // that, we need to close them all and clean things up properly.
         var elements = this.elements();
@@ -54495,12 +55577,15 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         while (elements.hasBlocks) {
           elements.popBlock();
         }
+
+        (0, _validator.resetTracking)();
+        throw e;
       }
 
       return result.value;
     };
 
-    _proto68.next = function next() {
+    _proto66.next = function next() {
       var env = this.env,
           elementStack = this.elementStack;
       var opcode = this[INNER_VM].nextStatement();
@@ -54524,13 +55609,12 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return result;
     };
 
-    _proto68.bindDynamicScope = function bindDynamicScope(names) {
+    _proto66.bindDynamicScope = function bindDynamicScope(names) {
       var scope = this.dynamicScope();
 
       for (var i = names.length - 1; i >= 0; i--) {
-        var _name10 = this[CONSTANTS].getString(names[i]);
-
-        scope.set(_name10, this.stack.pop());
+        var _name9 = names[i];
+        scope.set(_name9, this.stack.popJs());
       }
     };
 
@@ -54561,11 +55645,11 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
   }();
 
   _exports.LowLevelVM = VM;
-  _a$3 = STACKS, _b = DESTRUCTOR_STACK;
+  _a$3 = STACKS, _b = DESTROYABLE_STACK;
 
   function vmState(pc, scope, dynamicScope) {
     if (scope === void 0) {
-      scope = ScopeImpl.root(UNDEFINED_REFERENCE, 0);
+      scope = PartialScopeImpl.root(UNDEFINED_REFERENCE, 0);
     }
 
     return {
@@ -54583,22 +55667,22 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _VM.apply(this, arguments) || this;
     }
 
-    AotVM.empty = function empty(runtime, _ref60) {
-      var handle = _ref60.handle,
-          treeBuilder = _ref60.treeBuilder,
-          dynamicScope = _ref60.dynamicScope;
-      var vm = initAOT(runtime, vmState(runtime.program.heap.getaddr(handle), ScopeImpl.root(UNDEFINED_REFERENCE, 0), dynamicScope), treeBuilder);
+    AotVM.empty = function empty(runtime, _ref62) {
+      var handle = _ref62.handle,
+          treeBuilder = _ref62.treeBuilder,
+          dynamicScope = _ref62.dynamicScope;
+      var vm = initAOT(runtime, vmState(runtime.program.heap.getaddr(handle), PartialScopeImpl.root(UNDEFINED_REFERENCE, 0), dynamicScope), treeBuilder);
       vm.pushUpdating();
       return vm;
     };
 
-    AotVM.initial = function initial(runtime, _ref61) {
-      var handle = _ref61.handle,
-          self = _ref61.self,
-          treeBuilder = _ref61.treeBuilder,
-          dynamicScope = _ref61.dynamicScope;
+    AotVM.initial = function initial(runtime, _ref63) {
+      var handle = _ref63.handle,
+          self = _ref63.self,
+          treeBuilder = _ref63.treeBuilder,
+          dynamicScope = _ref63.dynamicScope;
       var scopeSize = runtime.program.heap.scopesizeof(handle);
-      var scope = ScopeImpl.root(self, scopeSize);
+      var scope = PartialScopeImpl.root(self, scopeSize);
       var pc = runtime.program.heap.getaddr(handle);
       var state = vmState(pc, scope, dynamicScope);
       var vm = initAOT(runtime, state, treeBuilder);
@@ -54606,9 +55690,9 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return vm;
     };
 
-    var _proto69 = AotVM.prototype;
+    var _proto67 = AotVM.prototype;
 
-    _proto69.capture = function capture(args, pc) {
+    _proto67.capture = function capture(args, pc) {
       if (pc === void 0) {
         pc = this[INNER_VM].fetchRegister(_vm2.$pc);
       }
@@ -54633,39 +55717,39 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     (0, _emberBabel.inheritsLoose)(JitVM, _VM2);
 
     function JitVM(runtime, state, elementStack, context) {
-      var _this21;
+      var _this28;
 
-      _this21 = _VM2.call(this, runtime, state, elementStack) || this;
-      _this21.context = context;
-      _this21.resume = initJIT(_this21.context);
-      return _this21;
+      _this28 = _VM2.call(this, runtime, state, elementStack) || this;
+      _this28.context = context;
+      _this28.resume = initJIT(_this28.context);
+      return _this28;
     }
 
-    JitVM.initial = function initial(runtime, context, _ref62) {
-      var handle = _ref62.handle,
-          self = _ref62.self,
-          dynamicScope = _ref62.dynamicScope,
-          treeBuilder = _ref62.treeBuilder;
+    JitVM.initial = function initial(runtime, context, _ref64) {
+      var handle = _ref64.handle,
+          self = _ref64.self,
+          dynamicScope = _ref64.dynamicScope,
+          treeBuilder = _ref64.treeBuilder;
       var scopeSize = runtime.program.heap.scopesizeof(handle);
-      var scope = ScopeImpl.root(self, scopeSize);
+      var scope = PartialScopeImpl.root(self, scopeSize);
       var state = vmState(runtime.program.heap.getaddr(handle), scope, dynamicScope);
       var vm = initJIT(context)(runtime, state, treeBuilder);
       vm.pushUpdating();
       return vm;
     };
 
-    JitVM.empty = function empty(runtime, _ref63, context) {
-      var handle = _ref63.handle,
-          treeBuilder = _ref63.treeBuilder,
-          dynamicScope = _ref63.dynamicScope;
-      var vm = initJIT(context)(runtime, vmState(runtime.program.heap.getaddr(handle), ScopeImpl.root(UNDEFINED_REFERENCE, 0), dynamicScope), treeBuilder);
+    JitVM.empty = function empty(runtime, _ref65, context) {
+      var handle = _ref65.handle,
+          treeBuilder = _ref65.treeBuilder,
+          dynamicScope = _ref65.dynamicScope;
+      var vm = initJIT(context)(runtime, vmState(runtime.program.heap.getaddr(handle), PartialScopeImpl.root(UNDEFINED_REFERENCE, 0), dynamicScope), treeBuilder);
       vm.pushUpdating();
       return vm;
     };
 
-    var _proto70 = JitVM.prototype;
+    var _proto68 = JitVM.prototype;
 
-    _proto70.capture = function capture(args, pc) {
+    _proto68.capture = function capture(args, pc) {
       if (pc === void 0) {
         pc = this[INNER_VM].fetchRegister(_vm2.$pc);
       }
@@ -54673,7 +55757,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return new ResumableVMStateImpl(this.captureState(args, pc), this.resume);
     };
 
-    _proto70.compile = function compile(block) {
+    _proto68.compile = function compile(block) {
       var handle = (0, _util.unwrapHandle)(block.compile(this.context));
       return handle;
     };
@@ -54686,35 +55770,30 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       this.vm = vm;
     }
 
-    var _proto71 = TemplateIteratorImpl.prototype;
+    var _proto69 = TemplateIteratorImpl.prototype;
 
-    _proto71.next = function next() {
+    _proto69.next = function next() {
       return this.vm.next();
     };
 
-    _proto71.sync = function sync() {
-      return renderSync(this.vm.runtime.env, this);
+    _proto69.sync = function sync() {
+      return this.vm.execute();
     };
 
     return TemplateIteratorImpl;
   }();
 
   function renderSync(env, iterator) {
-    env.begin();
-    var iteratorResult;
-
-    do {
-      iteratorResult = iterator.next();
-    } while (!iteratorResult.done);
-
-    var result = iteratorResult.value;
-    env.commit();
+    var result;
+    inTransaction(env, function () {
+      return result = iterator.sync();
+    });
     return result;
   }
 
   function renderAotMain(runtime, self, treeBuilder, handle, dynamicScope) {
     if (dynamicScope === void 0) {
-      dynamicScope = new DefaultDynamicScope();
+      dynamicScope = new DynamicScopeImpl();
     }
 
     var vm = AotVM.initial(runtime, {
@@ -54732,7 +55811,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     }
 
     var treeBuilder = NewElementBuilder.forInitialRender(runtime.env, cursor);
-    var dynamicScope = new DefaultDynamicScope();
+    var dynamicScope = new DynamicScopeImpl();
     var vm = AotVM.initial(runtime, {
       self: self,
       dynamicScope: dynamicScope,
@@ -54744,7 +55823,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
 
   function renderJitMain(runtime, context, self, treeBuilder, handle, dynamicScope) {
     if (dynamicScope === void 0) {
-      dynamicScope = new DefaultDynamicScope();
+      dynamicScope = new DynamicScopeImpl();
     }
 
     var vm = JitVM.initial(runtime, context, {
@@ -54764,29 +55843,29 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     });
     var blockNames = ['main', 'else', 'attrs']; // Prefix argument names with `@` symbol
 
-    var argNames = argList.map(function (_ref64) {
-      var name = _ref64[0];
+    var argNames = argList.map(function (_ref66) {
+      var name = _ref66[0];
       return "@" + name;
     });
     vm.pushFrame(); // Push blocks on to the stack, three stack values per block
 
     for (var i = 0; i < 3 * blockNames.length; i++) {
-      vm.stack.push(null);
+      vm.stack.pushNull();
     }
 
-    vm.stack.push(null); // For each argument, push its backing reference on to the stack
+    vm.stack.pushNull(); // For each argument, push its backing reference on to the stack
 
-    argList.forEach(function (_ref65) {
-      var reference = _ref65[1];
-      vm.stack.push(reference);
+    argList.forEach(function (_ref67) {
+      var reference = _ref67[1];
+      vm.stack.pushJs(reference);
     }); // Configure VM based on blocks and args just pushed on to the stack.
 
     vm[ARGS].setup(vm.stack, argNames, blockNames, 0, true); // Needed for the Op.Main opcode: arguments, component invocation object, and
     // component definition.
 
-    vm.stack.push(vm[ARGS]);
-    vm.stack.push(invocation);
-    vm.stack.push(definition);
+    vm.stack.pushJs(vm[ARGS]);
+    vm.stack.pushJs(invocation);
+    vm.stack.pushJs(definition);
     return new TemplateIteratorImpl(vm);
   }
 
@@ -54796,7 +55875,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     }
 
     if (dynamicScope === void 0) {
-      dynamicScope = new DefaultDynamicScope();
+      dynamicScope = new DynamicScopeImpl();
     }
 
     var vm = AotVM.empty(runtime, {
@@ -54819,43 +55898,25 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     return renderInvocation(vm, invocation, definition, args);
   }
 
-  function renderJitComponent(runtime, treeBuilder, context, main, name, args, dynamicScope) {
+  function renderJitComponent(runtime, treeBuilder, context, definition, layout, args, dynamicScope) {
     if (args === void 0) {
       args = {};
     }
 
     if (dynamicScope === void 0) {
-      dynamicScope = new DefaultDynamicScope();
+      dynamicScope = new DynamicScopeImpl();
     }
 
+    var handle = (0, _util.unwrapHandle)(layout.compile(context));
+    var invocation = {
+      handle: handle,
+      symbolTable: layout.symbolTable
+    };
     var vm = JitVM.empty(runtime, {
       treeBuilder: treeBuilder,
-      handle: main,
+      handle: context.program.stdlib.main,
       dynamicScope: dynamicScope
     }, context);
-    var definition = resolveComponent(vm.runtime.resolver, name);
-    var manager = definition.manager,
-        state = definition.state;
-    var capabilities = capabilityFlagsFrom(manager.getCapabilities(state));
-    var invocation;
-
-    if (hasStaticLayoutCapability(capabilities, manager)) {
-      var layout = manager.getJitStaticLayout(state, vm.runtime.resolver);
-      var handle = (0, _util.unwrapHandle)(layout.compile(context));
-
-      if (Array.isArray(handle)) {
-        var error = handle[0];
-        throw new Error("Compile Error: " + error.problem + " " + error.span.start + ".." + error.span.end + " :: TODO (thread better)");
-      }
-
-      invocation = {
-        handle: handle,
-        symbolTable: layout.symbolTable
-      };
-    } else {
-      throw new Error('Cannot invoke components with dynamic layouts as a root component.');
-    }
-
     return renderInvocation(vm, invocation, definition, args);
   }
 
@@ -54870,14 +55931,14 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     (0, _emberBabel.inheritsLoose)(RehydratingCursor, _CursorImpl);
 
     function RehydratingCursor(element, nextSibling, startingBlockDepth) {
-      var _this22;
+      var _this29;
 
-      _this22 = _CursorImpl.call(this, element, nextSibling) || this;
-      _this22.startingBlockDepth = startingBlockDepth;
-      _this22.candidate = null;
-      _this22.injectedOmittedNode = false;
-      _this22.openBlockDepth = startingBlockDepth - 1;
-      return _this22;
+      _this29 = _CursorImpl.call(this, element, nextSibling) || this;
+      _this29.startingBlockDepth = startingBlockDepth;
+      _this29.candidate = null;
+      _this29.injectedOmittedNode = false;
+      _this29.openBlockDepth = startingBlockDepth - 1;
+      return _this29;
     }
 
     return RehydratingCursor;
@@ -54887,13 +55948,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     (0, _emberBabel.inheritsLoose)(RehydrateBuilder, _NewElementBuilder);
 
     function RehydrateBuilder(env, parentNode, nextSibling) {
-      var _this23;
+      var _this30;
 
-      _this23 = _NewElementBuilder.call(this, env, parentNode, nextSibling) || this;
-      _this23.unmatchedAttributes = null;
-      _this23.blockDepth = 0;
+      _this30 = _NewElementBuilder.call(this, env, parentNode, nextSibling) || this;
+      _this30.unmatchedAttributes = null;
+      _this30.blockDepth = 0;
       if (nextSibling) throw new Error('Rehydration with nextSibling not supported');
-      var node = _this23.currentCursor.element.firstChild;
+      var node = _this30.currentCursor.element.firstChild;
 
       while (node !== null) {
         if (isComment(node) && isSerializationFirstNode(node)) {
@@ -54903,13 +55964,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
         node = node.nextSibling;
       }
 
-      _this23.candidate = node;
-      return _this23;
+      _this30.candidate = node;
+      return _this30;
     }
 
-    var _proto72 = RehydrateBuilder.prototype;
+    var _proto70 = RehydrateBuilder.prototype;
 
-    _proto72.disableRehydration = function disableRehydration(nextSibling) {
+    _proto70.disableRehydration = function disableRehydration(nextSibling) {
       var currentCursor = this.currentCursor; // rehydration will be disabled until we either:
       // * hit popElement (and return to using the parent elements cursor)
       // * hit closeBlock and the next sibling is a close block comment
@@ -54919,13 +55980,13 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       currentCursor.nextSibling = nextSibling;
     };
 
-    _proto72.enableRehydration = function enableRehydration(candidate) {
+    _proto70.enableRehydration = function enableRehydration(candidate) {
       var currentCursor = this.currentCursor;
       currentCursor.candidate = candidate;
       currentCursor.nextSibling = null;
     };
 
-    _proto72.pushElement = function pushElement(element, nextSibling) {
+    _proto70.pushElement = function pushElement(element, nextSibling) {
       if (nextSibling === void 0) {
         nextSibling = null;
       }
@@ -54952,7 +56013,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
     // either the current open block or higher
     ;
 
-    _proto72.clearMismatch = function clearMismatch(candidate) {
+    _proto70.clearMismatch = function clearMismatch(candidate) {
       var current = candidate;
       var currentCursor = this.currentCursor;
 
@@ -54983,7 +56044,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.__openBlock = function __openBlock() {
+    _proto70.__openBlock = function __openBlock() {
       var currentCursor = this.currentCursor;
       if (currentCursor === null) return;
       var blockDepth = this.blockDepth;
@@ -55000,7 +56061,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.__closeBlock = function __closeBlock() {
+    _proto70.__closeBlock = function __closeBlock() {
       var currentCursor = this.currentCursor;
       if (currentCursor === null) return; // openBlock is the last rehydrated open block
 
@@ -55045,7 +56106,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.__appendNode = function __appendNode(node) {
+    _proto70.__appendNode = function __appendNode(node) {
       var candidate = this.candidate; // This code path is only used when inserting precisely one node. It needs more
       // comparison logic, but we can probably lean on the cases where this code path
       // is actually used.
@@ -55057,7 +56118,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.__appendHTML = function __appendHTML(html) {
+    _proto70.__appendHTML = function __appendHTML(html) {
       var candidateBounds = this.markerBounds();
 
       if (candidateBounds) {
@@ -55081,14 +56142,14 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.remove = function remove(node) {
+    _proto70.remove = function remove(node) {
       var element = node.parentNode;
       var next = node.nextSibling;
       element.removeChild(node);
       return next;
     };
 
-    _proto72.markerBounds = function markerBounds() {
+    _proto70.markerBounds = function markerBounds() {
       var _candidate = this.candidate;
 
       if (_candidate && isMarker(_candidate)) {
@@ -55105,7 +56166,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.__appendText = function __appendText(string) {
+    _proto70.__appendText = function __appendText(string) {
       var candidate = this.candidate;
 
       if (candidate) {
@@ -55131,7 +56192,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.__appendComment = function __appendComment(string) {
+    _proto70.__appendComment = function __appendComment(string) {
       var _candidate = this.candidate;
 
       if (_candidate && isComment(_candidate)) {
@@ -55148,7 +56209,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _NewElementBuilder.prototype.__appendComment.call(this, string);
     };
 
-    _proto72.__openElement = function __openElement(tag) {
+    _proto70.__openElement = function __openElement(tag) {
       var _candidate = this.candidate;
 
       if (_candidate && isElement(_candidate) && isSameNodeType(_candidate, tag)) {
@@ -55167,7 +56228,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _NewElementBuilder.prototype.__openElement.call(this, tag);
     };
 
-    _proto72.__setAttribute = function __setAttribute(name, value, namespace) {
+    _proto70.__setAttribute = function __setAttribute(name, value, namespace) {
       var unmatched = this.unmatchedAttributes;
 
       if (unmatched) {
@@ -55186,7 +56247,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _NewElementBuilder.prototype.__setAttribute.call(this, name, value, namespace);
     };
 
-    _proto72.__setProperty = function __setProperty(name, value) {
+    _proto70.__setProperty = function __setProperty(name, value) {
       var unmatched = this.unmatchedAttributes;
 
       if (unmatched) {
@@ -55205,7 +56266,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return _NewElementBuilder.prototype.__setProperty.call(this, name, value);
     };
 
-    _proto72.__flushElement = function __flushElement(parent, constructing) {
+    _proto70.__flushElement = function __flushElement(parent, constructing) {
       var unmatched = this.unmatchedAttributes;
 
       if (unmatched) {
@@ -55219,7 +56280,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       }
     };
 
-    _proto72.willCloseElement = function willCloseElement() {
+    _proto70.willCloseElement = function willCloseElement() {
       var candidate = this.candidate,
           currentCursor = this.currentCursor;
 
@@ -55234,7 +56295,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       _NewElementBuilder.prototype.willCloseElement.call(this);
     };
 
-    _proto72.getMarker = function getMarker(element, guid) {
+    _proto70.getMarker = function getMarker(element, guid) {
       var marker = element.querySelector("script[glmr=\"" + guid + "\"]");
 
       if (marker) {
@@ -55244,7 +56305,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return null;
     };
 
-    _proto72.__pushRemoteElement = function __pushRemoteElement(element, cursorId, insertBefore) {
+    _proto70.__pushRemoteElement = function __pushRemoteElement(element, cursorId, insertBefore) {
       var marker = this.getMarker(element, cursorId);
 
       if (insertBefore === undefined) {
@@ -55268,7 +56329,7 @@ define("@glimmer/runtime", ["exports", "ember-babel", "@glimmer/util", "@glimmer
       return this.pushLiveBlock(block, true);
     };
 
-    _proto72.didAppendBounds = function didAppendBounds(bounds) {
+    _proto70.didAppendBounds = function didAppendBounds(bounds) {
       _NewElementBuilder.prototype.didAppendBounds.call(this, bounds);
 
       if (this.candidate) {
@@ -55384,39 +56445,31 @@ define("@glimmer/util", ["exports", "ember-babel"], function (_exports, _emberBa
   _exports.assign = assign;
   _exports.fillNulls = fillNulls;
   _exports.values = values;
-  _exports.isDestroyable = isDestroyable;
-  _exports.isStringDestroyable = isStringDestroyable;
   _exports.clearElement = clearElement;
-  _exports.isDrop = isDrop;
-  _exports.associate = associate;
-  _exports.associateDestructor = associateDestructor;
-  _exports.peekAssociated = peekAssociated;
-  _exports.takeAssociated = takeAssociated;
-  _exports.willDestroyAssociated = willDestroyAssociated;
-  _exports.didDestroyAssociated = didDestroyAssociated;
-  _exports.destructor = destructor;
-  _exports.snapshot = snapshot;
-  _exports.debugDropTree = debugDropTree;
-  _exports.printDropTree = printDropTree;
-  _exports.printDrop = printDrop;
   _exports.keys = keys;
   _exports.unwrap = unwrap;
   _exports.expect = expect;
   _exports.unreachable = unreachable;
   _exports.exhausted = exhausted;
   _exports.strip = strip;
-  _exports.encodeImmediate = encodeImmediate;
-  _exports.decodeImmediate = decodeImmediate;
-  _exports.isSmallInt = isSmallInt;
   _exports.isHandle = isHandle;
+  _exports.isNonPrimitiveHandle = isNonPrimitiveHandle;
+  _exports.constants = constants;
+  _exports.isSmallInt = isSmallInt;
+  _exports.encodeNegative = encodeNegative;
+  _exports.decodeNegative = decodeNegative;
+  _exports.encodePositive = encodePositive;
+  _exports.decodePositive = decodePositive;
   _exports.encodeHandle = encodeHandle;
   _exports.decodeHandle = decodeHandle;
+  _exports.encodeImmediate = encodeImmediate;
+  _exports.decodeImmediate = decodeImmediate;
   _exports.unwrapHandle = unwrapHandle;
   _exports.unwrapTemplate = unwrapTemplate;
   _exports.extractHandle = extractHandle;
   _exports.isOkHandle = isOkHandle;
   _exports.isErrHandle = isErrHandle;
-  _exports.symbol = _exports.tuple = _exports.ListContentsDestructor = _exports.DESTRUCTORS = _exports.CHILDREN = _exports.DID_DROP = _exports.WILL_DROP = _exports.LINKED = _exports.DESTROY = _exports.debugToString = _exports.ListSlice = _exports.ListNode = _exports.LinkedList = _exports.EMPTY_SLICE = _exports.SERIALIZATION_FIRST_NODE_STRING = _exports.Stack = _exports.DictSet = _exports.EMPTY_ARRAY = void 0;
+  _exports.symbol = _exports.tuple = _exports.verifySteps = _exports.logStep = _exports.endTestSteps = _exports.beginTestSteps = _exports.debugToString = _exports.SERIALIZATION_FIRST_NODE_STRING = _exports.Stack = _exports.DictSet = _exports.EMPTY_ARRAY = void 0;
   var EMPTY_ARRAY = Object.freeze([]); // import Logger from './logger';
   // let alreadyWarned = false;
 
@@ -55523,6 +56576,61 @@ define("@glimmer/util", ["exports", "ember-babel"], function (_exports, _emberBa
 
   _exports.Stack = StackImpl;
 
+  function clearElement(parent) {
+    var current = parent.firstChild;
+
+    while (current) {
+      var next = current.nextSibling;
+      parent.removeChild(current);
+      current = next;
+    }
+  }
+
+  var SERIALIZATION_FIRST_NODE_STRING = '%+b:0%';
+  _exports.SERIALIZATION_FIRST_NODE_STRING = SERIALIZATION_FIRST_NODE_STRING;
+
+  function isSerializationFirstNode(node) {
+    return node.nodeValue === SERIALIZATION_FIRST_NODE_STRING;
+  }
+
+  var objKeys = Object.keys;
+
+  function assign(obj) {
+    for (var i = 1; i < arguments.length; i++) {
+      var assignment = arguments[i];
+      if (assignment === null || typeof assignment !== 'object') continue;
+
+      var _keys = objKeys(assignment);
+
+      for (var j = 0; j < _keys.length; j++) {
+        var key = _keys[j];
+        obj[key] = assignment[key];
+      }
+    }
+
+    return obj;
+  }
+
+  function fillNulls(count) {
+    var arr = new Array(count);
+
+    for (var i = 0; i < count; i++) {
+      arr[i] = null;
+    }
+
+    return arr;
+  }
+
+  function values(obj) {
+    var vals = [];
+
+    for (var key in obj) {
+      vals.push(obj[key]);
+    }
+
+    return vals;
+  }
+
   function keys(obj) {
     return Object.keys(obj);
   }
@@ -55562,516 +56670,6 @@ define("@glimmer/util", ["exports", "ember-babel"], function (_exports, _emberBa
     return "__" + key + Math.floor(Math.random() * Date.now()) + "__";
   };
   _exports.symbol = symbol;
-  var DESTROY = symbol('DESTROY');
-  _exports.DESTROY = DESTROY;
-
-  function isDestroyable(value) {
-    return !!(value && value[DESTROY] !== undefined);
-  }
-
-  function isStringDestroyable(value) {
-    return !!(value && typeof value === 'object' && typeof value.destroy === 'function');
-  }
-
-  function clearElement(parent) {
-    var current = parent.firstChild;
-
-    while (current) {
-      var next = current.nextSibling;
-      parent.removeChild(current);
-      current = next;
-    }
-  }
-
-  var SERIALIZATION_FIRST_NODE_STRING = '%+b:0%';
-  _exports.SERIALIZATION_FIRST_NODE_STRING = SERIALIZATION_FIRST_NODE_STRING;
-
-  function isSerializationFirstNode(node) {
-    return node.nodeValue === SERIALIZATION_FIRST_NODE_STRING;
-  }
-
-  var LINKED = new WeakMap();
-  _exports.LINKED = LINKED;
-  var WILL_DROP = symbol('WILL_DROP');
-  _exports.WILL_DROP = WILL_DROP;
-  var DID_DROP = symbol('DID_DROP');
-  _exports.DID_DROP = DID_DROP;
-  var CHILDREN = symbol('CHILDREN');
-  _exports.CHILDREN = CHILDREN;
-  var DESTRUCTORS = new WeakMap();
-  _exports.DESTRUCTORS = DESTRUCTORS;
-
-  function isDrop(value) {
-    if (value === null || typeof value !== 'object') return false;
-    return value[DID_DROP] !== undefined;
-  }
-
-  function associate(parent, child) {
-    associateDestructor(parent, destructor(child));
-  }
-
-  function associateDestructor(parent, child) {
-    var associated = LINKED.get(parent);
-
-    if (!associated) {
-      associated = new Set();
-      LINKED.set(parent, associated);
-    }
-
-    associated.add(child);
-  }
-
-  function peekAssociated(parent) {
-    return LINKED.get(parent) || null;
-  }
-
-  function takeAssociated(parent) {
-    var linked = LINKED.get(parent);
-
-    if (linked && linked.size > 0) {
-      LINKED.delete(parent);
-      return linked;
-    } else {
-      return null;
-    }
-  }
-
-  function willDestroyAssociated(parent) {
-    var associated = LINKED.get(parent);
-
-    if (associated) {
-      associated.forEach(function (item) {
-        item[WILL_DROP]();
-      });
-    }
-  }
-
-  function didDestroyAssociated(parent) {
-    var associated = LINKED.get(parent);
-
-    if (associated) {
-      associated.forEach(function (item) {
-        item[DID_DROP]();
-        associated.delete(item);
-      });
-    }
-  }
-
-  function destructor(value) {
-    var d = DESTRUCTORS.get(value);
-
-    if (!d) {
-      if (isDestroyable(value)) {
-        d = new DestroyableDestructor(value);
-      } else if (isStringDestroyable(value)) {
-        d = new StringDestroyableDestructor(value);
-      } else {
-        d = new SimpleDestructor(value);
-      }
-
-      DESTRUCTORS.set(value, d);
-    }
-
-    return d;
-  }
-
-  function snapshot(values) {
-    return new SnapshotDestructor(values);
-  }
-
-  var SnapshotDestructor = /*#__PURE__*/function () {
-    function SnapshotDestructor(destructors) {
-      this.destructors = destructors;
-    }
-
-    var _proto3 = SnapshotDestructor.prototype;
-
-    _proto3[WILL_DROP] = function () {
-      this.destructors.forEach(function (item) {
-        return item[WILL_DROP]();
-      });
-    };
-
-    _proto3[DID_DROP] = function () {
-      this.destructors.forEach(function (item) {
-        return item[DID_DROP]();
-      });
-    };
-
-    _proto3.toString = function toString() {
-      return 'SnapshotDestructor';
-    };
-
-    (0, _emberBabel.createClass)(SnapshotDestructor, [{
-      key: CHILDREN,
-      get: function get() {
-        return this.destructors;
-      }
-    }]);
-    return SnapshotDestructor;
-  }();
-
-  var DestroyableDestructor = /*#__PURE__*/function () {
-    function DestroyableDestructor(inner) {
-      this.inner = inner;
-    }
-
-    var _proto4 = DestroyableDestructor.prototype;
-
-    _proto4[WILL_DROP] = function () {
-      willDestroyAssociated(this.inner);
-    };
-
-    _proto4[DID_DROP] = function () {
-      this.inner[DESTROY]();
-      didDestroyAssociated(this.inner);
-    };
-
-    _proto4.toString = function toString() {
-      return 'DestroyableDestructor';
-    };
-
-    (0, _emberBabel.createClass)(DestroyableDestructor, [{
-      key: CHILDREN,
-      get: function get() {
-        return LINKED.get(this.inner) || [];
-      }
-    }]);
-    return DestroyableDestructor;
-  }();
-
-  var StringDestroyableDestructor = /*#__PURE__*/function () {
-    function StringDestroyableDestructor(inner) {
-      this.inner = inner;
-    }
-
-    var _proto5 = StringDestroyableDestructor.prototype;
-
-    _proto5[WILL_DROP] = function () {
-      if (typeof this.inner.willDestroy === 'function') {
-        this.inner.willDestroy();
-      }
-
-      willDestroyAssociated(this.inner);
-    };
-
-    _proto5[DID_DROP] = function () {
-      this.inner.destroy();
-      didDestroyAssociated(this.inner);
-    };
-
-    _proto5.toString = function toString() {
-      return 'StringDestroyableDestructor';
-    };
-
-    (0, _emberBabel.createClass)(StringDestroyableDestructor, [{
-      key: CHILDREN,
-      get: function get() {
-        return LINKED.get(this.inner) || [];
-      }
-    }]);
-    return StringDestroyableDestructor;
-  }();
-
-  var SimpleDestructor = /*#__PURE__*/function () {
-    function SimpleDestructor(inner) {
-      this.inner = inner;
-    }
-
-    var _proto6 = SimpleDestructor.prototype;
-
-    _proto6[WILL_DROP] = function () {
-      willDestroyAssociated(this.inner);
-    };
-
-    _proto6[DID_DROP] = function () {
-      didDestroyAssociated(this.inner);
-    };
-
-    _proto6.toString = function toString() {
-      return 'SimpleDestructor';
-    };
-
-    (0, _emberBabel.createClass)(SimpleDestructor, [{
-      key: CHILDREN,
-      get: function get() {
-        return LINKED.get(this.inner) || [];
-      }
-    }]);
-    return SimpleDestructor;
-  }();
-
-  var ListContentsDestructor = /*#__PURE__*/function () {
-    function ListContentsDestructor(inner) {
-      this.inner = inner;
-    }
-
-    var _proto7 = ListContentsDestructor.prototype;
-
-    _proto7[WILL_DROP] = function () {
-      this.inner.forEachNode(function (d) {
-        return destructor(d)[WILL_DROP]();
-      });
-    };
-
-    _proto7[DID_DROP] = function () {
-      this.inner.forEachNode(function (d) {
-        return destructor(d)[DID_DROP]();
-      });
-    };
-
-    _proto7.toString = function toString() {
-      return 'ListContentsDestructor';
-    };
-
-    (0, _emberBabel.createClass)(ListContentsDestructor, [{
-      key: CHILDREN,
-      get: function get() {
-        var out = [];
-        this.inner.forEachNode(function (d) {
-          return out.push.apply(out, destructor(d)[CHILDREN]);
-        });
-        return out;
-      }
-    }]);
-    return ListContentsDestructor;
-  }();
-
-  _exports.ListContentsDestructor = ListContentsDestructor;
-
-  function debugDropTree(inner) {
-    var hasDrop = isDrop(inner);
-    var rawChildren = LINKED.get(inner) || null;
-    var children = null;
-
-    if (rawChildren) {
-      children = [];
-
-      for (var _iterator = (0, _emberBabel.createForOfIteratorHelperLoose)(rawChildren), _step; !(_step = _iterator()).done;) {
-        var child = _step.value;
-        children.push(debugDropTree(child));
-      }
-    }
-
-    var obj = Object.create(null);
-    obj.inner = inner;
-
-    if (children) {
-      obj.children = children;
-    }
-
-    obj.hasDrop = hasDrop;
-    return obj;
-  }
-
-  function printDropTree(inner) {
-    printDrop(destructor(inner));
-  }
-
-  function printDrop(inner) {
-    console.group(String(inner));
-    console.log(inner);
-    var children = inner[CHILDREN] || null;
-
-    if (children) {
-      for (var _iterator2 = (0, _emberBabel.createForOfIteratorHelperLoose)(children), _step2; !(_step2 = _iterator2()).done;) {
-        var child = _step2.value;
-        printDrop(child);
-      }
-    }
-
-    console.groupEnd();
-  }
-
-  var ListNode = function ListNode(value) {
-    this.next = null;
-    this.prev = null;
-    this.value = value;
-  };
-
-  _exports.ListNode = ListNode;
-
-  var LinkedList = /*#__PURE__*/function () {
-    function LinkedList() {
-      this.clear();
-    }
-
-    var _proto8 = LinkedList.prototype;
-
-    _proto8.head = function head() {
-      return this._head;
-    };
-
-    _proto8.tail = function tail() {
-      return this._tail;
-    };
-
-    _proto8.clear = function clear() {
-      this._head = this._tail = null;
-    };
-
-    _proto8.toArray = function toArray() {
-      var out = [];
-      this.forEachNode(function (n) {
-        return out.push(n);
-      });
-      return out;
-    };
-
-    _proto8.nextNode = function nextNode(node) {
-      return node.next;
-    };
-
-    _proto8.forEachNode = function forEachNode(callback) {
-      var node = this._head;
-
-      while (node !== null) {
-        callback(node);
-        node = node.next;
-      }
-    };
-
-    _proto8.insertBefore = function insertBefore(node, reference) {
-      if (reference === void 0) {
-        reference = null;
-      }
-
-      if (reference === null) return this.append(node);
-      if (reference.prev) reference.prev.next = node;else this._head = node;
-      node.prev = reference.prev;
-      node.next = reference;
-      reference.prev = node;
-      return node;
-    };
-
-    _proto8.append = function append(node) {
-      var tail = this._tail;
-
-      if (tail) {
-        tail.next = node;
-        node.prev = tail;
-        node.next = null;
-      } else {
-        this._head = node;
-      }
-
-      return this._tail = node;
-    };
-
-    _proto8.remove = function remove(node) {
-      if (node.prev) node.prev.next = node.next;else this._head = node.next;
-      if (node.next) node.next.prev = node.prev;else this._tail = node.prev;
-      return node;
-    };
-
-    _proto8[WILL_DROP] = function () {
-      this.forEachNode(function (d) {
-        return destructor(d)[WILL_DROP]();
-      });
-    };
-
-    _proto8[DID_DROP] = function () {
-      this.forEachNode(function (d) {
-        return destructor(d)[DID_DROP]();
-      });
-    };
-
-    (0, _emberBabel.createClass)(LinkedList, [{
-      key: CHILDREN,
-      get: function get() {
-        var out = [];
-        this.forEachNode(function (d) {
-          return out.push.apply(out, destructor(d)[CHILDREN]);
-        });
-        return out;
-      }
-    }]);
-    return LinkedList;
-  }();
-
-  _exports.LinkedList = LinkedList;
-
-  var ListSlice = /*#__PURE__*/function () {
-    function ListSlice(head, tail) {
-      this._head = head;
-      this._tail = tail;
-    }
-
-    var _proto9 = ListSlice.prototype;
-
-    _proto9.forEachNode = function forEachNode(callback) {
-      var node = this._head;
-
-      while (node !== null) {
-        callback(node);
-        node = this.nextNode(node);
-      }
-    };
-
-    _proto9.head = function head() {
-      return this._head;
-    };
-
-    _proto9.tail = function tail() {
-      return this._tail;
-    };
-
-    _proto9.toArray = function toArray() {
-      var out = [];
-      this.forEachNode(function (n) {
-        return out.push(n);
-      });
-      return out;
-    };
-
-    _proto9.nextNode = function nextNode(node) {
-      if (node === this._tail) return null;
-      return node.next;
-    };
-
-    return ListSlice;
-  }();
-
-  _exports.ListSlice = ListSlice;
-  var EMPTY_SLICE = new ListSlice(null, null);
-  _exports.EMPTY_SLICE = EMPTY_SLICE;
-  var objKeys = Object.keys;
-
-  function assign(obj) {
-    for (var i = 1; i < arguments.length; i++) {
-      var assignment = arguments[i];
-      if (assignment === null || typeof assignment !== 'object') continue;
-
-      var _keys = objKeys(assignment);
-
-      for (var j = 0; j < _keys.length; j++) {
-        var key = _keys[j];
-        obj[key] = assignment[key];
-      }
-    }
-
-    return obj;
-  }
-
-  function fillNulls(count) {
-    var arr = new Array(count);
-
-    for (var i = 0; i < count; i++) {
-      arr[i] = null;
-    }
-
-    return arr;
-  }
-
-  function values(obj) {
-    var vals = [];
-
-    for (var key in obj) {
-      vals.push(obj[key]);
-    }
-
-    return vals;
-  }
 
   function strip(strings) {
     var out = '';
@@ -56098,184 +56696,92 @@ define("@glimmer/util", ["exports", "ember-babel"], function (_exports, _emberBa
 
     var min = Infinity;
 
-    for (var _iterator3 = (0, _emberBabel.createForOfIteratorHelperLoose)(lines), _step3; !(_step3 = _iterator3()).done;) {
-      var line = _step3.value;
+    for (var _iterator = (0, _emberBabel.createForOfIteratorHelperLoose)(lines), _step; !(_step = _iterator()).done;) {
+      var line = _step.value;
       var leading = line.match(/^\s*/)[0].length;
       min = Math.min(min, leading);
     }
 
     var stripped = [];
 
-    for (var _iterator4 = (0, _emberBabel.createForOfIteratorHelperLoose)(lines), _step4; !(_step4 = _iterator4()).done;) {
-      var _line = _step4.value;
+    for (var _iterator2 = (0, _emberBabel.createForOfIteratorHelperLoose)(lines), _step2; !(_step2 = _iterator2()).done;) {
+      var _line = _step2.value;
       stripped.push(_line.slice(min));
     }
 
     return stripped.join('\n');
   }
-  /**
-   * Encodes a value that can be stored directly instead of being a handle.
-   *
-   * Immediates use the positive half of 32bits
-   *
-   * @param value - the value to be encoded.
-   */
 
-
-  function encodeImmediate(value) {
-    if (typeof value === 'number') {
-      // 1073741827 - (-1) == 1073741828
-      // 1073741827 - (-1073741820) == 2147483647
-      // positive it stays as is
-      // 0 - 1073741823
-      return value < 0 ? 1073741827
-      /* NEGATIVE_BASE */
-      - value : value;
-    }
-
-    if (value === false) {
-      return 1073741824
-      /* FALSE */
-      ;
-    }
-
-    if (value === true) {
-      return 1073741825
-      /* TRUE */
-      ;
-    }
-
-    if (value === null) {
-      return 1073741826
-      /* NULL */
-      ;
-    }
-
-    if (value === undefined) {
-      return 1073741827
-      /* UNDEFINED */
-      ;
-    }
-
-    return exhausted(value);
+  function isHandle(value) {
+    return value >= 0;
   }
-  /**
-   * Decodes an immediate into its value.
-   *
-   * @param value - the encoded immediate value
-   */
 
+  function isNonPrimitiveHandle(value) {
+    return value > 3
+    /* ENCODED_UNDEFINED_HANDLE */
+    ;
+  }
 
-  function decodeImmediate(value) {
-    if (value > 1073741823
+  function constants() {
+    for (var _len3 = arguments.length, values = new Array(_len3), _key3 = 0; _key3 < _len3; _key3++) {
+      values[_key3] = arguments[_key3];
+    }
+
+    return [false, true, null, undefined].concat(values);
+  }
+
+  function isSmallInt(value) {
+    return value % 1 === 0 && value <= 536870911
     /* MAX_INT */
-    ) {
-        switch (value) {
-          case 1073741824
-          /* FALSE */
-          :
-            return false;
-
-          case 1073741825
-          /* TRUE */
-          :
-            return true;
-
-          case 1073741826
-          /* NULL */
-          :
-            return null;
-
-          case 1073741827
-          /* UNDEFINED */
-          :
-            return undefined;
-
-          default:
-            // map 1073741828 to 2147483647 to -1 to -1073741820
-            // 1073741827 - 1073741828 == -1
-            // 1073741827 - 2147483647 == -1073741820
-            return 1073741827
-            /* NEGATIVE_BASE */
-            - value;
-        }
-      }
-
-    return value;
-  }
-  /**
-   * True if the number can be stored directly or false if it needs a handle.
-   *
-   * This is used on any number type to see if it can be directly encoded.
-   */
-
-
-  function isSmallInt(num) {
-    return isInt(num, -1073741820
+    && value >= -536870912
     /* MIN_INT */
-    , 1073741823
-    /* MAX_INT */
-    );
-  }
-  /**
-   * True if the encoded int32 operand or encoded stack int32 is a handle.
-   */
-
-
-  function isHandle(encoded) {
-    return encoded < 0;
-  }
-  /**
-   * Encodes an index to an operand or stack handle.
-   */
-
-
-  function encodeHandle(index, maxIndex
-  /* MAX_INDEX */
-  , maxHandle
-  /* MAX_HANDLE */
-  ) {
-    if (maxIndex === void 0) {
-      maxIndex = 2147483647;
-    }
-
-    if (maxHandle === void 0) {
-      maxHandle = -1;
-    }
-
-    if (index > maxIndex) {
-      throw new Error("index " + index + " overflowed range 0 to " + maxIndex);
-    } // -1 - 0 == -1
-    // -1 - 1073741823 == -1073741824
-    // -1073741825 - 0 == -1073741825
-    // -1073741825 - 1073741823 == -2147483648
-
-
-    return maxHandle - index;
-  }
-  /**
-   * Decodes the index from the specified operand or stack handle.
-   */
-
-
-  function decodeHandle(handle, maxHandle
-  /* MAX_HANDLE */
-  ) {
-    if (maxHandle === void 0) {
-      maxHandle = -1;
-    }
-
-    // -1 - -1073741824 == 1073741823
-    // -1073741825 - -1073741825 == 0
-    // -1073741825 - -2147483648 == 1073741823
-    return maxHandle - handle;
+    ;
   }
 
-  function isInt(num, min, max) {
-    // this is the same as Math.floor(num) === num
-    // also NaN % 1 is NaN and Infinity % 1 is NaN so both should fail
-    return num % 1 === 0 && num >= min && num <= max;
+  function encodeNegative(num) {
+    return num & -536870913
+    /* SIGN_BIT */
+    ;
   }
+
+  function decodeNegative(num) {
+    return num | ~-536870913
+    /* SIGN_BIT */
+    ;
+  }
+
+  function encodePositive(num) {
+    return ~num;
+  }
+
+  function decodePositive(num) {
+    return ~num;
+  }
+
+  function encodeHandle(num) {
+    return num;
+  }
+
+  function decodeHandle(num) {
+    return num;
+  }
+
+  function encodeImmediate(num) {
+    num |= 0;
+    return num < 0 ? encodeNegative(num) : encodePositive(num);
+  }
+
+  function decodeImmediate(num) {
+    num |= 0;
+    return num > -536870913
+    /* SIGN_BIT */
+    ? decodePositive(num) : decodeNegative(num);
+  } // Warm
+
+
+  [1, -1].forEach(function (x) {
+    return decodeImmediate(encodeImmediate(x));
+  });
 
   function unwrapHandle(handle) {
     if (typeof handle === 'number') {
@@ -56366,6 +56872,14 @@ define("@glimmer/util", ["exports", "ember-babel"], function (_exports, _emberBa
 
   var debugToString$1 = debugToString;
   _exports.debugToString = debugToString$1;
+  var beginTestSteps;
+  _exports.beginTestSteps = beginTestSteps;
+  var endTestSteps;
+  _exports.endTestSteps = endTestSteps;
+  var verifySteps;
+  _exports.verifySteps = verifySteps;
+  var logStep;
+  _exports.logStep = logStep;
 
   function assertNever(value, desc) {
     if (desc === void 0) {
@@ -56376,7 +56890,7 @@ define("@glimmer/util", ["exports", "ember-babel"], function (_exports, _emberBa
     console.trace(desc + " :: " + JSON.stringify(value) + " (" + value + ")");
   }
 });
-define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports, _polyfills) {
+define("@glimmer/validator", ["exports", "@ember/polyfills", "@glimmer/global-context"], function (_exports, _polyfills, _globalContext) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -56384,48 +56898,68 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
   });
   _exports.bump = bump;
   _exports.combine = _combine;
-  _exports.createCombinatorTag = createCombinatorTag;
   _exports.createTag = createTag;
   _exports.createUpdatableTag = createUpdatableTag;
-  _exports.isConst = isConst;
   _exports.isConstTag = isConstTag;
   _exports.validateTag = validateTag;
   _exports.valueForTag = valueForTag;
   _exports.dirtyTagFor = dirtyTagFor;
   _exports.tagFor = tagFor;
-  _exports.setPropertyDidChange = setPropertyDidChange;
+  _exports.tagMetaFor = tagMetaFor;
   _exports.beginTrackFrame = beginTrackFrame;
   _exports.endTrackFrame = endTrackFrame;
+  _exports.beginUntrackFrame = beginUntrackFrame;
+  _exports.endUntrackFrame = endUntrackFrame;
+  _exports.resetTracking = resetTracking;
   _exports.consumeTag = consumeTag;
   _exports.isTracking = isTracking;
   _exports.track = track;
-  _exports.trackedData = trackedData;
-  _exports.memoizeTracked = memoizeTracked;
   _exports.untrack = untrack;
-  _exports.isConstMemo = isConstMemo;
-  _exports.deprecateMutationsInAutotrackingTransaction = _exports.runInAutotrackingTransaction = _exports.setAutotrackingTransactionEnv = _exports.EPOCH = _exports.VOLATILE = _exports.VOLATILE_TAG = _exports.VolatileTag = _exports.updateTag = _exports.INITIAL = _exports.dirtyTag = _exports.CURRENT_TAG = _exports.CurrentTag = _exports.CONSTANT = _exports.CONSTANT_TAG = _exports.COMPUTE = _exports.ALLOW_CYCLES = void 0;
+  _exports.createCache = createCache;
+  _exports.isConst = isConst;
+  _exports.getValue = getValue;
+  _exports.trackedData = trackedData;
+  _exports.deprecateMutationsInTrackingTransaction = _exports.runInTrackingTransaction = _exports.setTrackingTransactionEnv = _exports.logTrackingStack = _exports.VOLATILE = _exports.VOLATILE_TAG = _exports.VolatileTag = _exports.updateTag = _exports.INITIAL = _exports.dirtyTag = _exports.CURRENT_TAG = _exports.CurrentTag = _exports.CONSTANT = _exports.CONSTANT_TAG = _exports.COMPUTE = _exports.ALLOW_CYCLES = void 0;
   // This is a duplicate utility from @glimmer/util because `@glimmer/validator`
   // should not depend on any other @glimmer packages, in order to avoid pulling
   // in types and prevent regressions in `@glimmer/tracking` (which has public types).
   var symbol = typeof Symbol !== 'undefined' ? Symbol : function (key) {
     return "__" + key + Math.floor(Math.random() * Date.now()) + "__";
   };
-  var runInAutotrackingTransaction;
-  _exports.runInAutotrackingTransaction = runInAutotrackingTransaction;
-  var deprecateMutationsInAutotrackingTransaction;
-  _exports.deprecateMutationsInAutotrackingTransaction = deprecateMutationsInAutotrackingTransaction;
-  var setAutotrackingTransactionEnv;
-  _exports.setAutotrackingTransactionEnv = setAutotrackingTransactionEnv;
+  var symbolFor = typeof Symbol !== 'undefined' ? Symbol.for : function (key) {
+    return "__GLIMMER_VALIDATOR_SYMBOL_FOR_" + key;
+  };
+
+  function getGlobal() {
+    // eslint-disable-next-line node/no-unsupported-features/es-builtins
+    if (typeof globalThis !== 'undefined') return globalThis;
+    if (typeof self !== 'undefined') return self;
+    if (typeof window !== 'undefined') return window;
+    if (typeof global !== 'undefined') return global;
+    throw new Error('unable to locate global object');
+  }
+
+  var beginTrackingTransaction;
+  var endTrackingTransaction;
+  var runInTrackingTransaction;
+  _exports.runInTrackingTransaction = runInTrackingTransaction;
+  var deprecateMutationsInTrackingTransaction;
+  _exports.deprecateMutationsInTrackingTransaction = deprecateMutationsInTrackingTransaction;
+  var resetTrackingTransaction;
+  var setTrackingTransactionEnv;
+  _exports.setTrackingTransactionEnv = setTrackingTransactionEnv;
   var assertTagNotConsumed;
 
   var _markTagAsConsumed;
 
+  var logTrackingStack;
+  _exports.logTrackingStack = logTrackingStack;
+
   if (true
   /* DEBUG */
   ) {
-    var DEPRECATE_IN_AUTOTRACKING_TRANSACTION = false;
-    var AUTOTRACKING_TRANSACTION = null;
-    var debuggingContexts = []; /////////
+    var CONSUMED_TAGS = null;
+    var TRANSACTION_STACK = []; /////////
 
     var TRANSACTION_ENV = {
       assert: function assert(message) {
@@ -56453,8 +56987,40 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
       }
     };
 
-    _exports.setAutotrackingTransactionEnv = setAutotrackingTransactionEnv = function setAutotrackingTransactionEnv(env) {
+    _exports.setTrackingTransactionEnv = setTrackingTransactionEnv = function setTrackingTransactionEnv(env) {
       return (0, _polyfills.assign)(TRANSACTION_ENV, env);
+    };
+
+    beginTrackingTransaction = function beginTrackingTransaction(_debugLabel, deprecate) {
+      if (deprecate === void 0) {
+        deprecate = false;
+      }
+
+      CONSUMED_TAGS = CONSUMED_TAGS || new WeakMap();
+      var debugLabel = _debugLabel || undefined;
+      var parent = TRANSACTION_STACK[TRANSACTION_STACK.length - 1] || null;
+      TRANSACTION_STACK.push({
+        parent: parent,
+        debugLabel: debugLabel,
+        deprecate: deprecate
+      });
+    };
+
+    endTrackingTransaction = function endTrackingTransaction() {
+      if (TRANSACTION_STACK.length === 0) {
+        throw new Error('attempted to close a tracking transaction, but one was not open');
+      }
+
+      TRANSACTION_STACK.pop();
+
+      if (TRANSACTION_STACK.length === 0) {
+        CONSUMED_TAGS = null;
+      }
+    };
+
+    resetTrackingTransaction = function resetTrackingTransaction() {
+      TRANSACTION_STACK = [];
+      CONSUMED_TAGS = null;
     };
     /**
      * Creates a global autotracking transaction. This will prevent any backflow
@@ -56468,29 +57034,13 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
      */
 
 
-    _exports.runInAutotrackingTransaction = runInAutotrackingTransaction = function runInAutotrackingTransaction(fn, debuggingContext) {
-      var previousDeprecateState = DEPRECATE_IN_AUTOTRACKING_TRANSACTION;
-      var previousTransactionState = AUTOTRACKING_TRANSACTION;
-      DEPRECATE_IN_AUTOTRACKING_TRANSACTION = false;
-
-      if (previousTransactionState === null) {
-        // if there was no transaction start it. Otherwise, the transaction already exists.
-        AUTOTRACKING_TRANSACTION = new WeakMap();
-      }
-
-      if (debuggingContext) {
-        debuggingContexts.unshift(debuggingContext);
-      }
+    _exports.runInTrackingTransaction = runInTrackingTransaction = function runInTrackingTransaction(fn, debugLabel) {
+      beginTrackingTransaction(debugLabel);
 
       try {
         fn();
       } finally {
-        if (debuggingContext) {
-          debuggingContexts.shift();
-        }
-
-        DEPRECATE_IN_AUTOTRACKING_TRANSACTION = previousDeprecateState;
-        AUTOTRACKING_TRANSACTION = previousTransactionState;
+        endTrackingTransaction();
       }
     };
     /**
@@ -56506,14 +57056,13 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
      */
 
 
-    _exports.deprecateMutationsInAutotrackingTransaction = deprecateMutationsInAutotrackingTransaction = function deprecateMutationsInAutotrackingTransaction(fn) {
-      var previousDeprecateState = DEPRECATE_IN_AUTOTRACKING_TRANSACTION;
-      DEPRECATE_IN_AUTOTRACKING_TRANSACTION = true;
+    _exports.deprecateMutationsInTrackingTransaction = deprecateMutationsInTrackingTransaction = function deprecateMutationsInTrackingTransaction(fn, debugLabel) {
+      beginTrackingTransaction(debugLabel, true);
 
       try {
         fn();
       } finally {
-        DEPRECATE_IN_AUTOTRACKING_TRANSACTION = previousDeprecateState;
+        endTrackingTransaction();
       }
     };
 
@@ -56532,24 +57081,36 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
       return i;
     };
 
-    var makeAutotrackingErrorMessage = function makeAutotrackingErrorMessage(sourceData, obj, keyName) {
+    var makeTrackingErrorMessage = function makeTrackingErrorMessage(transaction, obj, keyName) {
       var message = [TRANSACTION_ENV.debugMessage(obj, keyName && String(keyName))];
-
-      if (sourceData.context) {
-        message.push("`" + String(keyName) + "` was first used:\n\n" + sourceData.context);
-      }
-
+      message.push("`" + String(keyName) + "` was first used:");
+      message.push(logTrackingStack(transaction));
       message.push("Stack trace for the update:");
       return message.join('\n\n');
     };
 
+    _exports.logTrackingStack = logTrackingStack = function logTrackingStack(transaction) {
+      var trackingStack = [];
+      var current = transaction || TRANSACTION_STACK[TRANSACTION_STACK.length - 1];
+      if (current === undefined) return '';
+
+      while (current) {
+        if (current.debugLabel) {
+          trackingStack.unshift(current.debugLabel);
+        }
+
+        current = current.parent;
+      } // TODO: Use String.prototype.repeat here once we can drop support for IE11
+
+
+      return trackingStack.map(function (label, index) {
+        return Array(2 * index + 1).join(' ') + label;
+      }).join('\n');
+    };
+
     _markTagAsConsumed = function markTagAsConsumed(_tag) {
-      if (!AUTOTRACKING_TRANSACTION || AUTOTRACKING_TRANSACTION.has(_tag)) return;
-      AUTOTRACKING_TRANSACTION.set(_tag, {
-        context: debuggingContexts.map(function (c) {
-          return c.replace(/^/gm, '  ').replace(/^ /, '-');
-        }).join('\n\n')
-      }); // We need to mark the tag and all of its subtags as consumed, so we need to
+      if (!CONSUMED_TAGS || CONSUMED_TAGS.has(_tag)) return;
+      CONSUMED_TAGS.set(_tag, TRANSACTION_STACK[TRANSACTION_STACK.length - 1]); // We need to mark the tag and all of its subtags as consumed, so we need to
       // cast it and access its internals. In the future this shouldn't be necessary,
       // this is only for computed properties.
 
@@ -56571,18 +57132,19 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
         forceHardError = false;
       }
 
-      if (AUTOTRACKING_TRANSACTION === null) return;
-      var sourceData = AUTOTRACKING_TRANSACTION.get(tag);
-      if (!sourceData) return;
+      if (CONSUMED_TAGS === null) return;
+      var transaction = CONSUMED_TAGS.get(tag);
+      if (!transaction) return;
+      var currentTransaction = TRANSACTION_STACK[TRANSACTION_STACK.length - 1];
 
-      if (DEPRECATE_IN_AUTOTRACKING_TRANSACTION && !forceHardError) {
-        TRANSACTION_ENV.deprecate(makeAutotrackingErrorMessage(sourceData, obj, keyName));
+      if (currentTransaction.deprecate && !forceHardError) {
+        TRANSACTION_ENV.deprecate(makeTrackingErrorMessage(transaction, obj, keyName));
       } else {
         // This hack makes the assertion message nicer, we can cut off the first
         // few lines of the stack trace and let users know where the actual error
         // occurred.
         try {
-          TRANSACTION_ENV.assert(makeAutotrackingErrorMessage(sourceData, obj, keyName));
+          TRANSACTION_ENV.assert(makeTrackingErrorMessage(transaction, obj, keyName));
         } catch (e) {
           if (e.stack) {
             var updateStackBegin = e.stack.indexOf('Stack trace for the update:');
@@ -56604,8 +57166,7 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
   _exports.CONSTANT = CONSTANT;
   var INITIAL = 1;
   _exports.INITIAL = INITIAL;
-  var VOLATILE = 9007199254740991; // MAX_INT
-
+  var VOLATILE = NaN;
   _exports.VOLATILE = VOLATILE;
   var $REVISION = INITIAL;
 
@@ -56622,19 +57183,13 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
    * determine if the tag has changed at all since the time that `value` was
    * called.
    *
-   * The current implementation returns the global revision count directly for
-   * performance reasons. This is an implementation detail, and should not be
-   * relied on directly by users of these APIs. Instead, Revisions should be
-   * treated as if they are opaque/unknown, and should only be interacted with via
-   * the `value`/`validate` API.
-   *
    * @param tag
    */
 
   _exports.COMPUTE = COMPUTE;
 
-  function valueForTag(_tag) {
-    return $REVISION;
+  function valueForTag(tag) {
+    return tag[COMPUTE]();
   }
   /**
    * `validate` receives a tag and a snapshot from a previous call to `value` with
@@ -56668,7 +57223,6 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
       this.lastChecked = INITIAL;
       this.lastValue = INITIAL;
       this.isUpdating = false;
-      this.subtags = null;
       this.subtag = null;
       this.subtagBufferCache = null;
       this[TYPE] = type;
@@ -56692,28 +57246,25 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
         this.lastChecked = $REVISION;
 
         try {
-          var subtags = this.subtags,
-              subtag = this.subtag,
-              subtagBufferCache = this.subtagBufferCache,
-              lastValue = this.lastValue,
+          var subtag = this.subtag,
               revision = this.revision;
 
           if (subtag !== null) {
-            var subtagValue = subtag[COMPUTE]();
-
-            if (subtagValue === subtagBufferCache) {
-              revision = Math.max(revision, lastValue);
+            if (Array.isArray(subtag)) {
+              for (var i = 0; i < subtag.length; i++) {
+                var value = subtag[i][COMPUTE]();
+                revision = Math.max(value, revision);
+              }
             } else {
-              // Clear the temporary buffer cache
-              this.subtagBufferCache = null;
-              revision = Math.max(revision, subtagValue);
-            }
-          }
+              var subtagValue = subtag[COMPUTE]();
 
-          if (subtags !== null) {
-            for (var i = 0; i < subtags.length; i++) {
-              var value = subtags[i][COMPUTE]();
-              revision = Math.max(value, revision);
+              if (subtagValue === this.subtagBufferCache) {
+                revision = Math.max(revision, this.lastValue);
+              } else {
+                // Clear the temporary buffer cache
+                this.subtagBufferCache = null;
+                revision = Math.max(revision, subtagValue);
+              }
             }
           }
 
@@ -56785,6 +57336,7 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
       }
 
       tag.revision = ++$REVISION;
+      (0, _globalContext.scheduleRevalidate)();
     };
 
     return MonomorphicTagImpl;
@@ -56813,11 +57365,6 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
   /* Constant */
   );
   _exports.CONSTANT_TAG = CONSTANT_TAG;
-
-  function isConst(_ref) {
-    var tag = _ref.tag;
-    return tag === CONSTANT_TAG;
-  }
 
   function isConstTag(tag) {
     return tag === CONSTANT_TAG;
@@ -56859,18 +57406,6 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
   _exports.CURRENT_TAG = CURRENT_TAG;
 
   function _combine(tags) {
-    var optimized = [];
-
-    for (var i = 0, l = tags.length; i < l; i++) {
-      var tag = tags[i];
-      if (tag === CONSTANT_TAG) continue;
-      optimized.push(tag);
-    }
-
-    return createCombinatorTag(optimized);
-  }
-
-  function createCombinatorTag(tags) {
     switch (tags.length) {
       case 0:
         return CONSTANT_TAG;
@@ -56882,63 +57417,80 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
         var tag = new MonomorphicTagImpl(2
         /* Combinator */
         );
-        tag.subtags = tags;
+        tag.subtag = tags;
         return tag;
     }
-  }
+  } // Warm
 
-  var propertyDidChange = function propertyDidChange() {};
 
-  function setPropertyDidChange(cb) {
-    propertyDidChange = cb;
-  }
+  var tag1 = createUpdatableTag();
+  var tag2 = createUpdatableTag();
+  var tag3 = createUpdatableTag();
+  valueForTag(tag1);
+  dirtyTag(tag1);
+  valueForTag(tag1);
+  updateTag(tag1, _combine([tag2, tag3]));
+  valueForTag(tag1);
+  dirtyTag(tag2);
+  valueForTag(tag1);
+  dirtyTag(tag3);
+  valueForTag(tag1);
+  updateTag(tag1, tag3);
+  valueForTag(tag1);
+  dirtyTag(tag3);
+  valueForTag(tag1);
 
-  function isObject(u) {
+  function isObjectLike(u) {
     return typeof u === 'object' && u !== null || typeof u === 'function';
   }
 
   var TRACKED_TAGS = new WeakMap();
 
-  function dirtyTagFor(obj, key) {
-    if (isObject(obj)) {
-      var tags = TRACKED_TAGS.get(obj); // No tags have been setup for this object yet, return
-
-      if (tags === undefined) return; // Dirty the tag for the specific property if it exists
-
-      var propertyTag = tags.get(key);
-
-      if (propertyTag !== undefined) {
-        if (true
-        /* DEBUG */
-        ) {
-          assertTagNotConsumed(propertyTag, obj, key);
-        }
-
-        dirtyTag(propertyTag);
-        propertyDidChange();
-      }
-    } else {
+  function dirtyTagFor(obj, key, meta) {
+    if (true
+    /* DEBUG */
+    && !isObjectLike(obj)) {
       throw new Error("BUG: Can't update a tag for a primitive");
+    }
+
+    var tags = meta === undefined ? TRACKED_TAGS.get(obj) : meta; // No tags have been setup for this object yet, return
+
+    if (tags === undefined) return; // Dirty the tag for the specific property if it exists
+
+    var propertyTag = tags.get(key);
+
+    if (propertyTag !== undefined) {
+      if (true
+      /* DEBUG */
+      ) {
+        assertTagNotConsumed(propertyTag, obj, key);
+      }
+
+      dirtyTag(propertyTag);
     }
   }
 
-  function tagFor(obj, key) {
-    if (isObject(obj)) {
-      var tags = TRACKED_TAGS.get(obj);
+  function tagMetaFor(obj) {
+    var tags = TRACKED_TAGS.get(obj);
 
-      if (tags === undefined) {
-        tags = new Map();
-        TRACKED_TAGS.set(obj, tags);
-      } else if (tags.has(key)) {
-        return tags.get(key);
-      }
-
-      var tag = createUpdatableTag();
-      tags.set(key, tag);
-      return tag;
-    } else {
-      return CONSTANT_TAG;
+    if (tags === undefined) {
+      tags = new Map();
+      TRACKED_TAGS.set(obj, tags);
     }
+
+    return tags;
+  }
+
+  function tagFor(obj, key, meta) {
+    var tags = meta === undefined ? tagMetaFor(obj) : meta;
+    var tag = tags.get(key);
+
+    if (tag === undefined) {
+      tag = createUpdatableTag();
+      tags.set(key, tag);
+    }
+
+    return tag;
   }
   /**
    * An object that that tracks @tracked properties that were consumed.
@@ -56954,6 +57506,7 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
     var _proto4 = Tracker.prototype;
 
     _proto4.add = function add(tag) {
+      if (tag === CONSTANT_TAG) return;
       this.tags.add(tag);
 
       if (true
@@ -57001,9 +57554,15 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
   var CURRENT_TRACKER = null;
   var OPEN_TRACK_FRAMES = [];
 
-  function beginTrackFrame() {
+  function beginTrackFrame(debuggingContext) {
     OPEN_TRACK_FRAMES.push(CURRENT_TRACKER);
     CURRENT_TRACKER = new Tracker();
+
+    if (true
+    /* DEBUG */
+    ) {
+      beginTrackingTransaction(debuggingContext);
+    }
   }
 
   function endTrackFrame() {
@@ -57011,108 +57570,45 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
 
     if (true
     /* DEBUG */
+    ) {
+      if (OPEN_TRACK_FRAMES.length === 0) {
+        throw new Error('attempted to close a tracking frame, but one was not open');
+      }
+
+      endTrackingTransaction();
+    }
+
+    CURRENT_TRACKER = OPEN_TRACK_FRAMES.pop();
+    return current.combine();
+  }
+
+  function beginUntrackFrame() {
+    OPEN_TRACK_FRAMES.push(CURRENT_TRACKER);
+    CURRENT_TRACKER = null;
+  }
+
+  function endUntrackFrame() {
+    if (true
+    /* DEBUG */
     && OPEN_TRACK_FRAMES.length === 0) {
       throw new Error('attempted to close a tracking frame, but one was not open');
     }
 
     CURRENT_TRACKER = OPEN_TRACK_FRAMES.pop();
-    return current.combine();
-  } //////////
+  } // This function is only for handling errors and resetting to a valid state
 
 
-  var IS_CONST_MAP = new WeakMap();
+  function resetTracking() {
+    while (OPEN_TRACK_FRAMES.length > 0) {
+      OPEN_TRACK_FRAMES.pop();
+    }
 
-  function memoizeTracked(callback, debuggingContext) {
-    var lastValue;
-    var tag;
-    var snapshot;
-
-    var memoized = function memoized() {
-      for (var _len = arguments.length, args = new Array(_len), _key = 0; _key < _len; _key++) {
-        args[_key] = arguments[_key];
-      }
-
-      if (!tag || !validateTag(tag, snapshot)) {
-        beginTrackFrame();
-
-        try {
-          if (true
-          /* DEBUG */
-          ) {
-            runInAutotrackingTransaction(function () {
-              return lastValue = callback.apply(void 0, args);
-            }, debuggingContext);
-          } else {
-            lastValue = callback.apply(void 0, args);
-          }
-        } finally {
-          tag = endTrackFrame();
-          snapshot = valueForTag(tag);
-          consumeTag(tag); // If the final tag is constant, then we know for sure that this
-          // memoized function can never change. There are times when this
-          // information is useful externally (i.e. in the append VM, it tells us
-          // whether or not to emit opcodes) so we expose it via a metadata weakmap.
-
-          if (tag === CONSTANT_TAG) {
-            IS_CONST_MAP.set(memoized, true);
-          } else if (true
-          /* DEBUG */
-          ) {
-            // In DEBUG, set the value to false explicitly. This way we can throw
-            // if someone attempts to call `isConst(memoized)` before running
-            // `memoized()` at least once.
-            IS_CONST_MAP.set(memoized, false);
-          }
-        }
-      } else {
-        consumeTag(tag);
-      }
-
-      return lastValue;
-    };
+    CURRENT_TRACKER = null;
 
     if (true
     /* DEBUG */
     ) {
-      IS_CONST_MAP.set(memoized, undefined);
-    }
-
-    return memoized;
-  }
-
-  function isConstMemo(memoized) {
-    if (true
-    /* DEBUG */
-    && IS_CONST_MAP.has(memoized) && IS_CONST_MAP.get(memoized) === undefined) {
-      throw new Error('Attempted to call `isConstMemo` on a memoized function, but the function has not been run at least once yet. You cannot know if a memoized function is constant or not until it has been run at least once. Call the function, then pass it to `isConstMemo`.');
-    }
-
-    return IS_CONST_MAP.get(memoized) === true;
-  } //////////
-
-
-  function track(callback, debuggingContext) {
-    beginTrackFrame();
-    var tag;
-
-    try {
-      if (true
-      /* DEBUG */
-      ) {
-        runInAutotrackingTransaction(callback, debuggingContext);
-      } else {
-        callback();
-      }
-    } finally {
-      tag = endTrackFrame();
-    }
-
-    return tag;
-  }
-
-  function consumeTag(tag) {
-    if (CURRENT_TRACKER !== null) {
-      CURRENT_TRACKER.add(tag);
+      resetTrackingTransaction();
     }
   }
 
@@ -57120,20 +57616,119 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
     return CURRENT_TRACKER !== null;
   }
 
-  function untrack(callback) {
-    OPEN_TRACK_FRAMES.push(CURRENT_TRACKER);
-    CURRENT_TRACKER = null;
-
-    try {
-      callback();
-    } finally {
-      CURRENT_TRACKER = OPEN_TRACK_FRAMES.pop();
+  function consumeTag(tag) {
+    if (CURRENT_TRACKER !== null) {
+      CURRENT_TRACKER.add(tag);
     }
   } //////////
 
 
-  var EPOCH = createTag();
-  _exports.EPOCH = EPOCH;
+  var FN = symbol('FN');
+  var LAST_VALUE = symbol('LAST_VALUE');
+  var TAG = symbol('TAG');
+  var SNAPSHOT = symbol('SNAPSHOT');
+  var DEBUG_LABEL = symbol('DEBUG_LABEL');
+
+  function createCache(fn, debuggingLabel) {
+    var _cache;
+
+    if (true
+    /* DEBUG */
+    && !(typeof fn === 'function')) {
+      throw new Error("createCache() must be passed a function as its first parameter. Called with: " + String(fn));
+    }
+
+    var cache = (_cache = {}, _cache[FN] = fn, _cache[LAST_VALUE] = undefined, _cache[TAG] = undefined, _cache[SNAPSHOT] = -1, _cache);
+
+    if (true
+    /* DEBUG */
+    ) {
+      cache[DEBUG_LABEL] = debuggingLabel;
+    }
+
+    return cache;
+  }
+
+  function getValue(cache) {
+    assertCache(cache, 'getValue');
+    var fn = cache[FN];
+    var tag = cache[TAG];
+    var snapshot = cache[SNAPSHOT];
+
+    if (tag === undefined || !validateTag(tag, snapshot)) {
+      beginTrackFrame();
+
+      try {
+        cache[LAST_VALUE] = fn();
+      } finally {
+        tag = endTrackFrame();
+        cache[TAG] = tag;
+        cache[SNAPSHOT] = valueForTag(tag);
+        consumeTag(tag);
+      }
+    } else {
+      consumeTag(tag);
+    }
+
+    return cache[LAST_VALUE];
+  }
+
+  function isConst(cache) {
+    assertCache(cache, 'isConst');
+    var tag = cache[TAG];
+    assertTag(tag, cache);
+    return isConstTag(tag);
+  }
+
+  function assertCache(value, fnName) {
+    if (true
+    /* DEBUG */
+    && !(typeof value === 'object' && value !== null && FN in value)) {
+      throw new Error(fnName + "() can only be used on an instance of a cache created with createCache(). Called with: " + String(value));
+    }
+  } // replace this with `expect` when we can
+
+
+  function assertTag(tag, cache) {
+    if (true
+    /* DEBUG */
+    && tag === undefined) {
+      throw new Error("isConst() can only be used on a cache once getValue() has been called at least once. Called with cache function:\n\n" + String(cache[FN]));
+    }
+  } //////////
+  // Legacy tracking APIs
+  // track() shouldn't be necessary at all in the VM once the autotracking
+  // refactors are merged, and we should generally be moving away from it. It may
+  // be necessary in Ember for a while longer, but I think we'll be able to drop
+  // it in favor of cache sooner rather than later.
+
+
+  function track(callback, debugLabel) {
+    beginTrackFrame(debugLabel);
+    var tag;
+
+    try {
+      callback();
+    } finally {
+      tag = endTrackFrame();
+    }
+
+    return tag;
+  } // untrack() is currently mainly used to handle places that were previously not
+  // tracked, and that tracking now would cause backtracking rerender assertions.
+  // I think once we move everyone forward onto modern APIs, we'll probably be
+  // able to remove it, but I'm not sure yet.
+
+
+  function untrack(callback) {
+    beginUntrackFrame();
+
+    try {
+      callback();
+    } finally {
+      endUntrackFrame();
+    }
+  }
 
   function trackedData(key, initializer) {
     var values = new WeakMap();
@@ -57160,7 +57755,6 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
         assertTagNotConsumed(tagFor(self, key), self, key, true);
       }
 
-      dirtyTag(EPOCH);
       dirtyTagFor(self, key);
       values.set(self, value);
     }
@@ -57170,6 +57764,15 @@ define("@glimmer/validator", ["exports", "@ember/polyfills"], function (_exports
       setter: setter
     };
   }
+
+  var globalObj = getGlobal();
+  var GLIMMER_VALIDATOR_REGISTRATION = symbolFor('GLIMMER_VALIDATOR_REGISTRATION');
+
+  if (globalObj[GLIMMER_VALIDATOR_REGISTRATION] === true) {
+    throw new Error('The `@glimmer/validator` library has been included twice in this application. It could be different versions of the package, or the same version included twice by mistake. `@glimmer/validator` depends on having a single copy of the package in use at any time in an application, even if they are the same version. You must dedupe your build to remove the duplicate packages in order to prevent this error.');
+  }
+
+  globalObj[GLIMMER_VALIDATOR_REGISTRATION] = true;
 });
 define("@glimmer/vm", ["exports"], function (_exports) {
   "use strict";
@@ -61505,7 +62108,7 @@ define("ember-testing/lib/test/waiters", ["exports"], function (_exports) {
     return -1;
   }
 });
-define("ember/index", ["exports", "require", "@ember/-internals/environment", "node-module", "@ember/-internals/utils", "@ember/-internals/container", "@ember/instrumentation", "@ember/-internals/meta", "@ember/-internals/metal", "@ember/canary-features", "@ember/debug", "backburner", "@ember/-internals/console", "@ember/controller", "@ember/controller/lib/controller_mixin", "@ember/string", "@ember/service", "@ember/object", "@ember/object/compat", "@ember/object/computed", "@ember/-internals/runtime", "@ember/-internals/glimmer", "ember/version", "@ember/-internals/views", "@ember/-internals/routing", "@ember/-internals/extension-support", "@ember/error", "@ember/runloop", "@ember/-internals/error-handling", "@ember/-internals/owner", "@ember/application", "@ember/application/globals-resolver", "@ember/application/instance", "@ember/engine", "@ember/engine/instance", "@ember/polyfills", "@ember/deprecated-features", "@ember/component/template-only"], function (_exports, _require, _environment, _nodeModule, utils, _container, instrumentation, _meta, metal, _canaryFeatures, EmberDebug, _backburner, _console, _controller, _controller_mixin, _string, _service, _object, _compat, _computed, _runtime, _glimmer, _version, views, routing, extensionSupport, _error, runloop, _errorHandling, _owner, _application, _globalsResolver, _instance, _engine, _instance2, _polyfills, _deprecatedFeatures, _templateOnly) {
+define("ember/index", ["exports", "require", "@ember/-internals/environment", "node-module", "@ember/-internals/utils", "@ember/-internals/container", "@ember/instrumentation", "@ember/-internals/meta", "@ember/-internals/metal", "@ember/canary-features", "@ember/debug", "backburner", "@ember/-internals/console", "@ember/controller", "@ember/controller/lib/controller_mixin", "@ember/string", "@ember/service", "@ember/object", "@ember/object/compat", "@ember/object/computed", "@ember/-internals/runtime", "@ember/-internals/glimmer", "ember/version", "@ember/-internals/views", "@ember/-internals/routing", "@ember/-internals/extension-support", "@ember/error", "@ember/runloop", "@ember/-internals/error-handling", "@ember/-internals/owner", "@ember/application", "@ember/application/globals-resolver", "@ember/application/instance", "@ember/engine", "@ember/engine/instance", "@ember/polyfills", "@ember/deprecated-features", "@ember/component/template-only", "@ember/destroyable"], function (_exports, _require, _environment, _nodeModule, utils, _container, instrumentation, _meta, metal, _canaryFeatures, EmberDebug, _backburner, _console, _controller, _controller_mixin, _string, _service, _object, _compat, _computed, _runtime, _glimmer, _version, views, routing, extensionSupport, _error, runloop, _errorHandling, _owner, _application, _globalsResolver, _instance, _engine, _instance2, _polyfills, _deprecatedFeatures, _templateOnly, _destroyable) {
   "use strict";
 
   Object.defineProperty(_exports, "__esModule", {
@@ -61644,15 +62247,6 @@ define("ember/index", ["exports", "require", "@ember/-internals/environment", "n
   computed.alias = metal.alias;
   Ember.cacheFor = metal.getCachedValueFor;
   Ember.ComputedProperty = metal.ComputedProperty;
-  Object.defineProperty(Ember, '_setComputedDecorator', {
-    get: function get() {
-      (true && !(false) && (0, EmberDebug.deprecate)('Please migrate from Ember._setComputedDecorator to Ember._setClassicDecorator', false, {
-        id: 'ember._setComputedDecorator',
-        until: '3.13.0'
-      }));
-      return metal.setClassicDecorator;
-    }
-  });
   Ember._setClassicDecorator = metal.setClassicDecorator;
   Ember.meta = _meta.meta;
   Ember.get = metal.get;
@@ -61682,7 +62276,7 @@ define("ember/index", ["exports", "require", "@ember/-internals/environment", "n
     hasPropertyAccessors: true
   };
   Ember.defineProperty = metal.defineProperty;
-  Ember.destroy = metal.destroy;
+  Ember.destroy = _destroyable.destroy;
   Ember.libraries = metal.libraries;
   Ember.getProperties = metal.getProperties;
   Ember.setProperties = metal.setProperties;
@@ -61693,6 +62287,26 @@ define("ember/index", ["exports", "require", "@ember/-internals/environment", "n
   Ember.observer = metal.observer;
   Ember.mixin = metal.mixin;
   Ember.Mixin = metal.Mixin;
+
+  if (true
+  /* EMBER_CACHE_API */
+  ) {
+      Ember._createCache = metal.createCache;
+      Ember._cacheGetValue = metal.getValue;
+      Ember._cacheIsConst = metal.isConst;
+    }
+
+  if (true
+  /* EMBER_DESTROYABLES */
+  ) {
+      Ember._registerDestructor = _destroyable.registerDestructor;
+      Ember._unregisterDestructor = _destroyable.unregisterDestructor;
+      Ember._associateDestroyableChild = _destroyable.associateDestroyableChild;
+      Ember._assertDestroyablesDestroyed = _destroyable.assertDestroyablesDestroyed;
+      Ember._enableDestroyableTracking = _destroyable.enableDestroyableTracking;
+      Ember._isDestroying = _destroyable.isDestroying;
+      Ember._isDestroyed = _destroyable.isDestroyed;
+    }
   /**
     A function may be assigned to `Ember.onerror` to be called when Ember
     internals encounter an error. This is useful for specialized error handling
@@ -61716,6 +62330,7 @@ define("ember/index", ["exports", "require", "@ember/-internals/environment", "n
     @param {Exception} error the error object
     @public
   */
+
 
   Object.defineProperty(Ember, 'onerror', {
     get: _errorHandling.getOnerror,
@@ -61751,7 +62366,6 @@ define("ember/index", ["exports", "require", "@ember/-internals/environment", "n
   Ember.compare = _runtime.compare;
   Ember.copy = _runtime.copy;
   Ember.isEqual = _runtime.isEqual;
-  Ember._setFrameworkClass = _runtime.setFrameworkClass;
   /**
   @module ember
   */
@@ -62032,7 +62646,7 @@ define("ember/version", ["exports"], function (_exports) {
     value: true
   });
   _exports.default = void 0;
-  var _default = "3.18.1";
+  var _default = "3.22.0";
   _exports.default = _default;
 });
 define("node-module/index", ["exports"], function (_exports) {
@@ -63636,7 +64250,7 @@ define("router_js", ["exports", "@ember/polyfills", "ember-babel", "rsvp", "rout
 
     };
 
-    if (Object.isFrozen(routeInfo) || routeInfo.hasOwnProperty('attributes')) {
+    if (!Object.isExtensible(routeInfo) || routeInfo.hasOwnProperty('attributes')) {
       return Object.freeze((0, _polyfills.assign)({}, routeInfo, attributes));
     }
 
@@ -63659,7 +64273,7 @@ define("router_js", ["exports", "@ember/polyfills", "ember-babel", "rsvp", "rout
 
     };
 
-    if (Object.isFrozen(routeInfo) || routeInfo.hasOwnProperty('metadata')) {
+    if (!Object.isExtensible(routeInfo) || routeInfo.hasOwnProperty('metadata')) {
       return Object.freeze((0, _polyfills.assign)({}, routeInfo, metadata));
     }
 
@@ -63928,7 +64542,7 @@ define("router_js", ["exports", "@ember/polyfills", "ember-babel", "rsvp", "rout
       }
 
       var route = this.route;
-      var result = undefined;
+      var result;
 
       if (route.deserialize) {
         result = route.deserialize(fullParams, transition);
@@ -64510,13 +65124,15 @@ define("router_js", ["exports", "@ember/polyfills", "ember-babel", "rsvp", "rout
         this.toReadOnlyInfos(newTransition, newState);
         this.routeWillChange(newTransition);
         newTransition.promise = newTransition.promise.then(function (result) {
-          _this9._updateURL(newTransition, oldState);
+          if (!newTransition.isAborted) {
+            _this9._updateURL(newTransition, oldState);
 
-          _this9.didTransition(_this9.currentRouteInfos);
+            _this9.didTransition(_this9.currentRouteInfos);
 
-          _this9.toInfos(newTransition, newState.routeInfos, true);
+            _this9.toInfos(newTransition, newState.routeInfos, true);
 
-          _this9.routeDidChange(newTransition);
+            _this9.routeDidChange(newTransition);
+          }
 
           return result;
         }, null, _promiseLabel('Transition complete'));
@@ -68237,28 +68853,15 @@ require('ember');
   Object.defineProperty(_exports, "__esModule", {
     value: true
   });
-  _exports.setDestroying = setDestroying;
-  _exports.setDestroyed = setDestroyed;
+  _exports.isDestroyed = _exports.isDestroying = void 0;
+
+  var isDestroying = Ember.__loader.require('@glimmer/runtime').isDestroying;
+
   _exports.isDestroying = isDestroying;
+
+  var isDestroyed = Ember.__loader.require('@glimmer/runtime').isDestroyed;
+
   _exports.isDestroyed = isDestroyed;
-  var DESTROYING = new WeakMap();
-  var DESTROYED = new WeakMap(); // TODO: remove once glimmer.js is updated to glimmer-vm 0.54.0+ and can use the destroyables API directly
-
-  function setDestroying(component) {
-    DESTROYING.set(component, true);
-  }
-
-  function setDestroyed(component) {
-    DESTROYED.set(component, true);
-  }
-
-  function isDestroying(component) {
-    return DESTROYING.has(component);
-  }
-
-  function isDestroyed(component) {
-    return DESTROYED.has(component);
-  }
 });
 ;define("@glimmer/component/-private/ember-component-manager", ["exports", "@glimmer/component/-private/base-component-manager", "@glimmer/component/-private/destroyables"], function (_exports, _baseComponentManager, _destroyables) {
   "use strict";
@@ -68296,7 +68899,9 @@ require('ember');
 
   function _getPrototypeOf(o) { _getPrototypeOf = Object.setPrototypeOf ? Object.getPrototypeOf : function _getPrototypeOf(o) { return o.__proto__ || Object.getPrototypeOf(o); }; return _getPrototypeOf(o); }
 
-  var CAPABILITIES = true ? Ember._componentManagerCapabilities('3.13', {
+  var CAPABILITIES = true // @ts-ignore
+  // @ts-ignore
+  ? Ember._componentManagerCapabilities('3.13', {
     destructor: true,
     asyncLifecycleCallbacks: false,
     updateHook: false
@@ -68304,9 +68909,7 @@ require('ember');
     destructor: true,
     asyncLifecycleCallbacks: false
   });
-  var scheduledDestroyComponent = false // @ts-ignore
-  // @ts-ignore
-  ? undefined : function (component, meta) {
+  var scheduledDestroyComponent = true ? undefined : function (component, meta) {
     if (component.isDestroyed) {
       return;
     }
@@ -68315,7 +68918,7 @@ require('ember');
     meta.setSourceDestroyed();
     (0, _destroyables.setDestroyed)(component);
   };
-  var destroy = false ? Ember.__loader.require('@glimmer/runtime').destroy : function (component) {
+  var destroy = true ? Ember.__loader.require('@glimmer/runtime').destroy : function (component) {
     if (component.isDestroying) {
       return;
     }
@@ -68326,7 +68929,7 @@ require('ember');
     Ember.run.schedule('actions', component, component.willDestroy);
     Ember.run.schedule('destroy', _this, scheduledDestroyComponent, component, meta);
   };
-  var registerDestructor = false ? Ember.__loader.require('@glimmer/runtime').registerDestructor : undefined;
+  var registerDestructor = true ? Ember.__loader.require('@glimmer/runtime').registerDestructor : undefined;
   /**
    * This component manager runs in Ember.js environments and extends the base component manager to:
    *
@@ -68350,7 +68953,7 @@ require('ember');
       value: function createComponent(ComponentClass, args) {
         var component = _get(_getPrototypeOf(EmberGlimmerComponentManager.prototype), "createComponent", this).call(this, ComponentClass, args);
 
-        if (false) {
+        if (true) {
           registerDestructor(component, function () {
             component.willDestroy();
           });
@@ -69907,36 +70510,36 @@ var __ember_auto_import__ =
 /************************************************************************/
 /******/ ({
 
-/***/ "../../../../../tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/app.js":
+/***/ "../../../../../tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/app.js":
 /*!***********************************************************************!*\
-  !*** /tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/app.js ***!
+  !*** /tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/app.js ***!
   \***********************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-eval("\nif (typeof document !== 'undefined') {\n  __webpack_require__.p = (function(){\n    var scripts = document.querySelectorAll('script');\n    return scripts[scripts.length - 1].src.replace(/\\/[^/]*$/, '/');\n  })();\n}\n\nmodule.exports = (function(){\n  var d = _eai_d;\n  var r = _eai_r;\n  window.emberAutoImportDynamic = function(specifier) {\n    return r('_eai_dyn_' + specifier);\n  };\n})();\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/app.js?");
+eval("\nif (typeof document !== 'undefined') {\n  __webpack_require__.p = (function(){\n    var scripts = document.querySelectorAll('script');\n    return scripts[scripts.length - 1].src.replace(/\\/[^/]*$/, '/');\n  })();\n}\n\nmodule.exports = (function(){\n  var d = _eai_d;\n  var r = _eai_r;\n  window.emberAutoImportDynamic = function(specifier) {\n    return r('_eai_dyn_' + specifier);\n  };\n})();\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/app.js?");
 
 /***/ }),
 
-/***/ "../../../../../tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/l.js":
+/***/ "../../../../../tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/l.js":
 /*!*********************************************************************!*\
-  !*** /tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/l.js ***!
+  !*** /tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/l.js ***!
   \*********************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-eval("\nwindow._eai_r = require;\nwindow._eai_d = define;\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/l.js?");
+eval("\nwindow._eai_r = require;\nwindow._eai_d = define;\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/l.js?");
 
 /***/ }),
 
 /***/ 0:
 /*!*******************************************************************************************************************************************!*\
-  !*** multi /tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/l.js /tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/app.js ***!
+  !*** multi /tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/l.js /tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/app.js ***!
   \*******************************************************************************************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-eval("__webpack_require__(/*! /tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/l.js */\"../../../../../tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/l.js\");\nmodule.exports = __webpack_require__(/*! /tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/app.js */\"../../../../../tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/app.js\");\n\n\n//# sourceURL=webpack://__ember_auto_import__/multi_/tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/l.js_/tmp/broccoli-307762HMFjWW4H6V/cache-160-bundler/staging/app.js?");
+eval("__webpack_require__(/*! /tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/l.js */\"../../../../../tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/l.js\");\nmodule.exports = __webpack_require__(/*! /tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/app.js */\"../../../../../tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/app.js\");\n\n\n//# sourceURL=webpack://__ember_auto_import__/multi_/tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/l.js_/tmp/broccoli-3994rUVrxkqYLJ5w/cache-161-bundler/staging/app.js?");
 
 /***/ })
 
