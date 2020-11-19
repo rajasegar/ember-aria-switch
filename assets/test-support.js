@@ -10071,7 +10071,7 @@ define("ember-testing/lib/test/waiters", ["exports"], function (_exports) {
   QUnit.config.testTimeout = QUnit.urlParams.devmode ? null : 60000; //Default Test Timeout 60 Seconds
 })();
 
-(function () {
+var QUnitDOM = (function (exports) {
   'use strict';
 
   function exists(options, message) {
@@ -11517,25 +11517,52 @@ define("ember-testing/lib/test/waiters", ["exports"], function (_exports) {
       return DOMAssertions;
   }());
 
-  /* global QUnit */
-  QUnit.assert.dom = function (target, rootElement) {
-      if (!isValidRootElement(rootElement)) {
-          throw new Error(rootElement + " is not a valid root element");
-      }
-      rootElement = rootElement || this.dom.rootElement || document;
-      if (arguments.length === 0) {
-          target = rootElement;
-      }
-      return new DOMAssertions(target, rootElement, this);
-  };
-  function isValidRootElement(element) {
-      return (!element ||
-          (typeof element === 'object' &&
-              typeof element.querySelector === 'function' &&
-              typeof element.querySelectorAll === 'function'));
+  var _getRootElement = function () { return null; };
+  function overrideRootElement(fn) {
+      _getRootElement = fn;
+  }
+  function getRootElement() {
+      return _getRootElement();
   }
 
-}());
+  function install (assert) {
+      assert.dom = function (target, rootElement) {
+          if (!isValidRootElement(rootElement)) {
+              throw new Error(rootElement + " is not a valid root element");
+          }
+          rootElement = rootElement || this.dom.rootElement || getRootElement();
+          if (arguments.length === 0) {
+              target = rootElement instanceof Element ? rootElement : null;
+          }
+          return new DOMAssertions(target, rootElement, this);
+      };
+      function isValidRootElement(element) {
+          return (!element ||
+              (typeof element === 'object' &&
+                  typeof element.querySelector === 'function' &&
+                  typeof element.querySelectorAll === 'function'));
+      }
+  }
+
+  function setup(assert, options) {
+      if (options === void 0) { options = {}; }
+      install(assert);
+      var getRootElement = typeof options.getRootElement === 'function'
+          ? options.getRootElement
+          : function () { return document.querySelector('#ember-testing'); };
+      overrideRootElement(getRootElement);
+  }
+
+  /* global QUnit */
+  install(QUnit.assert);
+
+  exports.setup = setup;
+
+  Object.defineProperty(exports, '__esModule', { value: true });
+
+  return exports;
+
+}({}));
 
 Object.defineProperty(QUnit.assert.dom, 'rootElement', {
   get: function() {
@@ -17704,36 +17731,36 @@ var __ember_auto_import__ =
 /************************************************************************/
 /******/ ({
 
-/***/ "../../../../../tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/l.js":
+/***/ "../../../../../tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/l.js":
 /*!*********************************************************************!*\
-  !*** /tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/l.js ***!
+  !*** /tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/l.js ***!
   \*********************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-eval("\nwindow._eai_r = require;\nwindow._eai_d = define;\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/l.js?");
+eval("\nwindow._eai_r = require;\nwindow._eai_d = define;\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/l.js?");
 
 /***/ }),
 
-/***/ "../../../../../tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/tests.js":
+/***/ "../../../../../tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/tests.js":
 /*!*************************************************************************!*\
-  !*** /tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/tests.js ***!
+  !*** /tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/tests.js ***!
   \*************************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-eval("\nif (typeof document !== 'undefined') {\n  __webpack_require__.p = (function(){\n    var scripts = document.querySelectorAll('script');\n    return scripts[scripts.length - 1].src.replace(/\\/[^/]*$/, '/');\n  })();\n}\n\nmodule.exports = (function(){\n  var d = _eai_d;\n  var r = _eai_r;\n  window.emberAutoImportDynamic = function(specifier) {\n    return r('_eai_dyn_' + specifier);\n  };\n})();\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/tests.js?");
+eval("\nif (typeof document !== 'undefined') {\n  __webpack_require__.p = (function(){\n    var scripts = document.querySelectorAll('script');\n    return scripts[scripts.length - 1].src.replace(/\\/[^/]*$/, '/');\n  })();\n}\n\nmodule.exports = (function(){\n  var d = _eai_d;\n  var r = _eai_r;\n  window.emberAutoImportDynamic = function(specifier) {\n    return r('_eai_dyn_' + specifier);\n  };\n})();\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/tests.js?");
 
 /***/ }),
 
 /***/ 1:
 /*!*********************************************************************************************************************************************!*\
-  !*** multi /tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/l.js /tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/tests.js ***!
+  !*** multi /tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/l.js /tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/tests.js ***!
   \*********************************************************************************************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-eval("__webpack_require__(/*! /tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/l.js */\"../../../../../tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/l.js\");\nmodule.exports = __webpack_require__(/*! /tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/tests.js */\"../../../../../tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/tests.js\");\n\n\n//# sourceURL=webpack://__ember_auto_import__/multi_/tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/l.js_/tmp/broccoli-2689OOA86MUhqy7v/cache-161-bundler/staging/tests.js?");
+eval("__webpack_require__(/*! /tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/l.js */\"../../../../../tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/l.js\");\nmodule.exports = __webpack_require__(/*! /tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/tests.js */\"../../../../../tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/tests.js\");\n\n\n//# sourceURL=webpack://__ember_auto_import__/multi_/tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/l.js_/tmp/broccoli-4074yEUbwocNfCwK/cache-161-bundler/staging/tests.js?");
 
 /***/ })
 
