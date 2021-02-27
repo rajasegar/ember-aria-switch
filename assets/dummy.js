@@ -303,11 +303,10 @@ define("dummy/router", ["exports", "dummy/config/environment"], function (_expor
   _exports.default = void 0;
 
   var _default = Ember.HTMLBars.template({
-    "id": "6J6Ps8ui",
-    "block": "{\"symbols\":[],\"statements\":[[10,\"div\"],[14,1,\"page\"],[14,0,\"content-area mxw-600\"],[12],[2,\"\\n\\n  \"],[10,\"header\"],[14,\"role\",\"banner\"],[12],[2,\"\\n    \"],[10,\"h1\"],[12],[2,\"ember-aria-switch\"],[13],[2,\"\\n    \"],[10,\"h2\"],[12],[2,\"\\n      \"],[10,\"abbr\"],[14,\"title\",\"Accessible Rich Internet Applications\"],[12],[2,\"ARIA\"],[13],[2,\" Switch Demo\\n    \"],[13],[2,\"\\n    \"],[10,\"p\"],[12],[2,\"\\n      Examples of an ARIA Switch button through an Ember addon.  For more information about this component, please read \"],[10,\"a\"],[14,6,\"https://www.w3.org/TR/wai-aria-1.1/#switch\"],[12],[2,\"The ARIA 1.1 switch role specification\"],[13],[2,\",\\n      \"],[10,\"a\"],[14,6,\"http://inclusive-components.club/toggle-button/\"],[12],[2,\"Inclusive Components Toggle Buttons\"],[13],[2,\", \"],[10,\"a\"],[14,6,\"https://github.com/rajasegar/ember-aria-switch\"],[12],[2,\"the GitHub repo for this code\"],[13],[2,\" and the \"],[10,\"a\"],[14,6,\"https://github.com/scottaohara/aria-switch-button\"],[12],[2,\"original\"],[13],[2,\" ARIA Switch button.\\n    \"],[13],[2,\"\\n  \"],[13],[2,\"\\n\\n  \"],[10,\"main\"],[14,\"aria-label\",\"Demo Content\"],[12],[2,\"\\n    \"],[1,[30,[36,1],[[30,[36,0],null,null]],null]],[2,\"\\n   \"],[13],[2,\"\\n\\n\"],[13],[2,\"\\n\"]],\"hasEval\":false,\"upvars\":[\"-outlet\",\"component\"]}",
-    "meta": {
-      "moduleName": "dummy/templates/application.hbs"
-    }
+    "id": "OwaTesbH",
+    "block": "[[[10,0],[14,1,\"page\"],[14,0,\"content-area mxw-600\"],[12],[1,\"\\n\\n  \"],[10,\"header\"],[14,\"role\",\"banner\"],[12],[1,\"\\n    \"],[10,\"h1\"],[12],[1,\"ember-aria-switch\"],[13],[1,\"\\n    \"],[10,\"h2\"],[12],[1,\"\\n      \"],[10,\"abbr\"],[14,\"title\",\"Accessible Rich Internet Applications\"],[12],[1,\"ARIA\"],[13],[1,\" Switch Demo\\n    \"],[13],[1,\"\\n    \"],[10,2],[12],[1,\"\\n      Examples of an ARIA Switch button through an Ember addon.  For more information about this component, please read \"],[10,3],[14,6,\"https://www.w3.org/TR/wai-aria-1.1/#switch\"],[12],[1,\"The ARIA 1.1 switch role specification\"],[13],[1,\",\\n      \"],[10,3],[14,6,\"http://inclusive-components.club/toggle-button/\"],[12],[1,\"Inclusive Components Toggle Buttons\"],[13],[1,\", \"],[10,3],[14,6,\"https://github.com/rajasegar/ember-aria-switch\"],[12],[1,\"the GitHub repo for this code\"],[13],[1,\" and the \"],[10,3],[14,6,\"https://github.com/scottaohara/aria-switch-button\"],[12],[1,\"original\"],[13],[1,\" ARIA Switch button.\\n    \"],[13],[1,\"\\n  \"],[13],[1,\"\\n\\n  \"],[10,\"main\"],[14,\"aria-label\",\"Demo Content\"],[12],[1,\"\\n    \"],[46,[28,[37,1],null,null],null,null,null],[1,\"\\n   \"],[13],[1,\"\\n\\n\"],[13],[1,\"\\n\"]],[],false,[\"component\",\"-outlet\"]]",
+    "moduleName": "dummy/templates/application.hbs",
+    "isStrictMode": false
   });
 
   _exports.default = _default;
@@ -321,11 +320,10 @@ define("dummy/router", ["exports", "dummy/config/environment"], function (_expor
   _exports.default = void 0;
 
   var _default = Ember.HTMLBars.template({
-    "id": "I0ZdcTTG",
-    "block": "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@label\",\"@checked\"],[\"My Label\",true]],null],[2,\"\\n\\n\"],[10,\"hr\"],[12],[13],[2,\"\\n\\n\"],[10,\"p\"],[14,1,\"ex_label\"],[12],[2,\"\\n  Item 2 (with aria-labelledby)\\n\"],[13],[2,\"\\n\"],[8,\"aria-switch\",[],[[\"@ariaLabelledBy\"],[\"ex_label\"]],null],[2,\"\\n\\n\"],[10,\"hr\"],[12],[13],[2,\"\\n\\n\"],[10,\"p\"],[14,1,\"ex_label2\"],[12],[2,\"\\n  Item 3 (purposefully disabled)\\n\"],[13],[2,\"\\n\"],[8,\"aria-switch\",[],[[\"@label\",\"@disabled\"],[\"My Label\",true]],null],[2,\"\\n\\n\"],[10,\"hr\"],[12],[13],[2,\"\\n\\n\"],[10,\"p\"],[14,1,\"ex_label3\"],[12],[2,\"\\n  Item 4 (purposefully missing aria-label)\\n\"],[13],[2,\"\\n\"],[8,\"aria-switch\",[],[[],[]],null],[2,\"\\n\\n\"],[10,\"hr\"],[12],[13],[2,\"\\n\"],[10,\"p\"],[12],[2,\"With custom on/off labels\"],[13],[2,\"\\n\"],[8,\"aria-switch\",[[24,0,\"toggle toggle-primary\"]],[[\"@onLabel\",\"@offLabel\"],[\"Yes\",\"No\"]],null],[2,\"\\n\"],[10,\"hr\"],[12],[13],[2,\"\\n\"],[10,\"p\"],[12],[2,\"With toggle callback\"],[13],[2,\"\\n\"],[8,\"aria-switch\",[],[[\"@onToggle\"],[[32,0,[\"toggleCallback\"]]]],null],[2,\"\\n\"]],\"hasEval\":false,\"upvars\":[]}",
-    "meta": {
-      "moduleName": "dummy/templates/index.hbs"
-    }
+    "id": "VjMLeko8",
+    "block": "[[[8,[39,0],null,[[\"@label\",\"@checked\"],[\"My Label\",true]],null],[1,\"\\n\\n\"],[10,\"hr\"],[12],[13],[1,\"\\n\\n\"],[10,2],[14,1,\"ex_label\"],[12],[1,\"\\n  Item 2 (with aria-labelledby)\\n\"],[13],[1,\"\\n\"],[8,[39,0],null,[[\"@ariaLabelledBy\"],[\"ex_label\"]],null],[1,\"\\n\\n\"],[10,\"hr\"],[12],[13],[1,\"\\n\\n\"],[10,2],[14,1,\"ex_label2\"],[12],[1,\"\\n  Item 3 (purposefully disabled)\\n\"],[13],[1,\"\\n\"],[8,[39,0],null,[[\"@label\",\"@disabled\"],[\"My Label\",true]],null],[1,\"\\n\\n\"],[10,\"hr\"],[12],[13],[1,\"\\n\\n\"],[10,2],[14,1,\"ex_label3\"],[12],[1,\"\\n  Item 4 (purposefully missing aria-label)\\n\"],[13],[1,\"\\n\"],[8,[39,0],null,null,null],[1,\"\\n\\n\"],[10,\"hr\"],[12],[13],[1,\"\\n\"],[10,2],[12],[1,\"With custom on/off labels\"],[13],[1,\"\\n\"],[8,[39,0],[[24,0,\"toggle toggle-primary\"]],[[\"@onLabel\",\"@offLabel\"],[\"Yes\",\"No\"]],null],[1,\"\\n\"],[10,\"hr\"],[12],[13],[1,\"\\n\"],[10,2],[12],[1,\"With toggle callback\"],[13],[1,\"\\n\"],[8,[39,0],null,[[\"@onToggle\"],[[30,0,[\"toggleCallback\"]]]],null],[1,\"\\n\"]],[],false,[\"aria-switch\"]]",
+    "moduleName": "dummy/templates/index.hbs",
+    "isStrictMode": false
   });
 
   _exports.default = _default;

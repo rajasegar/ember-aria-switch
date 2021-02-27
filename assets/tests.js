@@ -100,9 +100,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "mCytUXcv",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "NYZWbKmD",
+                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -132,9 +133,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "mCytUXcv",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "NYZWbKmD",
+                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -164,9 +166,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "mCytUXcv",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "NYZWbKmD",
+                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -196,9 +199,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "mCytUXcv",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "NYZWbKmD",
+                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -228,9 +232,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "mCytUXcv",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "NYZWbKmD",
+                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -260,9 +265,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "mCytUXcv",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "NYZWbKmD",
+                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -292,9 +298,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @checked=true/>
                 */
                 {
-                  id: "ILG1K/CN",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@checked\"],[\"true\"]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "VakHgr/S",
+                  block: "[[[8,[39,0],null,[[\"@checked\"],[\"true\"]],null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -324,9 +331,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "mCytUXcv",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[],[]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "NYZWbKmD",
+                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -361,9 +369,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @disabled={{true}}/>
                 */
                 {
-                  id: "lEDvknUL",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@disabled\"],[true]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "wbEGZt8V",
+                  block: "[[[8,[39,0],null,[[\"@disabled\"],[true]],null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -394,9 +403,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @label="My Aria Label"/>
                 */
                 {
-                  id: "ijeYF0Yn",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@label\"],[\"My Aria Label\"]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "FNDjPUMg",
+                  block: "[[[8,[39,0],null,[[\"@label\"],[\"My Aria Label\"]],null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -426,9 +436,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @onLabel="Yes"/>
                 */
                 {
-                  id: "vB8jIxts",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onLabel\"],[\"Yes\"]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "xYM8wGHw",
+                  block: "[[[8,[39,0],null,[[\"@onLabel\"],[\"Yes\"]],null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -458,9 +469,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @offLabel="No"/>
                 */
                 {
-                  id: "hWX5hfor",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@offLabel\"],[\"No\"]],null]],\"hasEval\":false,\"upvars\":[]}",
-                  meta: {}
+                  id: "uuIrmEmI",
+                  block: "[[[8,[39,0],null,[[\"@offLabel\"],[\"No\"]],null]],[],false,[\"aria-switch\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 2:
@@ -499,9 +511,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                                   <div id="result">{{result}}</div>
                 */
                 {
-                  id: "BVvEQlTI",
-                  block: "{\"symbols\":[],\"statements\":[[8,\"aria-switch\",[],[[\"@onToggle\"],[[32,0,[\"toggleCallback\"]]]],null],[2,\"\\n                  \"],[10,\"div\"],[14,1,\"result\"],[12],[1,[34,0]],[13]],\"hasEval\":false,\"upvars\":[\"result\"]}",
-                  meta: {}
+                  id: "65P6bZWx",
+                  block: "[[[8,[39,0],null,[[\"@onToggle\"],[[30,0,[\"toggleCallback\"]]]],null],[1,\"\\n                  \"],[10,0],[14,1,\"result\"],[12],[1,[34,1]],[13]],[],false,[\"aria-switch\",\"result\"]]",
+                  moduleName: "(unknown template module)",
+                  isStrictMode: false
                 }));
 
               case 4:

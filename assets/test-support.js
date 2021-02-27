@@ -8,7 +8,7 @@
  *            Portions Copyright 2008-2011 Apple Inc. All rights reserved.
  * @license   Licensed under MIT license
  *            See https://raw.github.com/emberjs/ember.js/master/LICENSE
- * @version   3.23.0
+ * @version   3.25.1
  */
 /*globals process */
 var define, require, Ember; // Used in @ember/-internals/environment/lib/global.js
@@ -293,9 +293,7 @@ define("@ember/debug/index", ["exports", "@ember/-internals/browser-environment"
     });
     /**
       Display a debug notice.
-         Calls to this function are removed from production builds, so they can be
-      freely added for documentation and debugging purposes without worries of
-      incuring any performance penalty.
+         Calls to this function are not invoked in production builds.
          ```javascript
       import { debug } from '@ember/debug';
          debug('I\'m a debug notice!');
@@ -484,9 +482,7 @@ define("@ember/debug/lib/capture-render-tree", ["exports", "@glimmer/util"], fun
     @since 3.14.0
   */
   function captureRenderTree(app) {
-    var env = (0, _util.expect)(app.lookup('-environment:main'), 'BUG: owner is missing -environment:main');
-    var rendererType = env.isInteractive ? 'renderer:-dom' : 'renderer:-inert';
-    var renderer = (0, _util.expect)(app.lookup(rendererType), "BUG: owner is missing " + rendererType);
+    var renderer = (0, _util.expect)(app.lookup('renderer:-dom'), "BUG: owner is missing renderer");
     return renderer.debugRenderTree.capture();
   }
 });
@@ -496,7 +492,7 @@ define("@ember/debug/lib/deprecate", ["exports", "@ember/-internals/environment"
   Object.defineProperty(_exports, "__esModule", {
     value: true
   });
-  _exports.missingOptionsUntilDeprecation = _exports.missingOptionsIdDeprecation = _exports.missingOptionsDeprecation = _exports.registerHandler = _exports.default = void 0;
+  _exports.SINCE_MISSING_DEPRECATIONS = _exports.FOR_MISSING_DEPRECATIONS = _exports.missingOptionsSinceDeprecation = _exports.missingOptionsForDeprecation = _exports.missingOptionsUntilDeprecation = _exports.missingOptionsIdDeprecation = _exports.missingOptionsDeprecation = _exports.registerHandler = _exports.default = void 0;
 
   /**
    @module @ember/debug
@@ -551,7 +547,24 @@ define("@ember/debug/lib/deprecate", ["exports", "@ember/-internals/environment"
   var missingOptionsUntilDeprecation;
   _exports.missingOptionsUntilDeprecation = missingOptionsUntilDeprecation;
 
+  var missingOptionsForDeprecation = function missingOptionsForDeprecation() {
+    return '';
+  };
+
+  _exports.missingOptionsForDeprecation = missingOptionsForDeprecation;
+
+  var missingOptionsSinceDeprecation = function missingOptionsSinceDeprecation() {
+    return '';
+  };
+
+  _exports.missingOptionsSinceDeprecation = missingOptionsSinceDeprecation;
+
   var deprecate = function deprecate() {};
+
+  var FOR_MISSING_DEPRECATIONS = new Set();
+  _exports.FOR_MISSING_DEPRECATIONS = FOR_MISSING_DEPRECATIONS;
+  var SINCE_MISSING_DEPRECATIONS = new Set();
+  _exports.SINCE_MISSING_DEPRECATIONS = SINCE_MISSING_DEPRECATIONS;
 
   if (true
   /* DEBUG */
@@ -630,6 +643,14 @@ define("@ember/debug/lib/deprecate", ["exports", "@ember/-internals/environment"
     _exports.missingOptionsDeprecation = missingOptionsDeprecation = 'When calling `deprecate` you ' + 'must provide an `options` hash as the third parameter.  ' + '`options` should include `id` and `until` properties.';
     _exports.missingOptionsIdDeprecation = missingOptionsIdDeprecation = 'When calling `deprecate` you must provide `id` in options.';
     _exports.missingOptionsUntilDeprecation = missingOptionsUntilDeprecation = 'When calling `deprecate` you must provide `until` in options.';
+
+    _exports.missingOptionsForDeprecation = missingOptionsForDeprecation = function missingOptionsForDeprecation(id) {
+      return "When calling `deprecate` you must provide `for` in options. Missing options.for in \"" + id + "\" deprecation";
+    };
+
+    _exports.missingOptionsSinceDeprecation = missingOptionsSinceDeprecation = function missingOptionsSinceDeprecation(id) {
+      return "When calling `deprecate` you must provide `since` in options. Missing options.since in \"" + id + "\" deprecation";
+    };
     /**
      @module @ember/debug
      @public
@@ -651,17 +672,45 @@ define("@ember/debug/lib/deprecate", ["exports", "@ember/-internals/environment"
         "view.helper.select".
       @param {string} options.until The version of Ember when this deprecation
         warning will be removed.
+      @param {String} options.for A namespace for the deprecation, usually the package name
+      @param {Object} options.since Describes when the deprecation became available and enabled.
       @param {String} [options.url] An optional url to the transition guide on the
-        emberjs.com website.
+            emberjs.com website.
       @static
       @public
       @since 1.0.0
     */
 
+
     deprecate = function deprecate(message, test, options) {
       (0, _index.assert)(missingOptionsDeprecation, Boolean(options && (options.id || options.until)));
       (0, _index.assert)(missingOptionsIdDeprecation, Boolean(options.id));
       (0, _index.assert)(missingOptionsUntilDeprecation, Boolean(options.until));
+
+      if (!options.for && !FOR_MISSING_DEPRECATIONS.has(options.id)) {
+        FOR_MISSING_DEPRECATIONS.add(options.id);
+        deprecate(missingOptionsForDeprecation(options.id), Boolean(options.for), {
+          id: 'ember-source.deprecation-without-for',
+          until: '4.0.0',
+          for: 'ember-source',
+          since: {
+            enabled: '3.24.0'
+          }
+        });
+      }
+
+      if (!options.since && !SINCE_MISSING_DEPRECATIONS.has(options.id)) {
+        SINCE_MISSING_DEPRECATIONS.add(options.id);
+        deprecate(missingOptionsSinceDeprecation(options.id), Boolean(options.since), {
+          id: 'ember-source.deprecation-without-since',
+          until: '4.0.0',
+          for: 'ember-source',
+          since: {
+            enabled: '3.24.0'
+          }
+        });
+      }
+
       (0, _handlers.invoke)('deprecate', message, test, options);
     };
   }
@@ -14605,14 +14654,16 @@ define("@ember/test-helpers/setup-rendering-context", ["exports", "@ember/test-h
   var RENDERING_CLEANUP = Object.create(null);
   _exports.RENDERING_CLEANUP = RENDERING_CLEANUP;
   var OUTLET_TEMPLATE = Ember.HTMLBars.template({
-    "id": "Lvsp1nVR",
-    "block": "{\"symbols\":[],\"statements\":[[1,[30,[36,1],[[30,[36,0],null,null]],null]]],\"hasEval\":false,\"upvars\":[\"-outlet\",\"component\"]}",
-    "meta": {}
+    "id": "CtJTcOby",
+    "block": "[[[46,[28,[37,1],null,null],null,null,null]],[],false,[\"component\",\"-outlet\"]]",
+    "moduleName": "(unknown template module)",
+    "isStrictMode": false
   });
   var EMPTY_TEMPLATE = Ember.HTMLBars.template({
-    "id": "cgf6XJaX",
-    "block": "{\"symbols\":[],\"statements\":[],\"hasEval\":false,\"upvars\":[]}",
-    "meta": {}
+    "id": "BD59E4Lo",
+    "block": "[[],[],false,[]]",
+    "moduleName": "(unknown template module)",
+    "isStrictMode": false
   }); // eslint-disable-next-line require-jsdoc
 
   function isRenderingTestContext(context) {
@@ -17731,36 +17782,36 @@ var __ember_auto_import__ =
 /************************************************************************/
 /******/ ({
 
-/***/ "../../../../../tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/l.js":
+/***/ "../../../../../tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/l.js":
 /*!*********************************************************************!*\
-  !*** /tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/l.js ***!
+  !*** /tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/l.js ***!
   \*********************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports) {
 
-eval("\nwindow._eai_r = require;\nwindow._eai_d = define;\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/l.js?");
+eval("\nwindow._eai_r = require;\nwindow._eai_d = define;\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/l.js?");
 
 /***/ }),
 
-/***/ "../../../../../tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/tests.js":
+/***/ "../../../../../tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/tests.js":
 /*!*************************************************************************!*\
-  !*** /tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/tests.js ***!
+  !*** /tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/tests.js ***!
   \*************************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-eval("\nif (typeof document !== 'undefined') {\n  __webpack_require__.p = (function(){\n    var scripts = document.querySelectorAll('script');\n    return scripts[scripts.length - 1].src.replace(/\\/[^/]*$/, '/');\n  })();\n}\n\nmodule.exports = (function(){\n  var d = _eai_d;\n  var r = _eai_r;\n  window.emberAutoImportDynamic = function(specifier) {\n    if (arguments.length === 1) {\n      return r('_eai_dyn_' + specifier);\n    } else {\n      return r('_eai_dynt_' + specifier)(Array.prototype.slice.call(arguments, 1))\n    }\n  };\n})();\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/tests.js?");
+eval("\nif (typeof document !== 'undefined') {\n  __webpack_require__.p = (function(){\n    var scripts = document.querySelectorAll('script');\n    return scripts[scripts.length - 1].src.replace(/\\/[^/]*$/, '/');\n  })();\n}\n\nmodule.exports = (function(){\n  var d = _eai_d;\n  var r = _eai_r;\n  window.emberAutoImportDynamic = function(specifier) {\n    if (arguments.length === 1) {\n      return r('_eai_dyn_' + specifier);\n    } else {\n      return r('_eai_dynt_' + specifier)(Array.prototype.slice.call(arguments, 1))\n    }\n  };\n})();\n\n\n//# sourceURL=webpack://__ember_auto_import__//tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/tests.js?");
 
 /***/ }),
 
 /***/ 1:
 /*!*********************************************************************************************************************************************!*\
-  !*** multi /tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/l.js /tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/tests.js ***!
+  !*** multi /tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/l.js /tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/tests.js ***!
   \*********************************************************************************************************************************************/
 /*! no static exports found */
 /***/ (function(module, exports, __webpack_require__) {
 
-eval("__webpack_require__(/*! /tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/l.js */\"../../../../../tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/l.js\");\nmodule.exports = __webpack_require__(/*! /tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/tests.js */\"../../../../../tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/tests.js\");\n\n\n//# sourceURL=webpack://__ember_auto_import__/multi_/tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/l.js_/tmp/broccoli-2834B7o2HrSWe214/cache-161-bundler/staging/tests.js?");
+eval("__webpack_require__(/*! /tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/l.js */\"../../../../../tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/l.js\");\nmodule.exports = __webpack_require__(/*! /tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/tests.js */\"../../../../../tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/tests.js\");\n\n\n//# sourceURL=webpack://__ember_auto_import__/multi_/tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/l.js_/tmp/broccoli-6948XOFraGv3os8D/cache-161-bundler/staging/tests.js?");
 
 /***/ })
 
