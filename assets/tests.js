@@ -100,10 +100,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "NYZWbKmD",
-                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "NYZWbKmD",
+                  "block": "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -133,10 +133,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "NYZWbKmD",
-                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "NYZWbKmD",
+                  "block": "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -166,10 +166,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "NYZWbKmD",
-                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "NYZWbKmD",
+                  "block": "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -199,10 +199,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "NYZWbKmD",
-                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "NYZWbKmD",
+                  "block": "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -232,10 +232,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "NYZWbKmD",
-                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "NYZWbKmD",
+                  "block": "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -265,10 +265,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "NYZWbKmD",
-                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "NYZWbKmD",
+                  "block": "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -298,10 +298,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @checked=true/>
                 */
                 {
-                  id: "VakHgr/S",
-                  block: "[[[8,[39,0],null,[[\"@checked\"],[\"true\"]],null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "VakHgr/S",
+                  "block": "[[[8,[39,0],null,[[\"@checked\"],[\"true\"]],null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -331,10 +331,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch/>
                 */
                 {
-                  id: "NYZWbKmD",
-                  block: "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "NYZWbKmD",
+                  "block": "[[[8,[39,0],null,null,null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -369,10 +369,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @disabled={{true}}/>
                 */
                 {
-                  id: "wbEGZt8V",
-                  block: "[[[8,[39,0],null,[[\"@disabled\"],[true]],null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "wbEGZt8V",
+                  "block": "[[[8,[39,0],null,[[\"@disabled\"],[true]],null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -403,10 +403,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @label="My Aria Label"/>
                 */
                 {
-                  id: "FNDjPUMg",
-                  block: "[[[8,[39,0],null,[[\"@label\"],[\"My Aria Label\"]],null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "FNDjPUMg",
+                  "block": "[[[8,[39,0],null,[[\"@label\"],[\"My Aria Label\"]],null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -436,10 +436,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @onLabel="Yes"/>
                 */
                 {
-                  id: "xYM8wGHw",
-                  block: "[[[8,[39,0],null,[[\"@onLabel\"],[\"Yes\"]],null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "xYM8wGHw",
+                  "block": "[[[8,[39,0],null,[[\"@onLabel\"],[\"Yes\"]],null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -469,10 +469,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                   <AriaSwitch @offLabel="No"/>
                 */
                 {
-                  id: "uuIrmEmI",
-                  block: "[[[8,[39,0],null,[[\"@offLabel\"],[\"No\"]],null]],[],false,[\"aria-switch\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "uuIrmEmI",
+                  "block": "[[[8,[39,0],null,[[\"@offLabel\"],[\"No\"]],null]],[],false,[\"aria-switch\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 2:
@@ -511,10 +511,10 @@ define("dummy/tests/integration/components/aria-switch-test", ["@ember/test-help
                                   <div id="result">{{result}}</div>
                 */
                 {
-                  id: "65P6bZWx",
-                  block: "[[[8,[39,0],null,[[\"@onToggle\"],[[30,0,[\"toggleCallback\"]]]],null],[1,\"\\n                  \"],[10,0],[14,1,\"result\"],[12],[1,[34,1]],[13]],[],false,[\"aria-switch\",\"result\"]]",
-                  moduleName: "(unknown template module)",
-                  isStrictMode: false
+                  "id": "65P6bZWx",
+                  "block": "[[[8,[39,0],null,[[\"@onToggle\"],[[30,0,[\"toggleCallback\"]]]],null],[1,\"\\n                  \"],[10,0],[14,1,\"result\"],[12],[1,[34,1]],[13]],[],false,[\"aria-switch\",\"result\"]]",
+                  "moduleName": "(unknown template module)",
+                  "isStrictMode": false
                 }));
 
               case 4:
